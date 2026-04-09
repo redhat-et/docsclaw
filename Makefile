@@ -4,6 +4,12 @@ REGISTRY ?= ghcr.io/redhat-et/docsclaw
 GIT_SHA := $(shell git rev-parse --short HEAD)
 DEV_TAG ?= $(GIT_SHA)
 CONTAINER_ENGINE ?= podman
+# Remote Podman connection (e.g., PODMAN_CONNECTION=rhel)
+# When set, builds run on the remote host via 'podman --connection <name>'
+PODMAN_CONNECTION ?=
+ifdef PODMAN_CONNECTION
+  CONTAINER_ENGINE := podman --connection $(PODMAN_CONNECTION)
+endif
 
 .PHONY: build test lint fmt clean image image-push
 
