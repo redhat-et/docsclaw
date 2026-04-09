@@ -1,0 +1,260 @@
+# DocsClaw with skills — demonstrates SKILL.md loading.
+#
+# This example adds two skills (url-summary, code-review) to the
+# base agent. Skills are mounted as ConfigMaps into the config
+# directory where DocsClaw discovers them at startup.
+#
+# Prerequisites:
+#   oc new-project docsclaw
+#   oc apply -f secrets/anthropic.yaml   (see secrets/*_example.yaml)
+#
+# Deploy:
+#   oc apply -f agent-with-skills.yaml
+#
+# Test:
+#   ROUTE=$(oc get route docsclaw-skills -o jsonpath='{.spec.host}')
+#
+#   # Summarize a web page using the url-summary skill
+#   curl -X POST https://$ROUTE/a2a \
+#     -H "Content-Type: application/json" \
+#     -d '{"jsonrpc":"2.0","method":"message/send","id":"1",
+#          "params":{"message":{"messageId":"m1","role":"user",
+#          "parts":[{"kind":"text","text":"Use the url-summary skill to summarize https://go.dev/blog/go1.24"}]}}}'
+#
+#   # Review a file using the code-review skill
+#   curl -X POST https://$ROUTE/a2a \
+#     -H "Content-Type: application/json" \
+#     -d '{"jsonrpc":"2.0","method":"message/send","id":"1",
+#          "params":{"message":{"messageId":"m2","role":"user",
+#          "parts":[{"kind":"text","text":"Use the code-review skill to review /app/docsclaw"}]}}}'
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docsclaw-skills-config
+data:
+  system-prompt.txt: |
+    You are a research assistant with access to tools and skills.
+
+    You can:
+    - Execute shell commands (exec)
+    - Fetch web pages (web_fetch)
+    - Read and write files in your workspace (read_file, write_file)
+    - Load specialized skills for specific tasks (load_skill)
+
+    When a task matches a known skill, load it first for guidance.
+    Break tasks into steps and use your tools to complete them.
+    Be concise in your responses. Show your work.
+  agent-card.json: |
+    {
+      "name": "docsclaw-skills",
+      "description": "Research agent with URL summary and code review skills",
+      "version": "2.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://docsclaw-skills:8000",
+      "skills": [
+        {
+          "id": "url-summary",
+          "name": "URL Summary",
+          "description": "Fetch and summarize web pages",
+          "tags": ["research", "web"],
+          "examples": ["Summarize https://go.dev/blog/go1.24"]
+        },
+        {
+          "id": "code-review",
+          "name": "Code Review",
+          "description": "Review code for bugs, style, and security",
+          "tags": ["development", "review"],
+          "examples": ["Review main.go for security issues"]
+        }
+      ],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - exec
+        - web_fetch
+        - read_file
+        - write_file
+      exec:
+        timeout: 30
+        max_output: 50000
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 10
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docsclaw-skill-url-summary
+data:
+  SKILL.md: |
+    ---
+    name: url-summary
+    description: Fetch a URL and produce a structured summary
+    ---
+
+    # URL summary skill
+
+    When asked to summarize content from a URL:
+
+    1. Use the `web_fetch` tool to retrieve the page content
+    2. If the content is HTML, extract the main text (ignore nav, ads)
+    3. Produce a summary with:
+       - **Title**: the page or document title
+       - **Key points**: 3-5 bullet points
+       - **Notable details**: dates, numbers, names mentioned
+    4. Use `write_file` to save the summary if the user requests it
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docsclaw-skill-code-review
+data:
+  SKILL.md: |
+    ---
+    name: code-review
+    description: Review code files for bugs, style, and security issues
+    ---
+
+    # Code review skill
+
+    When asked to review code:
+
+    1. Use `read_file` to read the file(s) to review
+    2. Analyze for:
+       - **Bugs**: logic errors, off-by-one, nil derefs
+       - **Security**: injection, hardcoded secrets, unsafe input handling
+       - **Style**: naming, formatting, idiomatic patterns
+    3. Report findings with severity (Critical / Important / Minor)
+    4. Include file path and line references
+    5. Suggest fixes for Critical and Important issues
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docsclaw-skills
+  labels:
+    app: docsclaw-skills
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docsclaw-skills
+  template:
+    metadata:
+      labels:
+        app: docsclaw-skills
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:a5133a8
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          env:
+            - name: SPIFFE_DEMO_SERVICE_PORT
+              value: "8000"
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: skill-url-summary
+              mountPath: /config/agent/skills/url-summary
+              readOnly: true
+            - name: skill-code-review
+              mountPath: /config/agent/skills/code-review
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+      volumes:
+        - name: agent-config
+          configMap:
+            name: docsclaw-skills-config
+        - name: skill-url-summary
+          configMap:
+            name: docsclaw-skill-url-summary
+        - name: skill-code-review
+          configMap:
+            name: docsclaw-skill-code-review
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docsclaw-skills
+  labels:
+    app: docsclaw-skills
+spec:
+  selector:
+    app: docsclaw-skills
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: docsclaw-skills
+  labels:
+    app: docsclaw-skills
+spec:
+  to:
+    kind: Service
+    name: docsclaw-skills
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
