@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocsClaw — A Lightweight Agentic Runtime for OpenShift</title>
+  <link href="https://cdn.jsdelivr.net/npm/@rhds/tokens@3.0.2/css/global.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* === RESET & BASE === */
+    :root { color-scheme: dark; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* === COLOR VARIABLES === */
+    :root {
+      --bg-primary: #000000;
+      --bg-secondary: #1f1f1f;
+      --bg-surface: #292929;
+      --text-primary: #ffffff;
+      --text-secondary: #c7c7c7;
+      --text-muted: #a3a3a3;
+      --accent: #ee0000;
+      --accent-dark: #a60000;
+      --accent-light: #f56e6e;
+      --tag-border: #383838;
+      --icon-filter: brightness(0) invert(1);
+      --icon-filter-accent: invert(12%) sepia(100%) saturate(10000%) hue-rotate(0deg) brightness(95%);
+    }
+
+    /* === TYPOGRAPHY === */
+    :root {
+      --font-display: var(--rh-font-family-heading, 'Red Hat Display', sans-serif);
+      --font-body: var(--rh-font-family-body-text, 'Red Hat Text', sans-serif);
+      --font-mono: var(--rh-font-family-code, 'Red Hat Mono', monospace);
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* === LOGO === */
+    .rh-logo { height: 28px; width: auto; }
+    .rh-logo.small { height: 20px; }
+    .rh-logo.large { height: 40px; }
+
+    /* === ICON STYLES === */
+    .rh-icon { height: 48px; width: 48px; filter: var(--icon-filter); vertical-align: middle; }
+    .rh-icon.small { height: 24px; width: 24px; }
+    .rh-icon.medium { height: 48px; width: 48px; }
+    .rh-icon.large { height: 64px; width: 64px; }
+    .rh-icon.xl { height: 96px; width: 96px; }
+    .rh-icon.accent { filter: var(--icon-filter-accent); }
+
+    /* === SLIDE CONTAINER === */
+    .deck { width: 100vw; height: 100vh; position: relative; }
+    .slide {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: var(--rh-space-4xl, 80px) var(--rh-space-3xl, 64px);
+      position: relative;
+      overflow: hidden;
+    }
+    .slide.active { display: flex; }
+
+    /* === AMBIENT GLOW === */
+    .slide::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      right: -10%;
+      width: 60%;
+      height: 60%;
+      background: radial-gradient(ellipse, rgba(238,0,0,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .slide:nth-child(even)::before { top: -10%; right: auto; left: -15%; }
+    .slide:nth-child(1)::before { background: radial-gradient(ellipse, rgba(238,0,0,0.12) 0%, transparent 70%); }
+    .slide:last-child::before { background: radial-gradient(ellipse, rgba(238,0,0,0.14) 0%, transparent 70%); top: -30%; right: -5%; }
+
+    .slide > * { position: relative; z-index: 1; }
+
+    /* === BREADCRUMB === */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: var(--rh-space-sm, 8px);
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-xs, 0.75rem);
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: var(--rh-space-2xl, 48px);
+    }
+
+    /* === SLIDE LABEL === */
+    .slide-label {
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-xs, 0.75rem);
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: var(--rh-space-lg, 24px);
+    }
+
+    /* === HEADINGS === */
+    h1 {
+      font-family: var(--font-display);
+      font-size: var(--rh-font-size-heading-2xl, 3rem);
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: var(--rh-space-lg, 24px);
+      max-width: 900px;
+    }
+    h2 {
+      font-family: var(--font-display);
+      font-size: var(--rh-font-size-heading-lg, 2rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: var(--rh-space-lg, 24px);
+      max-width: 900px;
+    }
+    .accent { color: var(--accent); }
+
+    /* === SUBTITLE === */
+    .subtitle {
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-xl, 1.25rem);
+      color: var(--text-secondary);
+      line-height: 1.5;
+      max-width: 700px;
+      margin-bottom: var(--rh-space-xl, 32px);
+    }
+
+    /* === BODY TEXT === */
+    .body-text {
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-lg, 1.125rem);
+      color: var(--text-secondary);
+      line-height: 1.6;
+      max-width: 800px;
+    }
+    .body-text ul {
+      list-style: none;
+      padding: 0;
+    }
+    .body-text li {
+      padding: var(--rh-space-xs, 4px) 0;
+      padding-left: var(--rh-space-lg, 24px);
+      position: relative;
+    }
+    .body-text li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+
+    /* === TAGS === */
+    .tags { display: flex; flex-wrap: wrap; gap: var(--rh-space-sm, 8px); margin-bottom: var(--rh-space-xl, 32px); }
+    .tag {
+      display: inline-block;
+      padding: var(--rh-space-xs, 4px) var(--rh-space-md, 16px);
+      border: var(--rh-border-width-sm, 1px) solid var(--tag-border);
+      border-radius: var(--rh-border-radius-pill, 64px);
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-xs, 0.75rem);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .tag.accent { border-color: var(--accent); color: var(--accent); }
+
+    /* === BIG NUMBER === */
+    .big-number {
+      font-family: var(--font-display);
+      font-size: 7rem;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: var(--rh-space-md, 16px);
+    }
+    .big-number-context {
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-xl, 1.25rem);
+      color: var(--text-secondary);
+      max-width: 600px;
+    }
+
+    /* === COMPARISON === */
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--rh-space-2xl, 48px);
+      max-width: 1000px;
+      margin-top: var(--rh-space-lg, 24px);
+    }
+    .comparison-side {
+      background: var(--bg-surface);
+      border-radius: var(--rh-border-radius-default, 3px);
+      padding: var(--rh-space-lg, 24px);
+      box-shadow: var(--rh-box-shadow-md, 0 4px 6px 1px rgba(21,21,21,0.25));
+    }
+    .comparison-side h3 {
+      font-family: var(--font-display);
+      font-size: var(--rh-font-size-heading-sm, 1.25rem);
+      font-weight: 700;
+      margin-bottom: var(--rh-space-md, 16px);
+    }
+    .comparison-side.highlight {
+      border: var(--rh-border-width-md, 2px) solid var(--accent);
+    }
+    .comparison-side ul {
+      list-style: none; padding: 0;
+    }
+    .comparison-side li {
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-md, 1rem);
+      color: var(--text-secondary);
+      padding: var(--rh-space-xs, 4px) 0;
+    }
+
+    /* === ARCHITECTURE DIAGRAM === */
+    .arch-diagram {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--rh-space-md, 16px);
+      margin-top: var(--rh-space-lg, 24px);
+      max-width: 900px;
+    }
+    .arch-row {
+      display: flex;
+      gap: var(--rh-space-md, 16px);
+      align-items: center;
+    }
+    .arch-box {
+      background: var(--bg-surface);
+      border: var(--rh-border-width-sm, 1px) solid var(--tag-border);
+      border-radius: var(--rh-border-radius-default, 3px);
+      padding: var(--rh-space-sm, 8px) var(--rh-space-lg, 24px);
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-sm, 0.875rem);
+      color: var(--text-primary);
+      text-align: center;
+      box-shadow: var(--rh-box-shadow-sm, 0 2px 4px 0 rgba(21,21,21,0.2));
+      display: flex;
+      align-items: center;
+      gap: var(--rh-space-sm, 8px);
+    }
+    .arch-box.accent-border {
+      border-color: var(--accent);
+      border-width: var(--rh-border-width-md, 2px);
+    }
+    .arch-box.wide {
+      padding: var(--rh-space-md, 16px) var(--rh-space-2xl, 48px);
+    }
+    .arch-arrow {
+      font-size: 1.5rem;
+      color: var(--text-muted);
+    }
+    .arch-arrow-down {
+      font-size: 1.5rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .arch-label {
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-xs, 0.75rem);
+      color: var(--text-muted);
+      text-align: center;
+      letter-spacing: 0.05em;
+    }
+
+    /* === CODE BLOCK === */
+    .code-block {
+      background: var(--bg-surface);
+      border-radius: var(--rh-border-radius-default, 3px);
+      padding: var(--rh-space-md, 16px) var(--rh-space-lg, 24px);
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-sm, 0.875rem);
+      color: var(--text-secondary);
+      line-height: 1.6;
+      overflow-x: auto;
+      max-width: 800px;
+      box-shadow: var(--rh-box-shadow-sm, 0 2px 4px 0 rgba(21,21,21,0.2));
+    }
+    .code-block .cmd { color: var(--accent-light); }
+    .code-block .comment { color: var(--text-muted); }
+    .code-block .output { color: #63993d; }
+
+    /* === ROADMAP === */
+    .roadmap {
+      display: flex;
+      flex-direction: column;
+      gap: var(--rh-space-md, 16px);
+      max-width: 800px;
+    }
+    .roadmap-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--rh-space-md, 16px);
+    }
+    .roadmap-item .label {
+      font-family: var(--font-display);
+      font-size: var(--rh-font-size-body-text-lg, 1.125rem);
+      font-weight: 700;
+      color: var(--text-primary);
+      min-width: 0;
+    }
+    .roadmap-item .desc {
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-md, 1rem);
+      color: var(--text-muted);
+    }
+    .roadmap-bullet {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      margin-top: 8px;
+      flex-shrink: 0;
+    }
+
+    /* === ATTRIBUTION === */
+    .attribution {
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-sm, 0.875rem);
+      color: var(--text-muted);
+      margin-top: auto;
+      padding-top: var(--rh-space-xl, 32px);
+    }
+
+    /* === SOURCE === */
+    .source {
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-xs, 0.75rem);
+      color: var(--text-muted);
+      margin-top: auto;
+      padding-top: var(--rh-space-md, 16px);
+    }
+
+    /* === LOGO FOOTER === */
+    .logo-footer {
+      display: flex;
+      justify-content: center;
+      margin-top: var(--rh-space-2xl, 48px);
+    }
+
+    /* === THANK YOU === */
+    .thank-you-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      flex: 1;
+    }
+    .thank-you-center h1 {
+      font-size: 5rem;
+      margin-bottom: var(--rh-space-xl, 32px);
+    }
+
+    /* === NAVIGATION === */
+    .controls {
+      position: fixed;
+      bottom: var(--rh-space-lg, 24px);
+      right: var(--rh-space-lg, 24px);
+      display: flex;
+      align-items: center;
+      gap: var(--rh-space-lg, 24px);
+      z-index: 100;
+    }
+    .nav-hint {
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-xs, 0.75rem);
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+    .progress {
+      font-family: var(--font-mono);
+      font-size: var(--rh-font-size-body-text-sm, 0.875rem);
+      color: var(--text-muted);
+    }
+    .progress .current { color: var(--accent); font-weight: 700; }
+
+    /* === NOTES PANEL === */
+    .notes-panel {
+      display: none;
+      position: fixed;
+      bottom: 60px;
+      right: var(--rh-space-lg, 24px);
+      width: 400px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: var(--bg-surface);
+      border: var(--rh-border-width-sm, 1px) solid var(--tag-border);
+      border-radius: var(--rh-border-radius-default, 3px);
+      padding: var(--rh-space-lg, 24px);
+      font-family: var(--font-body);
+      font-size: var(--rh-font-size-body-text-sm, 0.875rem);
+      color: var(--text-secondary);
+      line-height: 1.5;
+      z-index: 100;
+      box-shadow: var(--rh-box-shadow-xl, 0 8px 24px 3px rgba(21,21,21,0.35));
+    }
+    .notes-panel.visible { display: block; }
+
+    /* === ANIMATIONS === */
+    .animate-in { opacity: 0; transform: translateY(20px); }
+    .slide.active .animate-in { animation: fadeSlideUp 0.6s ease-out forwards; }
+    .slide.active .animate-in:nth-child(2) { animation-delay: 0.1s; }
+    .slide.active .animate-in:nth-child(3) { animation-delay: 0.2s; }
+    .slide.active .animate-in:nth-child(4) { animation-delay: 0.3s; }
+    .slide.active .animate-in:nth-child(5) { animation-delay: 0.4s; }
+    .slide.active .animate-in:nth-child(6) { animation-delay: 0.5s; }
+    .slide.active .animate-in:nth-child(7) { animation-delay: 0.6s; }
+
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck">
+
+    <!-- SLIDE 1: TITLE -->
+    <div class="slide" data-notes="Arrow keys or click to navigate. Press 'N' to toggle notes with references and deeper context for each slide. DocsClaw repo: github.com/redhat-et/docsclaw">
+      <div class="breadcrumb animate-in">
+        <svg class="rh-logo small" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 613 145" role="img" aria-label="Red Hat"><title>Red Hat</title><path d="M127.47,83.49c12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42l-7.45-32.36c-1.72-7.12-3.23-10.35-15.73-16.6C124.89,8.69,103.76.5,97.51.5,91.69.5,90,8,83.06,8c-6.68,0-11.64-5.6-17.89-5.6-6,0-9.91,4.09-12.93,12.5,0,0-8.41,23.72-9.49,27.16A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33C22.27,52,.5,55,.5,74.22c0,31.48,74.59,70.28,133.65,70.28,45.28,0,56.7-20.48,56.7-36.65,0-12.72-11-27.16-30.83-35.78" fill="#e00"/><path d="M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33l3.66-9.06A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45,12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42Z"/><path d="M579.74,92.8c0,11.89,7.15,17.67,20.19,17.67a52.11,52.11,0,0,0,11.89-1.68V95a24.84,24.84,0,0,1-7.68,1.16c-5.37,0-7.36-1.68-7.36-6.73V68.3h15.56V54.1H596.78v-18l-17,3.68V54.1H568.49V68.3h11.25Zm-53,.32c0-3.68,3.69-5.47,9.26-5.47a43.12,43.12,0,0,1,10.1,1.26v7.15a21.51,21.51,0,0,1-10.63,2.63c-5.46,0-8.73-2.1-8.73-5.57m5.2,17.56c6,0,10.84-1.26,15.36-4.31v3.37h16.82V74.08c0-13.56-9.14-21-24.39-21-8.52,0-16.94,2-26,6.1l6.1,12.52c6.52-2.74,12-4.42,16.83-4.42,7,0,10.62,2.73,10.62,8.31v2.73a49.53,49.53,0,0,0-12.62-1.58c-14.31,0-22.93,6-22.93,16.73,0,9.78,7.78,17.24,20.19,17.24m-92.44-.94h18.09V80.92h30.29v28.82H506V36.12H487.93V64.41H457.64V36.12H439.55ZM370.62,81.87c0-8,6.31-14.1,14.62-14.1A17.22,17.22,0,0,1,397,72.09V91.54A16.36,16.36,0,0,1,385.24,96c-8.2,0-14.62-6.1-14.62-14.09m26.61,27.87h16.83V32.44l-17,3.68V57.05a28.3,28.3,0,0,0-14.2-3.68c-16.19,0-28.92,12.51-28.92,28.5a28.25,28.25,0,0,0,28.4,28.6,25.12,25.12,0,0,0,14.93-4.83ZM320,67c5.36,0,9.88,3.47,11.67,8.83H308.47C310.15,70.3,314.36,67,320,67M291.33,82c0,16.2,13.25,28.82,30.28,28.82,9.36,0,16.2-2.53,23.25-8.42l-11.26-10c-2.63,2.74-6.52,4.21-11.14,4.21a14.39,14.39,0,0,1-13.68-8.83h39.65V83.55c0-17.67-11.88-30.39-28.08-30.39a28.57,28.57,0,0,0-29,28.81M262,51.58c6,0,9.36,3.78,9.36,8.31S268,68.2,262,68.2H244.11V51.58Zm-36,58.16h18.09V82.92h13.77l13.89,26.82H292l-16.2-29.45a22.27,22.27,0,0,0,13.88-20.72c0-13.25-10.41-23.45-26-23.45H226Z" fill="#fff"/></svg>
+        <span>› OCTO</span>
+      </div>
+      <div class="slide-label animate-in">—— OFFICE OF THE CTO · APR 2026</div>
+      <h1 class="animate-in"><span class="accent">DocsClaw</span><br>A Lightweight Agentic Runtime<br>for OpenShift</h1>
+      <div class="subtitle animate-in">ConfigMap-driven AI agents that fit in 5 MiB.<br>Same binary, different config = different agent.</div>
+      <div class="tags animate-in">
+        <span class="tag accent">A2A Protocol</span>
+        <span class="tag">ConfigMap-Driven</span>
+        <span class="tag">Zero-Trust Ready</span>
+        <span class="tag">Go 1.25</span>
+      </div>
+      <div class="attribution animate-in">Pavel Anni · Office of the CTO · Red Hat</div>
+    </div>
+
+    <!-- SLIDE 2: THE PROBLEM — BIG NUMBER -->
+    <div class="slide" data-notes="Measured on our OpenShift demo cluster using <code>oc adm top pod</code>. OpenClaw pod: 1,577 MiB at idle with 17m CPU. DocsClaw pod: ~5 MiB at idle with near-zero CPU. OpenClaw is a full-featured platform — it's powerful, but for demos, edge deployments, and lightweight agent tasks we needed something minimal.">
+      <div class="slide-label animate-in">—— THE PROBLEM</div>
+      <h2 class="animate-in">Existing Runtimes Are <span class="accent">Too Heavy</span> for Simple Agent Tasks</h2>
+      <div style="display: flex; align-items: flex-end; gap: 64px; margin-top: 24px;">
+        <div class="animate-in" style="text-align: center;">
+          <div style="font-family: var(--font-display); font-size: 5rem; font-weight: 900; color: var(--text-muted); line-height: 1;">1,577</div>
+          <div style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--text-muted); margin-top: 8px;">MiB per pod · OpenClaw</div>
+        </div>
+        <div class="animate-in" style="text-align: center; font-family: var(--font-display); font-size: 2rem; color: var(--text-muted); padding-bottom: 24px;">vs</div>
+        <div class="animate-in" style="text-align: center;">
+          <div class="big-number">5</div>
+          <div style="font-family: var(--font-mono); font-size: 0.875rem; color: var(--accent); margin-top: 8px;">MiB per pod · DocsClaw</div>
+        </div>
+      </div>
+      <div class="big-number-context animate-in" style="margin-top: 32px;">A <span class="accent" style="font-weight: 700;">300x</span> reduction in memory footprint. Same agentic capabilities: tool use, LLM integration, A2A protocol.</div>
+      <div class="source animate-in">Source: oc adm top pod on OpenShift demo cluster, April 2026</div>
+    </div>
+
+    <!-- SLIDE 3: THE JOURNEY -->
+    <div class="slide" data-notes="The key insight was that our existing Go code — built for the Zero Trust SPIFFE/OPA demo — was already 80% of what we needed. It had A2A compliance, Kagenti discovery, ConfigMap-driven prompts. We analyzed PicoClaw's architecture and the Claude Code 'harness' pattern (published on Medium) and added just the missing pieces: tool registry, agentic loop, skill loading. Built with Claude Code in a single day.">
+      <div class="slide-label animate-in">—— THE JOURNEY</div>
+      <h2 class="animate-in">We Didn't Need a Framework —<br>We Needed a <span class="accent">Thin Runtime</span></h2>
+      <div class="body-text animate-in">
+        <ul>
+          <li>Started with simple Go agents (summarizer, reviewer) for our Zero Trust demo</li>
+          <li>Wanted them universal — same binary, any personality via ConfigMap</li>
+          <li>Evaluated NanoClaw, ZeroClaw, PicoClaw — good, but include extras we didn't need (gateway, channels, etc.)</li>
+          <li>Realized our existing A2A-compliant Go code was 80% there</li>
+          <li>Analyzed PicoClaw architecture + Claude Code's harness pattern</li>
+          <li>Added the missing 20%: tool registry, agentic loop, SKILL.md loading</li>
+        </ul>
+      </div>
+      <div class="tags animate-in" style="margin-top: 24px;">
+        <span class="tag">Go Binary</span>
+        <span class="tag">A2A Native</span>
+        <span class="tag">Kagenti Compatible</span>
+        <span class="tag accent">Built in a Day</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: ARCHITECTURE -->
+    <div class="slide" data-notes="The architecture follows the 'harness' pattern: the binary is generic, personality comes from config files mounted as ConfigMaps. system-prompt.txt defines who the agent is. agent-config.yaml controls which tools are available and loop settings. skills/ directory contains SKILL.md files the agent can load on demand. The agentic loop calls the LLM, dispatches tool calls, feeds results back, repeats until done. Built-in tools have security controls: exec has 26 deny patterns, web_fetch has SSRF protection, file tools are workspace-restricted.">
+      <div class="slide-label animate-in">—— ARCHITECTURE</div>
+      <h2 class="animate-in"><img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/architecture.svg" alt=""> Same Binary, Different <span class="accent">ConfigMap</span> = Different Agent</h2>
+      <div class="arch-diagram animate-in">
+        <div class="arch-label">CONFIGMAP</div>
+        <div class="arch-row">
+          <div class="arch-box">system-prompt.txt</div>
+          <div class="arch-box">agent-config.yaml</div>
+          <div class="arch-box">skills/</div>
+        </div>
+        <div class="arch-arrow-down">↓</div>
+        <div class="arch-row">
+          <div class="arch-box accent-border wide">
+            <img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/robot.svg" alt=""> DocsClaw Binary
+          </div>
+        </div>
+        <div class="arch-arrow-down">↓</div>
+        <div class="arch-row">
+          <div class="arch-box">A2A Endpoint</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box accent-border">Agentic Loop</div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box">LLM Provider</div>
+        </div>
+        <div class="arch-arrow-down">↓</div>
+        <div class="arch-label">BUILT-IN TOOLS</div>
+        <div class="arch-row">
+          <div class="arch-box">exec</div>
+          <div class="arch-box">web_fetch</div>
+          <div class="arch-box">read_file</div>
+          <div class="arch-box">write_file</div>
+          <div class="arch-box">load_skill</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: IN ACTION -->
+    <div class="slide" data-notes="The standalone mode requires zero infrastructure — just the binary and an API key. The zero-trust mode adds SPIFFE workload identity, OPA policy evaluation, and delegation context so agents can never exceed the permissions of the delegating user AND the agent's own capabilities. Both modes use the same binary and A2A protocol. Tested end-to-end on OpenShift — the agent correctly identifies its environment (RHEL 9.6, ARM64 pod, container runtime).">
+      <div class="slide-label animate-in">—— IN ACTION</div>
+      <h2 class="animate-in"><img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/command-line.svg" alt=""> Tested on OpenShift, <span class="accent">Works End-to-End</span></h2>
+      <div class="comparison animate-in">
+        <div class="comparison-side">
+          <h3><img class="rh-icon small" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/container.svg" alt=""> Standalone Mode</h3>
+          <ul>
+            <li>Binary + API key + ConfigMap</li>
+            <li>No SPIRE, no OPA, no sidecars</li>
+            <li>Plain HTTP or TLS termination</li>
+            <li>Deploy in any namespace</li>
+            <li style="color: var(--accent); margin-top: 8px;">5 MiB memory footprint</li>
+          </ul>
+        </div>
+        <div class="comparison-side highlight">
+          <h3><img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/shield.svg" alt=""> Zero Trust Mode</h3>
+          <ul>
+            <li>SPIFFE workload identity</li>
+            <li>OPA policy evaluation</li>
+            <li>Permission intersection:<br><span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent);">User ∩ Agent = Effective</span></li>
+            <li>Delegation context propagation</li>
+            <li style="color: var(--accent); margin-top: 8px;">Same binary, same protocol</li>
+          </ul>
+        </div>
+      </div>
+      <div class="source animate-in">Deploy: <span style="color: var(--text-secondary);">oc apply -f deploy/standalone-agent.yaml</span></div>
+    </div>
+
+    <!-- SLIDE 6: ROADMAP -->
+    <div class="slide" data-notes="The roadmap is focused on making DocsClaw a general-purpose agent runtime beyond the demo. fetch_resource generalizes the current fetch_document tool. MCP integration would let agents connect to external tool servers. Multi-agent orchestration uses the A2A protocol for agent-to-agent delegation. OCI skill distribution lets you pull skills from a registry like container images. Memory persistence is the hardest problem — we're evaluating Letta, Mem0, and Graphiti for OpenShift compatibility.">
+      <div class="slide-label animate-in">—— WHAT'S NEXT</div>
+      <h2 class="animate-in"><img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/compass.svg" alt=""> DocsClaw Is <span class="accent">Just Getting Started</span></h2>
+      <div class="roadmap animate-in">
+        <div class="roadmap-item">
+          <div class="roadmap-bullet"></div>
+          <div>
+            <div class="label">Generic fetch_resource Tool</div>
+            <div class="desc">Configurable backend URL — fetch from any service, not just documents</div>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-bullet"></div>
+          <div>
+            <div class="label">MCP Tool Integration</div>
+            <div class="desc">Connect to external tool servers via Model Context Protocol</div>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-bullet"></div>
+          <div>
+            <div class="label">Multi-Agent Orchestration</div>
+            <div class="desc">Agent-to-agent delegation via A2A protocol</div>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-bullet"></div>
+          <div>
+            <div class="label">OCI-Based Skill Distribution</div>
+            <div class="desc">Pull skills from a registry like container images</div>
+          </div>
+        </div>
+        <div class="roadmap-item">
+          <div class="roadmap-bullet"></div>
+          <div>
+            <div class="label">Memory &amp; Context Persistence</div>
+            <div class="desc">Evaluating Letta, Mem0, Graphiti for OpenShift</div>
+          </div>
+        </div>
+      </div>
+      <div class="source animate-in" style="margin-top: 24px;"><span style="color: var(--accent);">github.com/redhat-et/docsclaw</span> — Contributions welcome</div>
+    </div>
+
+    <!-- SLIDE 7: THANK YOU -->
+    <div class="slide" data-notes="[IMAGE OPPORTUNITY] Prompt for AI image gen: 'Abstract minimal illustration of a robotic claw gently holding a glowing document, dark background with subtle red accent lighting, clean geometric style, no text, 16:9 aspect ratio, Red Hat brand colors (red, dark gray, white)'">
+      <div class="thank-you-center">
+        <h1 class="animate-in">Thank <span class="accent">You</span></h1>
+        <div class="subtitle animate-in">Pavel Anni · Office of the CTO · Red Hat</div>
+        <div class="tags animate-in">
+          <span class="tag accent">github.com/redhat-et/docsclaw</span>
+        </div>
+        <div class="logo-footer animate-in">
+          <svg class="rh-logo large" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 613 145" role="img" aria-label="Red Hat"><title>Red Hat</title><path d="M127.47,83.49c12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42l-7.45-32.36c-1.72-7.12-3.23-10.35-15.73-16.6C124.89,8.69,103.76.5,97.51.5,91.69.5,90,8,83.06,8c-6.68,0-11.64-5.6-17.89-5.6-6,0-9.91,4.09-12.93,12.5,0,0-8.41,23.72-9.49,27.16A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33C22.27,52,.5,55,.5,74.22c0,31.48,74.59,70.28,133.65,70.28,45.28,0,56.7-20.48,56.7-36.65,0-12.72-11-27.16-30.83-35.78" fill="#e00"/><path d="M160,72.07c1.73,8.19,1.73,9.05,1.73,10.13,0,14-15.74,21.77-36.43,21.77C78.54,104,37.58,76.6,37.58,58.49a18.45,18.45,0,0,1,1.51-7.33l3.66-9.06A6.43,6.43,0,0,0,42.53,44c0,9.22,36.3,39.45,84.94,39.45,12.51,0,30.61-2.58,30.61-17.46a14,14,0,0,0-.31-3.42Z"/><path d="M579.74,92.8c0,11.89,7.15,17.67,20.19,17.67a52.11,52.11,0,0,0,11.89-1.68V95a24.84,24.84,0,0,1-7.68,1.16c-5.37,0-7.36-1.68-7.36-6.73V68.3h15.56V54.1H596.78v-18l-17,3.68V54.1H568.49V68.3h11.25Zm-53,.32c0-3.68,3.69-5.47,9.26-5.47a43.12,43.12,0,0,1,10.1,1.26v7.15a21.51,21.51,0,0,1-10.63,2.63c-5.46,0-8.73-2.1-8.73-5.57m5.2,17.56c6,0,10.84-1.26,15.36-4.31v3.37h16.82V74.08c0-13.56-9.14-21-24.39-21-8.52,0-16.94,2-26,6.1l6.1,12.52c6.52-2.74,12-4.42,16.83-4.42,7,0,10.62,2.73,10.62,8.31v2.73a49.53,49.53,0,0,0-12.62-1.58c-14.31,0-22.93,6-22.93,16.73,0,9.78,7.78,17.24,20.19,17.24m-92.44-.94h18.09V80.92h30.29v28.82H506V36.12H487.93V64.41H457.64V36.12H439.55ZM370.62,81.87c0-8,6.31-14.1,14.62-14.1A17.22,17.22,0,0,1,397,72.09V91.54A16.36,16.36,0,0,1,385.24,96c-8.2,0-14.62-6.1-14.62-14.09m26.61,27.87h16.83V32.44l-17,3.68V57.05a28.3,28.3,0,0,0-14.2-3.68c-16.19,0-28.92,12.51-28.92,28.5a28.25,28.25,0,0,0,28.4,28.6,25.12,25.12,0,0,0,14.93-4.83ZM320,67c5.36,0,9.88,3.47,11.67,8.83H308.47C310.15,70.3,314.36,67,320,67M291.33,82c0,16.2,13.25,28.82,30.28,28.82,9.36,0,16.2-2.53,23.25-8.42l-11.26-10c-2.63,2.74-6.52,4.21-11.14,4.21a14.39,14.39,0,0,1-13.68-8.83h39.65V83.55c0-17.67-11.88-30.39-28.08-30.39a28.57,28.57,0,0,0-29,28.81M262,51.58c6,0,9.36,3.78,9.36,8.31S268,68.2,262,68.2H244.11V51.58Zm-36,58.16h18.09V82.92h13.77l13.89,26.82H292l-16.2-29.45a22.27,22.27,0,0,0,13.88-20.72c0-13.25-10.41-23.45-26-23.45H226Z" fill="#fff"/></svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="nav-hint">← → or click · N for notes</div>
+    <div class="progress"><span class="current">1</span> / <span class="total">7</span></div>
+  </div>
+
+  <!-- NOTES PANEL -->
+  <div class="notes-panel"></div>
+
+  <script>
+    (function() {
+      const slides = document.querySelectorAll('.slide');
+      const currentEl = document.querySelector('.current');
+      const totalEl = document.querySelector('.total');
+      const notesPanel = document.querySelector('.notes-panel');
+      let idx = 0;
+      let notesVisible = false;
+
+      totalEl.textContent = slides.length;
+
+      function show(i) {
+        slides.forEach((s, j) => {
+          s.classList.toggle('active', j === i);
+          s.style.display = j === i ? 'flex' : 'none';
+        });
+        currentEl.textContent = i + 1;
+        if (notesVisible && notesPanel) {
+          const note = slides[i].dataset.notes || '';
+          notesPanel.innerHTML = note;
+        }
+      }
+
+      function next() { if (idx < slides.length - 1) { idx++; show(idx); } }
+      function prev() { if (idx > 0) { idx--; show(idx); } }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+        if (e.key === 'ArrowLeft') { prev(); }
+        if (e.key === 'n' || e.key === 'N') {
+          notesVisible = !notesVisible;
+          if (notesPanel) notesPanel.classList.toggle('visible', notesVisible);
+          show(idx);
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('.controls') || e.target.closest('.notes-panel')) return;
+        const x = e.clientX / window.innerWidth;
+        x > 0.5 ? next() : prev();
+      });
+
+      let touchStartX = 0;
+      document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+      document.addEventListener('touchend', (e) => {
+        const diff = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(diff) > 50) { diff < 0 ? next() : prev(); }
+      });
+
+      show(0);
+    })();
+  </script>
+</body>
+</html>
