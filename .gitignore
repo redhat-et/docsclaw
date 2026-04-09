@@ -4,3 +4,9 @@ tmp/
 *.exe
 *.test
 *.out
+
+# Local env files and secrets (keep *_example.* files)
+deploy/environments/*.env
+!deploy/environments/*_example.env
+deploy/secrets/*.yaml
+!deploy/secrets/*_example.yaml

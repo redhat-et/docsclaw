@@ -16,7 +16,7 @@ const (
 	ProviderOpenAI    = "openai"
 	ProviderLiteLLM   = "litellm"
 
-	DefaultAnthropicModel = "claude-sonnet-4-20250514"
+	DefaultAnthropicModel = "claude-sonnet-4-6"
 	DefaultOpenAIModel    = "gpt-4o"
 	DefaultLiteLLMModel   = "qwen3-14b"
 	DefaultOpenAIBaseURL  = "https://api.openai.com/v1"

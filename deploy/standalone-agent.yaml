@@ -86,7 +86,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: docsclaw
-          image: ghcr.io/redhat-et/docsclaw:3325dbe
+          image: ghcr.io/redhat-et/docsclaw:2e4171a
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

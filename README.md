@@ -70,7 +70,8 @@ oc apply -f deploy/standalone-agent.yaml
 ```
 
 The manifest bundles ConfigMap + Deployment + Service + Route in
-a single file. Test via the Route:
+a single file. Secret examples for Anthropic, OpenAI, and MaaS
+are in [`deploy/`](deploy/README.md). Test via the Route:
 
 ```bash
 curl -X POST https://$(oc get route docsclaw -o jsonpath='{.spec.host}')/a2a \
@@ -152,12 +153,12 @@ loop:
 
 Set via environment variables:
 
-| Variable                             | Description                                      |
-| ------------------------------------ | ------------------------------------------------ |
-| `LLM_API_KEY` or `ANTHROPIC_API_KEY` | API key                                          |
-| `LLM_PROVIDER`                       | `anthropic` (default), `openai`, `litellm`       |
-| `LLM_MODEL`                          | Model name (default: `claude-sonnet-4-20250514`) |
-| `LLM_BASE_URL`                       | Base URL for OpenAI-compatible APIs              |
+| Variable                             | Description                                |
+| ------------------------------------ | ------------------------------------------ |
+| `LLM_API_KEY` or `ANTHROPIC_API_KEY` | API key                                    |
+| `LLM_PROVIDER`                       | `anthropic` (default), `openai`, `litellm` |
+| `LLM_MODEL`                          | Model name (default: `claude-sonnet-4-6`)  |
+| `LLM_BASE_URL`                       | Base URL for OpenAI-compatible APIs        |
 
 ## Architecture
 
