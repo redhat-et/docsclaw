@@ -46,6 +46,7 @@ func NewModel(agentURL, agentName, agentDescription, userName string) Model {
 	ti.Placeholder = "Type a message..."
 	ti.Prompt = inputPromptStyle.Render("> ")
 	ti.CharLimit = 4096
+	ti.Focus()
 
 	sp := spinner.New(spinner.WithSpinner(spinner.Dot))
 
@@ -68,7 +69,7 @@ func NewModel(agentURL, agentName, agentDescription, userName string) Model {
 
 // Init returns the initial command for the model.
 func (m Model) Init() tea.Cmd {
-	return m.input.Focus()
+	return textinput.Blink
 }
 
 // Update processes messages and updates the model.
