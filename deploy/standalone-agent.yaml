@@ -2,7 +2,7 @@
 # Just a ConfigMap-driven agentic runtime with tool-use capabilities.
 #
 # Prerequisites:
-#   oc new-project zt-standalone   (or use any namespace)
+#   oc new-project docsclaw   (or use any namespace)
 #   oc create secret generic llm-secret --from-literal=LLM_API_KEY=sk-...
 #
 # Deploy:
