@@ -40,32 +40,16 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(),
 			"Warning: could not fetch agent card: %v\n", err)
-		fmt.Fprintf(cmd.ErrOrStderr(), "Using fallback name %q\n\n", agentName)
 	} else {
 		agentName = card.Name
 		agentDescription = card.Description
-
-		fmt.Fprintf(cmd.OutOrStdout(), "Connected to: %s\n", card.Name)
-		if card.Description != "" {
-			fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", card.Description)
-		}
-		if len(card.Skills) > 0 {
-			fmt.Fprintf(cmd.OutOrStdout(), "  Skills:\n")
-			for _, skill := range card.Skills {
-				fmt.Fprintf(cmd.OutOrStdout(), "    - %s: %s\n",
-					skill.Name, skill.Description)
-			}
-		}
-		fmt.Fprintln(cmd.OutOrStdout())
 	}
 
 	if nameOverride != "" {
 		agentName = nameOverride
 	}
 
-	_ = agentDescription // used only for display above
-
-	m := chat.NewModel(agentURL, agentName, "You")
+	m := chat.NewModel(agentURL, agentName, agentDescription, "You")
 	p := tea.NewProgram(m)
 	_, err = p.Run()
 	return err

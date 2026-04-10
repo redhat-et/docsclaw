@@ -3,8 +3,10 @@ package chat
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/spinner"
@@ -17,9 +19,10 @@ import (
 
 // Model is the Bubble Tea model for the interactive chat client.
 type Model struct {
-	agentURL  string
-	agentName string
-	userName  string
+	agentURL         string
+	agentName        string
+	agentDescription string
+	userName         string
 
 	client   *bridge.A2AClient
 	viewport viewport.Model
@@ -38,7 +41,7 @@ type Model struct {
 }
 
 // NewModel creates a new chat model connected to the given agent.
-func NewModel(agentURL, agentName, userName string) Model {
+func NewModel(agentURL, agentName, agentDescription, userName string) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
 	ti.Prompt = inputPromptStyle.Render("> ")
@@ -52,10 +55,11 @@ func NewModel(agentURL, agentName, userName string) Model {
 	)
 
 	return Model{
-		agentURL:  agentURL,
-		agentName: agentName,
-		userName:  userName,
-		client:    bridge.NewA2AClient(&http.Client{}, nil),
+		agentURL:         agentURL,
+		agentName:        agentName,
+		agentDescription: agentDescription,
+		userName:         userName,
+		client:    bridge.NewA2AClient(&http.Client{Timeout: 120 * time.Second}, slog.Default()),
 		input:     ti,
 		spinner:   sp,
 		renderer:  r,
@@ -167,9 +171,11 @@ func (m Model) View() tea.View {
 		return tea.NewView("Initializing...")
 	}
 
-	header := headerStyle.Width(m.width).Render(
-		fmt.Sprintf(" %s Chat", m.agentName),
-	)
+	headerText := fmt.Sprintf(" %s Chat", m.agentName)
+	if m.agentDescription != "" {
+		headerText += " — " + m.agentDescription
+	}
+	header := headerStyle.Width(m.width).Render(headerText)
 
 	var status string
 	if m.waiting {
@@ -193,6 +199,11 @@ func (m Model) View() tea.View {
 // updateViewport rebuilds the chat content and sets it in the viewport.
 func (m *Model) updateViewport() {
 	var sb strings.Builder
+
+	if len(m.messages) == 0 {
+		sb.WriteString(statusBarStyle.Render("  Send a message to start the conversation."))
+		sb.WriteString("\n")
+	}
 
 	for _, msg := range m.messages {
 		switch msg.Role {
