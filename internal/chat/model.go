@@ -259,18 +259,54 @@ func (m *Model) updateViewport() {
 }
 
 // sendMessage dispatches a message to the agent in a goroutine.
+// It prepends conversation history so the agent has context for
+// follow-up questions.
 func (m *Model) sendMessage(text string) tea.Cmd {
 	client := m.client
 	agentURL := m.agentURL
+	messageText := m.buildMessageWithHistory(text)
 
 	return func() tea.Msg {
 		result, err := client.Invoke(context.Background(), &bridge.InvokeRequest{
 			AgentURL:    agentURL,
-			MessageText: text,
+			MessageText: messageText,
 		})
 		if err != nil {
 			return errMsg{err: err}
 		}
 		return responseMsg{text: result.Text}
 	}
+}
+
+// buildMessageWithHistory formats conversation history into the message
+// text so the agent sees prior turns. On the first message, returns the
+// raw text with no formatting.
+func (m *Model) buildMessageWithHistory(text string) string {
+	// Collect prior turns, excluding error messages and the current
+	// user message (which is already appended to m.messages).
+	var history []ChatMessage
+	for _, msg := range m.messages[:len(m.messages)-1] {
+		if msg.Role == "agent" && strings.HasPrefix(msg.Text, "Error:") {
+			continue
+		}
+		history = append(history, msg)
+	}
+
+	if len(history) == 0 {
+		return text
+	}
+
+	var sb strings.Builder
+	sb.WriteString("[Conversation history]\n")
+	for _, msg := range history {
+		label := m.userName
+		if msg.Role == "agent" {
+			label = m.agentName
+		}
+		sb.WriteString(label + ": " + msg.Text + "\n\n")
+	}
+	sb.WriteString("[Current message]\n")
+	sb.WriteString(m.userName + ": " + text)
+
+	return sb.String()
 }
