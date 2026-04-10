@@ -182,18 +182,20 @@ func (m Model) View() tea.View {
 	}
 	header := headerStyle.Width(m.width).Render(headerText)
 
-	var status string
+	var inputLine string
 	if m.waiting {
-		status = statusBarStyle.Render(m.spinner.View() + " Waiting for response...")
+		inputLine = agentLabelStyle.Render(m.spinner.View()+" Thinking...")
 	} else {
-		status = statusBarStyle.Render("Press Enter to send, Ctrl+C to quit")
+		inputLine = m.input.View()
 	}
+
+	status := statusBarStyle.Render("Press Enter to send, Ctrl+C to quit")
 
 	content := fmt.Sprintf("%s\n%s\n%s\n%s",
 		header,
 		m.viewport.View(),
+		inputLine,
 		status,
-		m.input.View(),
 	)
 
 	v := tea.NewView(content)
