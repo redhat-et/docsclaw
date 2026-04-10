@@ -42,8 +42,9 @@ Contains all non-skill files from the config directory root:
 
 ### `<name>-skills`
 
-Contains all skill files, keyed as `<skill-name>/SKILL.md`. Only
-generated if the `skills/` subdirectory exists.
+Contains all skill files, keyed as `<skill-name>.SKILL.md`. Only
+generated if the `skills/` subdirectory exists and contains at
+least one `SKILL.md` file.
 
 ## Generated output structure
 

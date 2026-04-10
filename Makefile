@@ -72,11 +72,15 @@ endif
 			[ -f "$$skill_dir/SKILL.md" ] && \
 				SKILL_FILES="$$SKILL_FILES --from-file=$$skill_name.SKILL.md=$$skill_dir/SKILL.md"; \
 		done; \
-		$(KUBECTL) create configmap $(NAME)-skills \
-			$$SKILL_FILES \
-			$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
-			--dry-run=client -o yaml > $(OUTDIR)/skills.yaml; \
-		echo "  Created $(OUTDIR)/skills.yaml"; \
+		if [ -n "$$SKILL_FILES" ]; then \
+			$(KUBECTL) create configmap $(NAME)-skills \
+				$$SKILL_FILES \
+				$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
+				--dry-run=client -o yaml > $(OUTDIR)/skills.yaml; \
+			echo "  Created $(OUTDIR)/skills.yaml"; \
+		else \
+			echo "  No SKILL.md files found in $(CONFIG_DIR)/skills/, skipping skills ConfigMap"; \
+		fi; \
 	else \
 		echo "  No skills/ directory found, skipping skills ConfigMap"; \
 	fi
@@ -107,11 +111,15 @@ endif
 			[ -f "$$skill_dir/SKILL.md" ] && \
 				SKILL_FILES="$$SKILL_FILES --from-file=$$skill_name.SKILL.md=$$skill_dir/SKILL.md"; \
 		done; \
-		$(KUBECTL) create configmap $(NAME)-skills \
-			$$SKILL_FILES \
-			$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
-			--dry-run=client -o yaml | $(KUBECTL) apply -f -; \
-		echo "  Applied $(NAME)-skills"; \
+		if [ -n "$$SKILL_FILES" ]; then \
+			$(KUBECTL) create configmap $(NAME)-skills \
+				$$SKILL_FILES \
+				$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
+				--dry-run=client -o yaml | $(KUBECTL) apply -f -; \
+			echo "  Applied $(NAME)-skills"; \
+		else \
+			echo "  No SKILL.md files found in $(CONFIG_DIR)/skills/, skipping skills ConfigMap"; \
+		fi; \
 	else \
 		echo "  No skills/ directory found, skipping skills ConfigMap"; \
 	fi
