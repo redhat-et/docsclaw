@@ -21,7 +21,8 @@ make fmt         # Format code
 | Path | Description |
 | ---- | ----------- |
 | `cmd/docsclaw/` | Main entrypoint; registers LLM providers |
-| `internal/cmd/` | Cobra commands (root, serve, agentconfig) |
+| `internal/cmd/` | Cobra commands (root, serve, chat, agentconfig) |
+| `internal/chat/` | Bubble Tea interactive chat TUI |
 | `internal/anthropic/` | Anthropic LLM provider (auto-registers via init) |
 | `internal/openai/` | OpenAI-compatible provider (auto-registers via init) |
 | `internal/exec/` | Shell command execution tool |

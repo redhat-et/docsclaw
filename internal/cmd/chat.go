@@ -34,6 +34,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 
 	agentName := "Agent"
 	agentDescription := ""
+	var skills []chat.Skill
 
 	// Fetch agent card from well-known endpoint.
 	card, err := fetchAgentCard(agentURL)
@@ -43,13 +44,19 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	} else {
 		agentName = card.Name
 		agentDescription = card.Description
+		for _, s := range card.Skills {
+			skills = append(skills, chat.Skill{
+				Name:        s.Name,
+				Description: s.Description,
+			})
+		}
 	}
 
 	if nameOverride != "" {
 		agentName = nameOverride
 	}
 
-	m := chat.NewModel(agentURL, agentName, agentDescription, "You")
+	m := chat.NewModel(agentURL, agentName, agentDescription, "You", skills)
 	p := tea.NewProgram(m)
 	_, err = p.Run()
 	return err

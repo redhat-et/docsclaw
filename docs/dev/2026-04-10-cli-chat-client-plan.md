@@ -41,10 +41,10 @@ Lip Gloss, Glamour, existing `internal/bridge.A2AClient`
 - [ ] **Step 1: Add Bubble Tea and related packages**
 
 ```bash
-go get github.com/charmbracelet/bubbletea@latest
-go get github.com/charmbracelet/bubbles@latest
-go get github.com/charmbracelet/lipgloss@latest
-go get github.com/charmbracelet/glamour@latest
+go get charm.land/bubbletea/v2@latest
+go get charm.land/bubbles/v2@latest
+go get charm.land/lipgloss/v2@latest
+go get charm.land/glamour/v2@latest
 ```
 
 - [ ] **Step 2: Tidy modules**
@@ -80,7 +80,7 @@ git commit -s -m "deps: add Charm libraries for TUI chat client (#11)"
 ```go
 package chat
 
-import "github.com/charmbracelet/lipgloss"
+import lipgloss "charm.land/lipgloss/v2"
 
 var (
 	// Header bar: agent name and description.
@@ -199,12 +199,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	glamour "charm.land/glamour/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/redhat-et/docsclaw/internal/bridge"
 )
@@ -457,7 +457,7 @@ import (
 	"net/http"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/spf13/cobra"
 

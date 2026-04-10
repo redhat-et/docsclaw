@@ -18,12 +18,19 @@ import (
 	"github.com/redhat-et/docsclaw/internal/bridge"
 )
 
+// Skill describes a single agent capability for display.
+type Skill struct {
+	Name        string
+	Description string
+}
+
 // Model is the Bubble Tea model for the interactive chat client.
 type Model struct {
 	agentURL         string
 	agentName        string
 	agentDescription string
 	userName         string
+	skills           []Skill
 
 	client   *bridge.A2AClient
 	viewport viewport.Model
@@ -42,7 +49,7 @@ type Model struct {
 }
 
 // NewModel creates a new chat model connected to the given agent.
-func NewModel(agentURL, agentName, agentDescription, userName string) Model {
+func NewModel(agentURL, agentName, agentDescription, userName string, skills []Skill) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
 	ti.Prompt = inputPromptStyle.Render("> ")
@@ -61,6 +68,7 @@ func NewModel(agentURL, agentName, agentDescription, userName string) Model {
 		agentName:        agentName,
 		agentDescription: agentDescription,
 		userName:         userName,
+		skills:           skills,
 		client:    bridge.NewA2AClient(
 			&http.Client{Timeout: 120 * time.Second},
 			slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -208,6 +216,18 @@ func (m *Model) updateViewport() {
 	var sb strings.Builder
 
 	if len(m.messages) == 0 {
+		if len(m.skills) > 0 {
+			sb.WriteString(agentLabelStyle.Render("Skills:"))
+			sb.WriteString("\n")
+			for _, s := range m.skills {
+				line := fmt.Sprintf("  • %s", s.Name)
+				if s.Description != "" {
+					line += " — " + s.Description
+				}
+				sb.WriteString(line + "\n")
+			}
+			sb.WriteString("\n")
+		}
 		sb.WriteString(statusBarStyle.Render("  Send a message to start the conversation."))
 		sb.WriteString("\n")
 	}
