@@ -232,11 +232,6 @@ func (m *Model) updateViewport() {
 		}
 	}
 
-	if m.waiting {
-		label := agentLabelStyle.Render(m.agentName + ":")
-		sb.WriteString(label + "\n" + m.spinner.View() + " Thinking...\n\n")
-	}
-
 	m.viewport.SetContent(sb.String())
 	m.viewport.GotoBottom()
 }
