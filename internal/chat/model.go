@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -60,7 +61,10 @@ func NewModel(agentURL, agentName, agentDescription, userName string) Model {
 		agentName:        agentName,
 		agentDescription: agentDescription,
 		userName:         userName,
-		client:    bridge.NewA2AClient(&http.Client{Timeout: 120 * time.Second}, slog.Default()),
+		client:    bridge.NewA2AClient(
+			&http.Client{Timeout: 120 * time.Second},
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		),
 		input:     ti,
 		spinner:   sp,
 		renderer:  r,
@@ -132,7 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.waiting = false
 		m.messages = append(m.messages, ChatMessage{Role: "agent", Text: msg.text})
 		m.updateViewport()
-		return m, nil
+		return m, textinput.Blink
 
 	case errMsg:
 		m.waiting = false
@@ -142,7 +146,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Text: fmt.Sprintf("Error: %v", msg.err),
 		})
 		m.updateViewport()
-		return m, nil
+		return m, textinput.Blink
 
 	case spinner.TickMsg:
 		if m.waiting {
