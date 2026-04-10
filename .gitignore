@@ -10,3 +10,6 @@ deploy/environments/*.env
 !deploy/environments/*_example.env
 deploy/secrets/*.yaml
 !deploy/secrets/*_example.yaml
+
+# Generated ConfigMap YAML files
+deploy/generated/
