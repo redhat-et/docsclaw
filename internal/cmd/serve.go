@@ -426,10 +426,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	a2aHandler := a2asrv.NewHandler(executor)
 	jsonrpcHandler := a2asrv.NewJSONRPCHandler(a2aHandler)
-	unsignedHandler := a2asrv.NewStaticAgentCardHandler(agentCard)
+	dynamicCardHandler := bridge.DynamicCardHandler(agentCard, log.Logger)
 	cardHandler := bridge.SignedCardHandler(
 		os.Getenv("AGENT_CARD_SIGNED_PATH"),
-		unsignedHandler,
+		dynamicCardHandler,
 		log.Logger,
 	)
 	mux.Handle("GET /.well-known/agent-card.json", cardHandler)
