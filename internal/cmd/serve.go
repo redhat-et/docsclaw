@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/a2aproject/a2a-go/a2a"
-	"github.com/a2aproject/a2a-go/a2asrv"
+	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2asrv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
@@ -57,7 +57,6 @@ func loadAgentCard(configDir string) (*a2a.AgentCard, error) {
 				Name:               "docsclaw",
 				Description:        "DocsClaw Agent",
 				Version:            "1.0.0",
-				ProtocolVersion:    "0.3.0",
 				Capabilities:       a2a.AgentCapabilities{},
 				DefaultInputModes:  []string{"application/json"},
 				DefaultOutputModes: []string{"text/plain"},
@@ -387,9 +386,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	mux.HandleFunc("/health", healthHandler)
 
-	// A2A setup — only set URL if not already configured in agent-card.json
-	if agentCard.URL == "" {
-		agentCard.URL = fmt.Sprintf("http://localhost:%d", cfg.Service.Port)
+	// A2A setup — ensure at least one interface is declared
+	if len(agentCard.SupportedInterfaces) == 0 {
+		agentCard.SupportedInterfaces = []*a2a.AgentInterface{
+			a2a.NewAgentInterface(
+				fmt.Sprintf("http://localhost:%d", cfg.Service.Port),
+				a2a.TransportProtocolJSONRPC,
+			),
+		}
 	}
 	executor := &bridge.AgentExecutor{
 		Log:           log,
@@ -422,10 +426,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	a2aHandler := a2asrv.NewHandler(executor)
 	jsonrpcHandler := a2asrv.NewJSONRPCHandler(a2aHandler)
-	unsignedHandler := a2asrv.NewStaticAgentCardHandler(agentCard)
+	dynamicCardHandler := bridge.DynamicCardHandler(agentCard, log.Logger)
 	cardHandler := bridge.SignedCardHandler(
 		os.Getenv("AGENT_CARD_SIGNED_PATH"),
-		unsignedHandler,
+		dynamicCardHandler,
 		log.Logger,
 	)
 	mux.Handle("GET /.well-known/agent-card.json", cardHandler)

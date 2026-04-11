@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2a"
 )
 
 // documentIDPattern matches document IDs like DOC-001, DOC-002, etc.
@@ -20,22 +20,24 @@ func ExtractDocumentID(msg *a2a.Message) (string, error) {
 
 	// First pass: look for structured DataPart with document_id
 	for _, part := range msg.Parts {
-		dp, ok := part.(a2a.DataPart)
-		if !ok {
+		data := part.Data()
+		if data == nil {
 			continue
 		}
-		if v, ok := dp.Data["document_id"].(string); ok && v != "" {
-			return v, nil
+		if m, ok := data.(map[string]any); ok {
+			if v, ok := m["document_id"].(string); ok && v != "" {
+				return v, nil
+			}
 		}
 	}
 
 	// Second pass: extract document ID from text (e.g., "Summarize DOC-002")
 	for _, part := range msg.Parts {
-		tp, ok := part.(a2a.TextPart)
-		if !ok {
+		text := part.Text()
+		if text == "" {
 			continue
 		}
-		if matches := documentIDPattern.FindStringSubmatch(tp.Text); len(matches) > 1 {
+		if matches := documentIDPattern.FindStringSubmatch(text); len(matches) > 1 {
 			return matches[1], nil
 		}
 	}
@@ -49,12 +51,14 @@ func ExtractReviewType(msg *a2a.Message) string {
 		return ""
 	}
 	for _, part := range msg.Parts {
-		dp, ok := part.(a2a.DataPart)
-		if !ok {
+		data := part.Data()
+		if data == nil {
 			continue
 		}
-		if v, ok := dp.Data["review_type"].(string); ok {
-			return v
+		if m, ok := data.(map[string]any); ok {
+			if v, ok := m["review_type"].(string); ok {
+				return v
+			}
 		}
 	}
 	return ""

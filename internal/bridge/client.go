@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/a2aproject/a2a-go/a2a"
-	"github.com/a2aproject/a2a-go/a2aclient"
+	"github.com/a2aproject/a2a-go/v2/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2aclient"
 )
 
 // A2AClient wraps the a2aclient to send requests to A2A agents.
@@ -47,7 +47,7 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 	var msg *a2a.Message
 	if req.MessageText != "" {
 		// Gateway mode: send plain text message
-		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.TextPart{Text: req.MessageText})
+		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(req.MessageText))
 	} else {
 		// Legacy mode: send structured DataPart
 		data := map[string]any{
@@ -56,40 +56,37 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 		if req.ReviewType != "" {
 			data["review_type"] = req.ReviewType
 		}
-		msg = a2a.NewMessage(a2a.MessageRoleUser, &a2a.DataPart{Data: data})
+		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(data))
 	}
 
-	params := &a2a.MessageSendParams{
+	params := &a2a.SendMessageRequest{
 		Message: msg,
 	}
 
 	// Create a2a client using the A2A URL with explicit JSONRPC transport.
-	// We always use NewFromEndpoints because discovered agent cards may not
-	// declare PreferredTransport, causing transport matching to fail.
 	opts := []a2aclient.FactoryOption{
 		a2aclient.WithDefaultsDisabled(),
 		a2aclient.WithJSONRPCTransport(c.httpClient),
 	}
 
-	// Forward the bearer token and delegation context as HTTP headers via
-	// CallMeta. The downstream agent's DelegationTransport will read these
-	// from the request context and inject them on outbound requests.
-	meta := a2aclient.CallMeta{}
+	// Forward the bearer token and delegation context as HTTP headers
+	// via a CallInterceptor that injects ServiceParams.
+	sp := a2aclient.ServiceParams{}
 	if req.BearerToken != "" {
-		meta["authorization"] = []string{"Bearer " + req.BearerToken}
+		sp.Append("authorization", "Bearer "+req.BearerToken)
 	}
 	if req.UserSPIFFEID != "" {
-		meta["x-delegation-user"] = []string{req.UserSPIFFEID}
+		sp.Append("x-delegation-user", req.UserSPIFFEID)
 	}
 	if req.AgentSPIFFEID != "" {
-		meta["x-delegation-agent"] = []string{req.AgentSPIFFEID}
+		sp.Append("x-delegation-agent", req.AgentSPIFFEID)
 	}
-	if len(meta) > 0 {
-		opts = append(opts, a2aclient.WithInterceptors(a2aclient.NewStaticCallMetaInjector(meta)))
+	if len(sp) > 0 {
+		opts = append(opts, a2aclient.WithCallInterceptors(&serviceParamsInjector{params: sp}))
 	}
 
-	endpoints := []a2a.AgentInterface{
-		{URL: req.AgentURL, Transport: a2a.TransportProtocolJSONRPC},
+	endpoints := []*a2a.AgentInterface{
+		a2a.NewAgentInterface(req.AgentURL, a2a.TransportProtocolJSONRPC),
 	}
 	client, err := a2aclient.NewFromEndpoints(ctx, endpoints, opts...)
 	if err != nil {
@@ -106,6 +103,19 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 	}
 
 	return c.parseResult(result)
+}
+
+// serviceParamsInjector injects ServiceParams into outbound requests.
+type serviceParamsInjector struct {
+	a2aclient.PassthroughInterceptor
+	params a2aclient.ServiceParams
+}
+
+func (i *serviceParamsInjector) Before(ctx context.Context, req *a2aclient.Request) (context.Context, any, error) {
+	for k, vals := range i.params {
+		req.ServiceParams.Append(k, vals...)
+	}
+	return ctx, nil, nil
 }
 
 // parseResult extracts text from a SendMessageResult (Task or Message).
@@ -156,12 +166,12 @@ func (c *A2AClient) parseMessage(msg *a2a.Message) (*InvokeResult, error) {
 	return &InvokeResult{Text: text, State: "completed"}, nil
 }
 
-// extractTextFromParts concatenates text from all TextParts in a part list.
-func extractTextFromParts(parts []a2a.Part) string {
+// extractTextFromParts concatenates text from all Parts in a part list.
+func extractTextFromParts(parts a2a.ContentParts) string {
 	var texts []string
 	for _, part := range parts {
-		if tp, ok := part.(a2a.TextPart); ok && tp.Text != "" {
-			texts = append(texts, tp.Text)
+		if t := part.Text(); t != "" {
+			texts = append(texts, t)
 		}
 	}
 	if len(texts) == 0 {

@@ -7,7 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.2
 	charm.land/glamour/v2 v2.0.0
 	charm.land/lipgloss/v2 v2.0.2
-	github.com/a2aproject/a2a-go v0.3.14-0.20260404065426-6a9878f8f8a8
+	github.com/a2aproject/a2a-go/v2 v2.2.0
 	github.com/anthropics/anthropic-sdk-go v1.33.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
@@ -61,12 +61,10 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.5 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
-	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
