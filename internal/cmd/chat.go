@@ -8,7 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/spf13/cobra"
 
 	"github.com/redhat-et/docsclaw/internal/chat"

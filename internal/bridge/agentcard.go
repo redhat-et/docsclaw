@@ -1,7 +1,7 @@
 package bridge
 
 import (
-	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/v2/a2a"
 )
 
 // AgentCardParams holds the parameters for building an A2A AgentCard.
@@ -16,13 +16,14 @@ type AgentCardParams struct {
 // BuildAgentCard creates an a2a.AgentCard from the given parameters.
 func BuildAgentCard(p AgentCardParams) *a2a.AgentCard {
 	return &a2a.AgentCard{
-		Name:            p.Name,
-		Description:     p.Description,
-		Version:         p.Version,
-		URL:             p.URL,
-		ProtocolVersion: "0.3.0",
-		Skills:          p.Skills,
-		Capabilities:    a2a.AgentCapabilities{},
+		Name:        p.Name,
+		Description: p.Description,
+		Version:     p.Version,
+		SupportedInterfaces: []*a2a.AgentInterface{
+			a2a.NewAgentInterface(p.URL, a2a.TransportProtocolJSONRPC),
+		},
+		Skills:       p.Skills,
+		Capabilities: a2a.AgentCapabilities{},
 		DefaultInputModes: []string{
 			"application/json",
 		},
