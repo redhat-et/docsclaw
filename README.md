@@ -22,16 +22,13 @@ to discover and interact with agents:
 go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest
 
 a2a discover http://localhost:8000
+a2a send http://localhost:8000 "Summarize https://go.dev/blog/go1.24"
 ```
 
-Send a task via curl:
+Or use the built-in interactive chat:
 
 ```bash
-curl -X POST http://localhost:8000/a2a \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"message/send","id":"1",
-       "params":{"message":{"messageId":"m1","role":"user",
-       "parts":[{"kind":"text","text":"Summarize https://go.dev/blog/go1.24"}]}}}'
+./bin/docsclaw chat --agent-url http://localhost:8000
 ```
 
 The agent uses `web_fetch` to retrieve the page, then summarizes
