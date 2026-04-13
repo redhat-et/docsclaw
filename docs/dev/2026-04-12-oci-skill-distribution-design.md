@@ -110,10 +110,13 @@ metadata:
   description: Convert documents between formats using pandoc
   author: Red Hat ET
   license: Apache-2.0
+  metadata:                       # pass-through from SKILL.md frontmatter
+    category: document-tools
 spec:
   tools:
-    required: [exec]
+    required: [exec]              # what the skill needs from the platform
     optional: [read_file]
+  allowedTools: "Bash(pandoc:*)"  # from SKILL.md allowed-tools (community field)
   dependencies:
     skills: []
     toolPacks:
@@ -124,6 +127,7 @@ spec:
     estimatedCPU: 100m
   compatibility:
     minAgentVersion: "0.5.0"
+    environment: "Requires pandoc 3.x"  # from SKILL.md compatibility field
 ```
 
 ### Field reference
@@ -132,20 +136,42 @@ spec:
 | ----- | -------- | ----------- |
 | `apiVersion` | yes | Schema version (`docsclaw.io/v1alpha1`) |
 | `kind` | yes | Always `SkillCard` |
-| `metadata.name` | yes | Short name used with `load_skill` |
+| `metadata.name` | yes | Skill identifier; must follow Agent Skills naming rules (lowercase, hyphens, 1-64 chars, must match directory name) |
 | `metadata.namespace` | yes | Ownership scope (e.g., `official`, `research`) |
 | `metadata.ref` | yes | Canonical OCI reference (without tag) |
 | `metadata.version` | yes | Semver version |
-| `metadata.description` | yes | Human-readable description |
+| `metadata.description` | yes | Human-readable description (max 1024 chars per Agent Skills spec) |
 | `metadata.author` | yes | Skill author or organization |
 | `metadata.license` | no | SPDX license identifier |
-| `spec.tools.required` | no | Tools the skill needs from the agent |
+| `metadata.metadata` | no | Arbitrary key-value pairs; mirrors SKILL.md `metadata` field |
+| `spec.tools.required` | no | Tools the skill needs from the agent platform |
 | `spec.tools.optional` | no | Tools the skill can use but does not require |
+| `spec.allowedTools` | no | Pre-approved tool patterns; mirrors SKILL.md `allowed-tools` field |
 | `spec.dependencies.skills` | no | Other skills that must be loaded first |
 | `spec.dependencies.toolPacks` | no | External binary dependencies (OCI refs) |
 | `spec.resources.estimatedMemory` | no | Resource hint for quota enforcement |
 | `spec.resources.estimatedCPU` | no | Resource hint for quota enforcement |
 | `spec.compatibility.minAgentVersion` | no | Minimum agent version |
+| `spec.compatibility.environment` | no | Free-text environment requirements; mirrors SKILL.md `compatibility` field |
+
+### Agent Skills spec compatibility
+
+The SkillCard maps every SKILL.md frontmatter field defined by the
+[Agent Skills Specification](https://agentskills.io/specification):
+
+| SKILL.md field | SkillCard location | Notes |
+| -------------- | ------------------ | ----- |
+| `name` | `metadata.name` | Same constraints enforced |
+| `description` | `metadata.description` | Same 1024-char limit |
+| `license` | `metadata.license` | Direct mapping |
+| `compatibility` | `spec.compatibility.environment` | Free text, same semantics |
+| `metadata` | `metadata.metadata` | Pass-through key-value map |
+| `allowed-tools` | `spec.allowedTools` | Also populated in OCI config blob for community tool compatibility |
+
+The `docsclaw skill pack` command validates that `metadata.name`
+matches the skill directory name, as required by the Agent Skills
+spec. The `pack` command also validates naming constraints: lowercase,
+hyphens only, no leading/trailing/consecutive hyphens, max 64 chars.
 
 ### Naming convention
 
