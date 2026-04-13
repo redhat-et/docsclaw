@@ -431,6 +431,84 @@ The init container image is the same `docsclaw` binary. The skill
 refs and verification key are configured via environment variables or
 a ConfigMap.
 
+### Agent Sandbox compatibility
+
+[Agent Sandbox][agent-sandbox] is a Kubernetes SIG Apps project that
+provides a `Sandbox` CRD (`agents.x-k8s.io/v1alpha1`) for managing
+isolated, stateful, singleton pods. It offers stable identity,
+persistent storage, lifecycle management (shutdown timers,
+pause/resume), network isolation via NetworkPolicies, and a
+`SandboxTemplate` + `SandboxClaim` pattern for templated provisioning
+with pre-warmed pools.
+
+Agent Sandbox has no opinion about skills, agents, or AI workloads
+specifically — it is a generic "managed singleton pod" abstraction.
+Our OCI skill distribution design is fully compatible because the two
+projects operate at different layers:
+
+| Concern | Agent Sandbox | DocsClaw OCI Skills |
+| ------- | ------------- | ------------------- |
+| Pod lifecycle | Manages it | Not involved |
+| Container image | User provides | DocsClaw agent image |
+| Skill delivery | Not addressed | Init container + OCI pull |
+| Network isolation | NetworkPolicy | Not addressed |
+| Persistent storage | PVC management | Could persist skill cache |
+| Signature verification | Not addressed | SkillPolicy + sigstore |
+
+A DocsClaw agent with OCI-distributed skills deployed as an Agent
+Sandbox:
+
+```yaml
+apiVersion: agents.x-k8s.io/v1alpha1
+kind: Sandbox
+metadata:
+  name: docsclaw-agent
+spec:
+  podTemplate:
+    spec:
+      initContainers:
+        - name: skill-puller
+          image: ghcr.io/redhat-et/docsclaw:latest
+          command: ["docsclaw", "skill", "pull", "--verify"]
+          env:
+            - name: SKILL_REFS
+              value: "quay.io/docsclaw/official/skill-code-review:1.0.0"
+          volumeMounts:
+            - mountPath: /skills
+              name: skills-vol
+            - mountPath: /etc/docsclaw/keys
+              name: signing-keys
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:latest
+          volumeMounts:
+            - mountPath: /skills
+              name: skills-vol
+      volumes:
+        - name: skills-vol
+          emptyDir: {}
+        - name: signing-keys
+          secret:
+            secretName: docsclaw-signing-keys
+  lifecycle:
+    shutdownPolicy: Retain
+```
+
+This follows the same pattern as other Agent Sandbox examples (e.g.,
+`openclaw-sandbox`): a container image with config mounted via
+ConfigMap/Secret and persistent storage via PVC. Our init container
+approach fits cleanly into the `podTemplate.spec.initContainers`
+field.
+
+**Future opportunity:** Agent Sandbox's `SandboxTemplate` +
+`SandboxClaim` pattern could serve as the foundation for skill
+assignment at scale. A `SandboxTemplate` could define the base agent
+image + default skill set, and `SandboxClaim` handles provisioning
+for individual users. This may reduce or eliminate the need for a
+custom operator.
+
+[agent-sandbox]: https://github.com/kubernetes-sigs/agent-sandbox
+
 ## Deployment audit trail
 
 The community spec defines a `skills.lock.json` lock file for
@@ -498,7 +576,8 @@ phases build on it:
 - **Tool packs** as separate OCI artifacts for binary dependencies
 - **Keyless verification** via Fulcio for identity-based trust
 - **Kubernetes operator** with CRD for skill assignment and policy
-  enforcement
+  enforcement, potentially built on [Agent Sandbox][agent-sandbox]
+  `SandboxTemplate` + `SandboxClaim` instead of a custom CRD
 - **Resource quotas** using SkillCard resource hints
 - **Skill dependency resolution** when cross-dependent skills emerge
 - **Skills Collection** using OCI Image Index for catalog browsing,
@@ -521,3 +600,6 @@ phases build on it:
   for sigstore verification
 - [Lola](https://github.com/RedHatProductSecurity/lola) — Red Hat
   Product Security skill manager (interactive CLI, RPM-inspired model)
+- [Agent Sandbox][agent-sandbox] — Kubernetes SIG Apps project for
+  isolated, stateful, singleton agent pods; compatible deployment
+  target for DocsClaw with OCI skills
