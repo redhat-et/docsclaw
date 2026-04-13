@@ -8,6 +8,8 @@ import (
 	ociops "github.com/redhat-et/docsclaw/internal/oci"
 )
 
+var inspectTLSVerify bool
+
 var skillInspectCmd = &cobra.Command{
 	Use:   "inspect <ref>",
 	Short: "Show SkillCard metadata",
@@ -17,7 +19,8 @@ var skillInspectCmd = &cobra.Command{
 
 		ctx := context.Background()
 
-		sc, err := ociops.Inspect(ctx, ref, ociops.InspectOptions{})
+		tlsVerify := inspectTLSVerify
+		sc, err := ociops.Inspect(ctx, ref, ociops.InspectOptions{TLSVerify: &tlsVerify})
 		if err != nil {
 			return fmt.Errorf("failed to inspect skill: %w", err)
 		}
@@ -50,4 +53,5 @@ var skillInspectCmd = &cobra.Command{
 
 func init() {
 	skillCmd.AddCommand(skillInspectCmd)
+	skillInspectCmd.Flags().BoolVar(&inspectTLSVerify, "tls-verify", true, "Require HTTPS and verify certificates")
 }

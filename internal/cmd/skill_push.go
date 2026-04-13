@@ -8,7 +8,10 @@ import (
 	ociops "github.com/redhat-et/docsclaw/internal/oci"
 )
 
-var pushAsImage bool
+var (
+	pushAsImage   bool
+	pushTLSVerify bool
+)
 
 var skillPushCmd = &cobra.Command{
 	Use:   "push <skill-dir> <ref>",
@@ -20,8 +23,10 @@ var skillPushCmd = &cobra.Command{
 
 		ctx := context.Background()
 
+		tlsVerify := pushTLSVerify
 		opts := ociops.PushOptions{
-			AsImage: pushAsImage,
+			AsImage:   pushAsImage,
+			TLSVerify: &tlsVerify,
 		}
 
 		if err := ociops.Push(ctx, skillDir, ref, opts); err != nil {
@@ -37,4 +42,5 @@ var skillPushCmd = &cobra.Command{
 func init() {
 	skillCmd.AddCommand(skillPushCmd)
 	skillPushCmd.Flags().BoolVar(&pushAsImage, "as-image", false, "Push as OCI image instead of artifact")
+	skillPushCmd.Flags().BoolVar(&pushTLSVerify, "tls-verify", true, "Require HTTPS and verify certificates")
 }

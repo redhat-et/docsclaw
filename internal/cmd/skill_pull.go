@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	pullVerify bool
-	pullKey    string
-	pullOutput string
+	pullVerify    bool
+	pullKey       string
+	pullOutput    string
+	pullTLSVerify bool
 )
 
 var skillPullCmd = &cobra.Command{
@@ -54,7 +55,8 @@ var skillPullCmd = &cobra.Command{
 		}
 
 		// Pull the skill
-		opts := ociops.PullOptions{}
+		tlsVerify := pullTLSVerify
+		opts := ociops.PullOptions{TLSVerify: &tlsVerify}
 		if err := ociops.Pull(ctx, ref, output, opts); err != nil {
 			return fmt.Errorf("failed to pull skill: %w", err)
 		}
@@ -70,4 +72,5 @@ func init() {
 	skillPullCmd.Flags().BoolVar(&pullVerify, "verify", false, "Verify signature before pulling")
 	skillPullCmd.Flags().StringVar(&pullKey, "key", "", "Public key for signature verification")
 	skillPullCmd.Flags().StringVarP(&pullOutput, "output", "o", "", "Output directory (default: ~/.docsclaw/skills/)")
+	skillPullCmd.Flags().BoolVar(&pullTLSVerify, "tls-verify", true, "Require HTTPS and verify certificates")
 }

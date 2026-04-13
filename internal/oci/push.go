@@ -12,7 +12,8 @@ import (
 
 // PushOptions configures the push operation.
 type PushOptions struct {
-	AsImage bool
+	AsImage      bool
+	TLSVerify    *bool // nil = default (true), false = plain HTTP
 	// Registry overrides the default remote registry (for testing with memory store).
 	Registry oras.Target
 }
@@ -30,7 +31,7 @@ func Push(ctx context.Context, skillDir, ref string, opts PushOptions) error {
 	}
 
 	// 3. Resolve the target registry
-	target, err := resolveTarget(ref, opts.Registry)
+	target, err := resolveTarget(ref, opts.Registry, opts.TLSVerify)
 	if err != nil {
 		return fmt.Errorf("failed to resolve target: %w", err)
 	}
@@ -59,7 +60,8 @@ func Push(ctx context.Context, skillDir, ref string, opts PushOptions) error {
 
 // resolveTarget returns the target registry. If override is set, it is used;
 // otherwise, a remote repository is created from the ref.
-func resolveTarget(ref string, override oras.Target) (oras.Target, error) {
+// tlsVerify: nil = default (HTTPS), ptr to false = plain HTTP.
+func resolveTarget(ref string, override oras.Target, tlsVerify *bool) (oras.Target, error) {
 	if override != nil {
 		return override, nil
 	}
@@ -72,6 +74,10 @@ func resolveTarget(ref string, override oras.Target) (oras.Target, error) {
 	repo, err := remote.NewRepository(parsedRef.Registry + "/" + parsedRef.Repository)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create remote repository: %w", err)
+	}
+
+	if tlsVerify != nil && !*tlsVerify {
+		repo.PlainHTTP = true
 	}
 
 	return repo, nil

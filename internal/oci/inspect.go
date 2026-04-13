@@ -15,13 +15,14 @@ import (
 
 // InspectOptions configures the inspect operation.
 type InspectOptions struct {
-	Registry oras.Target
+	TLSVerify *bool // nil = default (true), false = plain HTTP
+	Registry  oras.Target
 }
 
 // Inspect fetches only the SkillCard layer from a registry without pulling the full content.
 func Inspect(ctx context.Context, ref string, opts InspectOptions) (card.SkillCard, error) {
 	// 1. Resolve target registry
-	target, err := resolveTarget(ref, opts.Registry)
+	target, err := resolveTarget(ref, opts.Registry, opts.TLSVerify)
 	if err != nil {
 		return card.SkillCard{}, fmt.Errorf("failed to resolve target: %w", err)
 	}

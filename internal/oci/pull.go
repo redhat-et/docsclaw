@@ -19,13 +19,14 @@ import (
 
 // PullOptions configures the pull operation.
 type PullOptions struct {
-	Registry oras.Target
+	TLSVerify *bool // nil = default (true), false = plain HTTP
+	Registry  oras.Target
 }
 
 // Pull fetches a skill artifact from a registry and extracts it to destDir.
 func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 	// 1. Resolve target registry
-	target, err := resolveTarget(ref, opts.Registry)
+	target, err := resolveTarget(ref, opts.Registry, opts.TLSVerify)
 	if err != nil {
 		return fmt.Errorf("failed to resolve target: %w", err)
 	}
