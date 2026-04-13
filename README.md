@@ -101,6 +101,22 @@ Step-by-step instructions for the LLM to follow...
 See `testdata/standalone/skills/` for examples (url-summary,
 code-review).
 
+### OCI skill distribution
+
+Skills can be packaged as OCI artifacts and distributed via
+registries (quay.io, GHCR, Harbor, Zot). On OpenShift 4.20+ they
+mount directly as image volumes — no init container needed.
+
+```bash
+docsclaw skill pack examples/skills/resume-screener
+docsclaw skill push --as-image examples/skills/resume-screener \
+  quay.io/myorg/skill-resume-screener:1.0.0
+docsclaw skill inspect quay.io/myorg/skill-resume-screener:1.0.0
+```
+
+See the [OCI skills guide](docs/oci-skills-guide.md) for the full
+workflow including signing, verification, and deployment manifests.
+
 ## Configuration
 
 ### system-prompt.txt
