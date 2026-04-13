@@ -94,7 +94,7 @@ or Claude Code.
   errors, completion/success, reviewer comments, and end-user
   feedback.
 
-## Business user stories
+## Skill consumer user stories
 
 These stories describe non-technical users who interact with agents
 through a web portal, chat interface, or internal application — never
@@ -319,11 +319,11 @@ agent and skill design:
 These business user stories reinforce several design decisions and
 highlight new requirements:
 
-| Implication | Design impact |
-| ----------- | ------------- |
-| Web portal needed | Agents need an HTTP frontend beyond A2A; a thin web UI or integration with an existing portal |
-| Document ingestion skills | Need PDF, DOCX, XLSX, CSV parsing skills — prime candidates for OCI-distributed skill packs with tool dependencies (e.g., pandoc, Apache Tika) |
-| Batch processing | Context compaction becomes critical; or a pattern where the orchestrating agent delegates per-document work to sub-agents |
-| Template-driven output | Skills need configurable output templates; the SkillCard could declare supported output formats |
-| Audit trail | The deployment audit trail (skills-installed.json) extends to execution logs: which skill processed which document with what result |
-| Domain rubric library | Scoring frameworks (MEDDPICC, SOC 2 controls, change risk matrix) are a form of skill configuration — parameterizable via the SkillCard or uploaded reference documents |
+| Implication               | Design impact                                                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web portal needed         | Agents need an HTTP frontend beyond A2A; a thin web UI or integration with an existing portal                                                                           |
+| Document ingestion skills | Need PDF, DOCX, XLSX, CSV parsing skills — prime candidates for OCI-distributed skill packs with tool dependencies (e.g., pandoc, Apache Tika)                          |
+| Batch processing          | Context compaction becomes critical; or a pattern where the orchestrating agent delegates per-document work to sub-agents                                               |
+| Template-driven output    | Skills need configurable output templates; the SkillCard could declare supported output formats                                                                         |
+| Audit trail               | The deployment audit trail (skills-installed.json) extends to execution logs: which skill processed which document with what result                                     |
+| Domain rubric library     | Scoring frameworks (MEDDPICC, SOC 2 controls, change risk matrix) are a form of skill configuration — parameterizable via the SkillCard or uploaded reference documents |
