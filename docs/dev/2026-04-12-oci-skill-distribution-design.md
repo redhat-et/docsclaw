@@ -473,22 +473,44 @@ principle that the agent should not decide what to trust.
 
 **Skill artifact packaging for image volumes:** The skill OCI
 artifact must be mountable as a filesystem by the container runtime.
-This means packaging the skill directory as a `FROM scratch` image
-with the content layer, rather than a pure OCI artifact with custom
-media types. Concretely, the `docsclaw skill push` command would
-produce a minimal container image:
+The kubelet expects the artifact to look like a container image —
+specifically, the config media type must be
+`application/vnd.oci.image.config.v1+json` (the standard OCI image
+config), not a custom artifact config type.
 
-```dockerfile
-FROM scratch
-COPY skill.yaml SKILL.md scripts/ references/ assets/ /
+**This does not mean we abandon oras-go.** The oras-go library can
+produce OCI manifests with any config media type. The difference
+between a "pure artifact" and a "mountable image" is a single field
+in the manifest — the config media type. No Docker, Buildah, or
+container build tool is needed.
+
+```go
+// oras-go: push as a mountable image
+configDesc := ocispec.Descriptor{
+    MediaType: "application/vnd.oci.image.config.v1+json",
+}
+
+// oras-go: push as a pure OCI artifact
+configDesc := ocispec.Descriptor{
+    MediaType: "application/vnd.agentskills.skill.config.v1+json",
+}
 ```
 
-The community-compatible content layer
-(`application/vnd.agentskills.skill.content.v1.tar+gzip`) already
-packages the skill as a tarball, which aligns with how container
-image layers work. The SkillCard (layer 0) would be included in the
-same image as a separate file rather than a separate OCI layer, so
-it is accessible after mount.
+The `docsclaw skill push` command supports both modes:
+
+```bash
+# Mountable image (for image volumes on K8s 1.33+ / OpenShift 4.20+)
+docsclaw skill push --as-image ./skills/code-review quay.io/...
+
+# Pure OCI artifact (community-compatible, for docsclaw skill pull)
+docsclaw skill push ./skills/code-review quay.io/...
+```
+
+Both modes use oras-go for all OCI operations. Both produce
+artifacts that can be signed with sigstore-go and pushed to any
+OCI-compliant registry. The content layer is the same tar+gzip of
+the skill directory in both cases. The only difference is whether
+the kubelet can mount it directly.
 
 ### Registry authentication
 
@@ -720,21 +742,199 @@ For the PoC, this file is written to the shared volume alongside the
 skills. In production, it could be emitted as a Kubernetes Event or
 pushed to a central audit log.
 
+## Demo skills
+
+The PoC uses three skills derived from the HR skill consumer user
+stories (see `docs/dev/2026-04-13-user-stories.md`). These are
+realistic, business-oriented examples that demonstrate the value of
+OCI-distributed skills to a non-developer audience.
+
+### resume-screener
+
+Grades resumes against a job description. The user uploads a batch
+of resumes and a job description; the agent scores each candidate
+on qualification alignment, experience, and fit, then produces a
+ranked spreadsheet.
+
+```yaml
+apiVersion: docsclaw.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: resume-screener
+  namespace: official
+  ref: quay.io/docsclaw/official/skill-resume-screener
+  version: 1.0.0
+  description: >-
+    Screen resumes against a job description. Scores candidates on
+    qualification alignment, experience match, and fit. Use when HR
+    uploads resumes for a job opening.
+  author: Red Hat ET
+  license: Apache-2.0
+  metadata:
+    category: human-resources
+spec:
+  tools:
+    required: [read_file]
+    optional: [write_file]
+  allowedTools: "Read Write"
+  dependencies:
+    skills: []
+    toolPacks: []
+  resources:
+    estimatedMemory: 32Mi
+    estimatedCPU: 100m
+  compatibility:
+    minAgentVersion: "0.5.0"
+    environment: ""
+```
+
+### policy-comparator
+
+Compares policy documents side by side. The user uploads several
+policy documents and the agent produces a comparison matrix showing
+where each policy is above, at, or below a baseline.
+
+```yaml
+apiVersion: docsclaw.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: policy-comparator
+  namespace: official
+  ref: quay.io/docsclaw/official/skill-policy-comparator
+  version: 1.0.0
+  description: >-
+    Compare policy documents side by side. Produces a structured
+    comparison matrix. Use when analyzing policies from multiple
+    sources against a baseline.
+  author: Red Hat ET
+  license: Apache-2.0
+  metadata:
+    category: human-resources
+spec:
+  tools:
+    required: [read_file]
+    optional: [write_file]
+  allowedTools: "Read Write"
+  dependencies:
+    skills: []
+    toolPacks: []
+  resources:
+    estimatedMemory: 32Mi
+    estimatedCPU: 100m
+  compatibility:
+    minAgentVersion: "0.5.0"
+    environment: ""
+```
+
+### checklist-auditor
+
+Audits a set of checklists for consistency against a standard. The
+user uploads department checklists and a corporate standard; the
+agent identifies gaps, inconsistencies, and missing steps.
+
+```yaml
+apiVersion: docsclaw.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: checklist-auditor
+  namespace: official
+  ref: quay.io/docsclaw/official/skill-checklist-auditor
+  version: 1.0.0
+  description: >-
+    Audit checklists for consistency against a corporate standard.
+    Identifies gaps, inconsistencies, and missing steps. Use when
+    verifying process documents across departments.
+  author: Red Hat ET
+  license: Apache-2.0
+  metadata:
+    category: operations
+spec:
+  tools:
+    required: [read_file]
+    optional: [write_file]
+  allowedTools: "Read Write"
+  dependencies:
+    skills: []
+    toolPacks: []
+  resources:
+    estimatedMemory: 32Mi
+    estimatedCPU: 100m
+  compatibility:
+    minAgentVersion: "0.5.0"
+    environment: ""
+```
+
+### Demo deployment
+
+An HR agent equipped with all three skills, deployed on
+OpenShift 4.20 with image volumes:
+
+```yaml
+apiVersion: agents.x-k8s.io/v1alpha1
+kind: Sandbox
+metadata:
+  name: hr-agent
+spec:
+  podTemplate:
+    spec:
+      imagePullSecrets:
+        - name: skill-registry-creds
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:latest
+          env:
+            - name: CONFIG_DIR
+              value: /config/agent
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+            - name: skill-resume-screener
+              mountPath: /skills/resume-screener
+            - name: skill-policy-comparator
+              mountPath: /skills/policy-comparator
+            - name: skill-checklist-auditor
+              mountPath: /skills/checklist-auditor
+      volumes:
+        - name: agent-config
+          configMap:
+            name: hr-agent-config
+        - name: skill-resume-screener
+          image:
+            reference: quay.io/docsclaw/official/skill-resume-screener:1.0.0
+            pullPolicy: IfNotPresent
+        - name: skill-policy-comparator
+          image:
+            reference: quay.io/docsclaw/official/skill-policy-comparator:1.0.0
+            pullPolicy: IfNotPresent
+        - name: skill-checklist-auditor
+          image:
+            reference: quay.io/docsclaw/official/skill-checklist-auditor:1.0.0
+            pullPolicy: IfNotPresent
+  lifecycle:
+    shutdownPolicy: Retain
+```
+
+The agent discovers all three skills at startup via
+`skills.Discover("/skills/")` and presents them to users. The HR
+team interacts through a web portal or chat interface — they never
+see the YAML above.
+
 ## Demo scenario
 
-1. Show an existing skill directory with `SKILL.md` and new `skill.yaml`
-1. `docsclaw skill pack ./skills/code-review` — produce local OCI layout
-1. `docsclaw skill inspect` the local layout — show SkillCard metadata
-1. `docsclaw skill push --sign` — push to a local Zot registry, sign
-   with cosign key
-1. `docsclaw skill pull --verify` — pull on a clean environment,
-   signature verified
-1. `docsclaw skill pull` an unsigned skill with `mode: enforce` —
-   rejected with clear error
-1. Mount the pushed skill as an image volume in a pod on
-   OpenShift 4.20 — show the skill files appearing at `/skills/`
-   without an init container
-1. Show the agent discovering and using the mounted skill
+1. Create the three skill directories with `SKILL.md` and `skill.yaml`
+1. `docsclaw skill pack` each skill — produce local OCI layouts
+1. `docsclaw skill inspect` — show the SkillCard metadata for each
+1. `docsclaw skill push --as-image --sign` — push to a local Zot
+   registry as mountable images, sign with cosign key
+1. `docsclaw skill push --as-image` an unsigned skill — show it
+   exists in the registry but is not signed
+1. Deploy the HR agent Sandbox manifest on OpenShift 4.20 — show
+   all three skills mounted as image volumes at `/skills/`
+1. Send an A2A request: "Screen these resumes against this job
+   description" — show the agent loading and using the
+   `resume-screener` skill
+1. Attempt to deploy a skill from an untrusted registry with image
+   signature verification enabled — show it rejected by the platform
 
 ## Future work
 
