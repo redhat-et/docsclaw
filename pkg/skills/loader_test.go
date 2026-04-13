@@ -84,6 +84,47 @@ func TestLoadSkillContentNotFound(t *testing.T) {
 	}
 }
 
+func TestDiscoverWithSkillCard(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "my-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write SKILL.md with frontmatter.
+	skillMD := "---\nname: my-skill\ndescription: From SKILL.md\n---\n# My skill\n"
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skillMD), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write skill.yaml with richer metadata.
+	skillYAML := `apiVersion: docsclaw.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: my-skill
+  namespace: official
+  ref: quay.io/test/skill-my-skill
+  version: 1.0.0
+  description: From SkillCard with more detail.
+  author: Test
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "skill.yaml"), []byte(skillYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(skills) != 1 {
+		t.Fatalf("len(skills) = %d, want 1", len(skills))
+	}
+	// When both exist, SkillCard description takes precedence.
+	if !strings.Contains(skills[0].Description, "From SkillCard") {
+		t.Errorf("Description = %q, want SkillCard description", skills[0].Description)
+	}
+}
+
 func TestBuildSkillSummary(t *testing.T) {
 	skills := []SkillMeta{
 		{Name: "code-review", Description: "Review code for bugs"},

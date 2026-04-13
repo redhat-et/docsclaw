@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/redhat-et/docsclaw/pkg/skills/card"
 )
 
 // SkillMeta holds the metadata from a SKILL.md frontmatter.
@@ -40,6 +42,13 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 			continue
 		}
 		meta.Dir = filepath.Join(skillsDir, entry.Name())
+
+		// If skill.yaml exists, prefer its description.
+		cardPath := filepath.Join(skillsDir, entry.Name(), "skill.yaml")
+		if sc, err := card.Parse(cardPath); err == nil {
+			meta.Description = sc.Metadata.Description
+		}
+
 		skills = append(skills, meta)
 	}
 
