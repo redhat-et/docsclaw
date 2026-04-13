@@ -490,6 +490,84 @@ image layers work. The SkillCard (layer 0) would be included in the
 same image as a separate file rather than a separate OCI layer, so
 it is accessible after mount.
 
+### Registry authentication
+
+Enterprise registries (quay.io, Artifactory, ECR, private Harbor)
+typically require authentication. The authentication mechanism
+differs between the two deployment models.
+
+**Image volumes** use the kubelet's standard image pull credentials.
+These are configured the same way as for any container image:
+
+- **`imagePullSecrets` on the pod** — a Secret of type
+  `kubernetes.io/dockerconfigjson` referenced in the pod spec. This
+  is the most common approach and works with any registry.
+
+  ```yaml
+  spec:
+    imagePullSecrets:
+      - name: skill-registry-creds
+    containers:
+      - name: docsclaw
+        image: ghcr.io/redhat-et/docsclaw:latest
+        volumeMounts:
+          - name: skill-code-review
+            mountPath: /skills/code-review
+    volumes:
+      - name: skill-code-review
+        image:
+          reference: quay.io/docsclaw/official/skill-code-review:1.0.0
+          pullPolicy: IfNotPresent
+  ```
+
+- **Service account pull secrets** — attach the pull secret to the
+  pod's service account so that every pod using that account
+  inherits the credentials without explicit `imagePullSecrets`.
+- **OpenShift global pull secret** — for organization-wide
+  registries, the cluster-level pull secret
+  (`openshift-config/pull-secret`) applies to all image pulls
+  including image volumes. This is ideal for a centralized skill
+  registry.
+- **Cloud provider integration** — on managed OpenShift (ROSA, ARO),
+  the kubelet can use IAM-based credentials for ECR, GAR, or ACR
+  without explicit secrets.
+
+**Init container** uses the standard OCI credential chain
+(`~/.docker/config.json` or environment variables), as described in
+the CLI commands section. For K8s deployment, the init container
+mounts the same `dockerconfigjson` Secret and sets the
+`DOCKER_CONFIG` environment variable:
+
+```yaml
+initContainers:
+  - name: skill-puller
+    image: ghcr.io/redhat-et/docsclaw:latest
+    command: ["docsclaw", "skill", "pull", "--verify"]
+    env:
+      - name: SKILL_REFS
+        value: "quay.io/docsclaw/official/skill-code-review:1.0.0"
+      - name: DOCKER_CONFIG
+        value: /etc/docker
+    volumeMounts:
+      - mountPath: /etc/docker
+        name: registry-creds
+        readOnly: true
+      - mountPath: /skills
+        name: skills-vol
+volumes:
+  - name: registry-creds
+    secret:
+      secretName: skill-registry-creds
+      items:
+        - key: .dockerconfigjson
+          path: config.json
+```
+
+**PoC scope:** For the PoC demo, use a local Zot registry without
+authentication. The first authenticated test should use
+`imagePullSecrets` with quay.io, which is the most realistic
+enterprise scenario.
+
 [k8s-image-vol]: https://kubernetes.io/docs/concepts/storage/volumes/#image
 [ocp-sig-verify]: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/container-image-signatures
 
