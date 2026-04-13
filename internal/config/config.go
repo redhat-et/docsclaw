@@ -171,18 +171,18 @@ func BindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.PersistentFlags().String("opa-host", "", "OPA service host")
 	cmd.PersistentFlags().Int("opa-port", 0, "OPA service port")
 
-	v.BindPFlag("service.port", cmd.PersistentFlags().Lookup("port"))
-	v.BindPFlag("service.host", cmd.PersistentFlags().Lookup("host"))
-	v.BindPFlag("service.mock_spiffe", cmd.PersistentFlags().Lookup("mock-spiffe"))
-	v.BindPFlag("service.listen_plain_http", cmd.PersistentFlags().Lookup("listen-plain-http"))
-	v.BindPFlag("service.log_level", cmd.PersistentFlags().Lookup("log-level"))
+	_ = v.BindPFlag("service.port", cmd.PersistentFlags().Lookup("port"))
+	_ = v.BindPFlag("service.host", cmd.PersistentFlags().Lookup("host"))
+	_ = v.BindPFlag("service.mock_spiffe", cmd.PersistentFlags().Lookup("mock-spiffe"))
+	_ = v.BindPFlag("service.listen_plain_http", cmd.PersistentFlags().Lookup("listen-plain-http"))
+	_ = v.BindPFlag("service.log_level", cmd.PersistentFlags().Lookup("log-level"))
 	cmd.PersistentFlags().Bool("otel-enabled", false, "Enable OpenTelemetry tracing")
 	cmd.PersistentFlags().String("otel-collector-endpoint", "", "OpenTelemetry collector gRPC endpoint (e.g. localhost:4317)")
 
-	v.BindPFlag("opa.host", cmd.PersistentFlags().Lookup("opa-host"))
-	v.BindPFlag("opa.port", cmd.PersistentFlags().Lookup("opa-port"))
-	v.BindPFlag("otel.enabled", cmd.PersistentFlags().Lookup("otel-enabled"))
-	v.BindPFlag("otel.collector_endpoint", cmd.PersistentFlags().Lookup("otel-collector-endpoint"))
+	_ = v.BindPFlag("opa.host", cmd.PersistentFlags().Lookup("opa-host"))
+	_ = v.BindPFlag("opa.port", cmd.PersistentFlags().Lookup("opa-port"))
+	_ = v.BindPFlag("otel.enabled", cmd.PersistentFlags().Lookup("otel-enabled"))
+	_ = v.BindPFlag("otel.collector_endpoint", cmd.PersistentFlags().Lookup("otel-collector-endpoint"))
 }
 
 // GetServiceEndpoints returns the default service endpoints for local development
