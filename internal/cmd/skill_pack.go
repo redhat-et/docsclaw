@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	ociops "github.com/redhat-et/docsclaw/internal/oci"
@@ -12,6 +13,7 @@ import (
 var (
 	packAsImage bool
 	packOutput  string
+	packForce   bool
 )
 
 var skillPackCmd = &cobra.Command{
@@ -27,6 +29,16 @@ var skillPackCmd = &cobra.Command{
 		output := packOutput
 		if output == "" {
 			output = skillDir + "/oci-layout"
+		}
+
+		// Check if layout already exists
+		if _, err := os.Stat(output); err == nil {
+			if !packForce {
+				return fmt.Errorf("output directory %s already exists (use --force to overwrite)", output)
+			}
+			if err := os.RemoveAll(output); err != nil {
+				return fmt.Errorf("failed to clean output directory: %w", err)
+			}
 		}
 
 		// Create local OCI store
@@ -53,4 +65,5 @@ func init() {
 	skillCmd.AddCommand(skillPackCmd)
 	skillPackCmd.Flags().BoolVar(&packAsImage, "as-image", false, "Pack as OCI image instead of artifact")
 	skillPackCmd.Flags().StringVarP(&packOutput, "output", "o", "", "Output directory for OCI layout (default: <skill-dir>/oci-layout)")
+	skillPackCmd.Flags().BoolVarP(&packForce, "force", "f", false, "Overwrite existing OCI layout")
 }
