@@ -261,3 +261,129 @@ should not turn DocsClaw into a LangGraph clone. Adding context
 compaction should not require a database. The right approach is
 incremental enhancement of the bounded tool-use loop, keeping the
 single-binary, ConfigMap-driven, A2A-native model intact.
+
+## Design questions
+
+### Do we need Landlock for filesystem hardening?
+
+**No, not for the current architecture.**
+
+Landlock is a Linux kernel-level filesystem ACL that restricts which
+paths a process can access at the syscall level. sandbox_agent uses
+it because their agents run multiple tenant contexts in a single pod
+on a shared PVC — a compromised agent could traverse to another
+tenant's workspace despite application-level checks. Landlock
+prevents that at the kernel.
+
+DocsClaw's isolation model is different: **one agent per pod**, with
+its own `emptyDir` workspace and no shared PVC. The container
+already runs with a read-only root filesystem, dropped capabilities,
+and non-root user. There is no adjacent tenant to escape to.
+
+| Layer | DocsClaw today | What Landlock would add |
+| ----- | -------------- | ----------------------- |
+| Container | Read-only root, drop ALL caps, non-root | Redundant — container already limits writes to mounted volumes |
+| Pod | One agent per pod, no shared PVC | No lateral movement — nothing to isolate from |
+| Workspace | `IsInsideWorkspace()` with symlink resolution | Kernel enforcement of the same boundary |
+| Network | Agent Sandbox provides NetworkPolicy | Landlock does not cover network |
+
+**When Landlock would become relevant:**
+
+- If DocsClaw supports multiple concurrent A2A contexts in a single
+  pod (shared filesystem between contexts)
+- If a sidecar model shares a PVC between the agent and other
+  containers
+- If tool packs bring third-party scripts/binaries that need
+  kernel-level containment
+
+None of these are in scope today. For stronger isolation without
+code changes, Agent Sandbox's gVisor and Kata Containers runtime
+support provides better coverage than Landlock — full kernel
+isolation, not just filesystem ACLs.
+
+**More impactful now:** Wire up the existing `Hook` interface in
+`pkg/tools/hooks.go`. The `BeforeToolCall()` method is defined but
+not connected to the execution path. Enabling it would give us
+external policy enforcement at the application level — the gap
+that matters more than kernel-level filesystem restrictions for
+our deployment model.
+
+### Should we adopt a structured plan-execute-reflect loop?
+
+**Not as the default, but as an optional mode.**
+
+DocsClaw's simple bounded loop (`RunToolLoop`, max 10 iterations)
+is the right default for its primary use case: focused, short-lived
+tasks dispatched via A2A. A full plan-execute-reflect graph
+(sandbox_agent's approach) adds latency, token cost, and complexity
+that is not justified for "summarize this document" or "fetch this
+URL."
+
+However, for future use cases like multi-file code generation or
+research tasks, the current loop will struggle. The recommendation
+is to make this configurable in `agent-config.yaml`:
+
+```yaml
+loop:
+  mode: simple          # simple (default) | planning
+  max_iterations: 10    # for simple mode
+  max_plan_steps: 5     # for planning mode
+```
+
+The planning mode would add a lightweight planner step before the
+tool loop — not a full LangGraph state machine, but a single LLM
+call that produces a step list, followed by the existing tool loop
+executing each step. This keeps the architecture simple while
+supporting more complex tasks.
+
+### How does DocsClaw's security compare overall?
+
+DocsClaw's security posture is **stronger at the deployment level**
+than any of the three comparators, but **weaker at the application
+level** than sandbox_agent and Claude Code.
+
+**Stronger at deployment:**
+
+- Read-only root filesystem (none of the others specify this)
+- Drop ALL capabilities (sandbox_agent's manifests don't show this)
+- Non-root user with explicit UID/GID
+- Single-binary, minimal attack surface (no Python runtime, no
+  Node.js, no package managers in the container)
+- A2A with SPIFFE delegation for zero-trust agent communication
+
+**Weaker at application:**
+
+- No HITL (sandbox_agent and Claude Code both have this)
+- No hooks wired (Claude Code's five-layer pipeline is the gold
+  standard)
+- No checkpoint/undo (Claude Code snapshots before every file edit)
+- Command denylist is regex-based (sandbox_agent splits compound
+  commands and detects interpreter bypass patterns)
+
+The deployment-level hardening is arguably more important for
+Kubernetes workloads — if the container can't write outside its
+mounts and runs without capabilities, application-level escapes
+are contained. But wiring up hooks and adding HITL would close
+the gap at the application level too.
+
+### Why not adopt deepagents' middleware pattern?
+
+**It does not match DocsClaw's extension model.**
+
+deepagents uses middleware composition: each middleware wraps LLM
+calls and tool calls with hook points, and the stack is assembled
+at agent creation. This is powerful for framework builders but
+requires code changes to add cross-cutting concerns.
+
+DocsClaw's extension model is **file-driven**: change a ConfigMap,
+not code. Skills add capabilities via SKILL.md text files. The
+system prompt defines personality. The tool allowlist controls
+permissions. This is operationally superior for fleet management
+— an ops team can reconfigure hundreds of agents without rebuilding
+a single container image.
+
+The right approach for DocsClaw is to enhance the existing Hook
+interface to cover the cross-cutting concerns that middleware
+solves in deepagents (HITL approval, output truncation, context
+compaction), while keeping the extension points file-configurable
+rather than code-composable.
