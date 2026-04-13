@@ -410,26 +410,121 @@ before.
 No CLI shelling out. Both libraries are embeddable and testable as
 unit tests.
 
-## Deployment model (PoC)
+## Deployment models
 
-For the PoC, skills are pulled into the agent container via a
-Kubernetes init container:
+Two deployment models are supported, depending on the target
+platform version. Image volumes are the preferred approach;
+init containers are the fallback for older clusters.
+
+### Image volumes (preferred)
+
+Kubernetes 1.33+ and OpenShift 4.20+ support [image volumes][k8s-image-vol]:
+OCI images (and artifacts) can be mounted directly as read-only
+volumes in a pod without an init container, sidecar, or extra
+storage.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: docsclaw-agent
+spec:
+  containers:
+    - name: docsclaw
+      image: ghcr.io/redhat-et/docsclaw:latest
+      volumeMounts:
+        - name: skill-code-review
+          mountPath: /skills/code-review
+        - name: skill-doc-prep
+          mountPath: /skills/doc-prep
+  volumes:
+    - name: skill-code-review
+      image:
+        reference: quay.io/docsclaw/official/skill-code-review:1.0.0
+        pullPolicy: IfNotPresent
+    - name: skill-doc-prep
+      image:
+        reference: quay.io/docsclaw/official/skill-doc-prep:1.2.0
+        pullPolicy: IfNotPresent
+```
+
+**How it works:** The kubelet pulls the OCI object via the container
+runtime (CRI-O on OpenShift), unpacks the layers into a directory,
+and bind-mounts it into the container — read-only, no emptyDir, no
+node ephemeral storage consumed. The container runtime's existing
+image store and garbage collection manage the cache.
+
+**Advantages over init containers:**
+
+| Concern | Image volume | Init container |
+| ------- | ------------ | -------------- |
+| Node storage | Uses container runtime image store (managed, GC'd) | Writes to emptyDir or PVC (fills node temp storage) |
+| Complexity | Native K8s primitive, no extra containers | Extra container, extra code, extra failure mode |
+| Pull caching | Kubelet image cache with standard pull policies | Must implement own caching or re-pull on every restart |
+| Security | Platform-level image signature verification | Application-level verification in init container |
+
+**Signature verification with image volumes:** Since the kubelet
+pulls the image (not our code), signature verification happens at
+the platform level. OpenShift already supports this via
+`containers-policy.json` and [image signature verification
+policies][ocp-sig-verify]. This is actually a stronger trust model:
+the platform enforces trust, not the agent — consistent with the
+principle that the agent should not decide what to trust.
+
+**Skill artifact packaging for image volumes:** The skill OCI
+artifact must be mountable as a filesystem by the container runtime.
+This means packaging the skill directory as a `FROM scratch` image
+with the content layer, rather than a pure OCI artifact with custom
+media types. Concretely, the `docsclaw skill push` command would
+produce a minimal container image:
+
+```dockerfile
+FROM scratch
+COPY skill.yaml SKILL.md scripts/ references/ assets/ /
+```
+
+The community-compatible content layer
+(`application/vnd.agentskills.skill.content.v1.tar+gzip`) already
+packages the skill as a tarball, which aligns with how container
+image layers work. The SkillCard (layer 0) would be included in the
+same image as a separate file rather than a separate OCI layer, so
+it is accessible after mount.
+
+[k8s-image-vol]: https://kubernetes.io/docs/concepts/storage/volumes/#image
+[ocp-sig-verify]: https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/container-image-signatures
+
+### Init container (fallback)
+
+For clusters that do not support image volumes (K8s < 1.33,
+OpenShift < 4.20), skills are pulled via an init container. Based
+on feedback from the ORAS maintainer team, the init container
+should use a **PVC** (not emptyDir) to avoid filling node ephemeral
+storage and to persist the skill cache across pod restarts.
 
 ```text
 Pod
 ├── init: skill-puller
 │   ├── runs: docsclaw skill pull --verify <ref1> <ref2> ...
-│   ├── writes to: /skills/ (emptyDir volume)
+│   ├── writes to: /skills/ (PVC)
 │   └── reads keys from: /etc/docsclaw/keys/ (Secret volume)
 │
 └── container: docsclaw-agent
-    ├── mounts: /skills/ (emptyDir volume)
+    ├── mounts: /skills/ (PVC)
     └── discovers skills via: skills.Discover("/skills/")
 ```
 
 The init container image is the same `docsclaw` binary. The skill
 refs and verification key are configured via environment variables or
-a ConfigMap.
+a ConfigMap. Signature verification happens at the application level
+via sigstore-go.
+
+**When to use init containers:**
+
+- Clusters without image volume support
+- When application-level signature verification is required (e.g.,
+  the cluster does not have image signature policies configured)
+- When skills need to be pulled from registries that require custom
+  authentication not available to the kubelet
 
 ### Agent Sandbox compatibility
 
@@ -450,13 +545,13 @@ projects operate at different layers:
 | ------- | ------------- | ------------------- |
 | Pod lifecycle | Manages it | Not involved |
 | Container image | User provides | DocsClaw agent image |
-| Skill delivery | Not addressed | Init container + OCI pull |
+| Skill delivery | Not addressed | Image volume or init container |
 | Network isolation | NetworkPolicy | Not addressed |
 | Persistent storage | PVC management | Could persist skill cache |
-| Signature verification | Not addressed | SkillPolicy + sigstore |
+| Signature verification | Not addressed | Platform policy or sigstore |
 
 A DocsClaw agent with OCI-distributed skills deployed as an Agent
-Sandbox:
+Sandbox using image volumes:
 
 ```yaml
 apiVersion: agents.x-k8s.io/v1alpha1
@@ -466,39 +561,31 @@ metadata:
 spec:
   podTemplate:
     spec:
-      initContainers:
-        - name: skill-puller
-          image: ghcr.io/redhat-et/docsclaw:latest
-          command: ["docsclaw", "skill", "pull", "--verify"]
-          env:
-            - name: SKILL_REFS
-              value: "quay.io/docsclaw/official/skill-code-review:1.0.0"
-          volumeMounts:
-            - mountPath: /skills
-              name: skills-vol
-            - mountPath: /etc/docsclaw/keys
-              name: signing-keys
       containers:
         - name: docsclaw
           image: ghcr.io/redhat-et/docsclaw:latest
           volumeMounts:
-            - mountPath: /skills
-              name: skills-vol
+            - name: skill-code-review
+              mountPath: /skills/code-review
       volumes:
-        - name: skills-vol
-          emptyDir: {}
-        - name: signing-keys
-          secret:
-            secretName: docsclaw-signing-keys
+        - name: skill-code-review
+          image:
+            reference: quay.io/docsclaw/official/skill-code-review:1.0.0
+            pullPolicy: IfNotPresent
   lifecycle:
     shutdownPolicy: Retain
 ```
 
-This follows the same pattern as other Agent Sandbox examples (e.g.,
-`openclaw-sandbox`): a container image with config mounted via
-ConfigMap/Secret and persistent storage via PVC. Our init container
-approach fits cleanly into the `podTemplate.spec.initContainers`
-field.
+This is cleaner than the init container approach — no extra
+containers, no emptyDir, no PVC. The skill image is pulled and
+mounted by the kubelet like any other volume.
+
+**Future opportunity:** Agent Sandbox's `SandboxTemplate` +
+`SandboxClaim` pattern could serve as the foundation for skill
+assignment at scale. A `SandboxTemplate` could define the base agent
+image + default skill set as image volumes, and `SandboxClaim`
+handles provisioning for individual users. This may reduce or
+eliminate the need for a custom operator.
 
 **Future opportunity:** Agent Sandbox's `SandboxTemplate` +
 `SandboxClaim` pattern could serve as the foundation for skill
@@ -560,12 +647,16 @@ pushed to a central audit log.
 1. Show an existing skill directory with `SKILL.md` and new `skill.yaml`
 1. `docsclaw skill pack ./skills/code-review` — produce local OCI layout
 1. `docsclaw skill inspect` the local layout — show SkillCard metadata
-1. `docsclaw skill push --sign` — push to quay.io, sign with cosign key
+1. `docsclaw skill push --sign` — push to a local Zot registry, sign
+   with cosign key
 1. `docsclaw skill pull --verify` — pull on a clean environment,
    signature verified
 1. `docsclaw skill pull` an unsigned skill with `mode: enforce` —
    rejected with clear error
-1. Show the agent discovering and using the pulled skill
+1. Mount the pushed skill as an image volume in a pod on
+   OpenShift 4.20 — show the skill files appearing at `/skills/`
+   without an init container
+1. Show the agent discovering and using the mounted skill
 
 ## Future work
 
@@ -603,3 +694,8 @@ phases build on it:
 - [Agent Sandbox][agent-sandbox] — Kubernetes SIG Apps project for
   isolated, stateful, singleton agent pods; compatible deployment
   target for DocsClaw with OCI skills
+- [Image Volumes KEP](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4639-oci-volume-source) —
+  Kubernetes enhancement for mounting OCI images/artifacts as pod
+  volumes; beta in K8s 1.33+, available in OpenShift 4.20+
+- [Zot Registry](https://zotregistry.dev/) — lightweight OCI-native
+  registry; recommended for local development and testing
