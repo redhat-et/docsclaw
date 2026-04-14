@@ -84,6 +84,9 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push card layer: %w", err)
 		}
+		cardDesc.Annotations = map[string]string{
+			AnnotationTitle: "skill.yaml",
+		}
 
 		// Layer 1: tar+gzip of entire skill directory.
 		tar, err := tarDirectory(skillDir, sc.Metadata.Name)
@@ -93,6 +96,9 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		contentDesc, err := pushBlob(ctx, target, ContentMediaType, tar.gzipped)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
+		}
+		contentDesc.Annotations = map[string]string{
+			AnnotationTitle: sc.Metadata.Name + ".tar.gz",
 		}
 		layers = []ocispec.Descriptor{cardDesc, contentDesc}
 
