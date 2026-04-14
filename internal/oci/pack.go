@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/redhat-et/docsclaw/pkg/skills/card"
@@ -45,51 +46,45 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		return ocispec.Descriptor{}, fmt.Errorf("failed to parse skill card: %w", err)
 	}
 
-	// 2. Build config blob
-	var configData []byte
-	var configMediaType string
-	if opts.AsImage {
-		// Minimal valid OCI image config for a scratch image.
-		// Registries (quay.io) validate this structure.
-		configMediaType = ImageConfigMediaType
-		imgCfg := map[string]any{
-			"architecture": "",
-			"os":           "",
-			"config":       map[string]any{},
-		}
-		configData, err = json.Marshal(imgCfg)
-	} else {
-		// Skill-specific config with metadata for community tools.
-		configMediaType = ConfigMediaType
-		cfg := buildConfig(sc)
-		configData, err = json.Marshal(cfg)
-	}
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	configDesc, err := pushBlob(ctx, target, configMediaType, configData)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to push config blob: %w", err)
-	}
-
-	// 3. Build layers.
+	// 2. Build layers and config.
 	// In artifact mode: two layers (SkillCard YAML + content tarball).
 	// In image mode: single tar+gzip layer with all content (like FROM scratch).
 	var layers []ocispec.Descriptor
+	var configData []byte
+	var configMediaType string
 
 	if opts.AsImage {
 		// Single layer: tar+gzip of entire skill directory.
-		// skill.yaml is included in the tarball — no separate layer.
 		tarData, err := tarDirectory(skillDir, sc.Metadata.Name)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
 		}
+
+		// Compute uncompressed digest for rootfs.diff_ids.
+		uncompressedDigest := digest.FromBytes(tarData)
+
 		contentDesc, err := pushBlob(ctx, target, ocispec.MediaTypeImageLayerGzip, tarData)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
 		}
 		layers = []ocispec.Descriptor{contentDesc}
+
+		// Valid OCI image config with rootfs (required by quay.io).
+		configMediaType = ImageConfigMediaType
+		imgCfg := ocispec.Image{
+			Platform: ocispec.Platform{
+				Architecture: "unknown",
+				OS:           "unknown",
+			},
+			RootFS: ocispec.RootFS{
+				Type:    "layers",
+				DiffIDs: []digest.Digest{uncompressedDigest},
+			},
+		}
+		configData, err = json.Marshal(imgCfg)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to marshal image config: %w", err)
+		}
 	} else {
 		// Layer 0: skill.yaml as SkillCard metadata.
 		skillYAMLData, err := os.ReadFile(skillYAMLPath)
@@ -111,6 +106,19 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
 		}
 		layers = []ocispec.Descriptor{cardDesc, contentDesc}
+
+		// Skill-specific config with metadata for community tools.
+		configMediaType = ConfigMediaType
+		cfg := buildConfig(sc)
+		configData, err = json.Marshal(cfg)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to marshal config: %w", err)
+		}
+	}
+
+	configDesc, err := pushBlob(ctx, target, configMediaType, configData)
+	if err != nil {
+		return ocispec.Descriptor{}, fmt.Errorf("failed to push config blob: %w", err)
 	}
 
 	// 4. Build manifest with annotations
