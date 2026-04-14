@@ -1,0 +1,29 @@
+apiVersion: docsclaw.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: policy-comparator
+  namespace: official
+  ref: quay.io/docsclaw/skill-policy-comparator
+  version: 1.0.0
+  description: >-
+    Compare policy documents side by side. Produces a structured
+    comparison matrix. Use when analyzing policies from multiple
+    sources against a baseline.
+  author: Red Hat ET
+  license: Apache-2.0
+  metadata:
+    category: human-resources
+spec:
+  tools:
+    required: [read_file]
+    optional: [write_file]
+  allowedTools: "Read Write"
+  dependencies:
+    skills: []
+    toolPacks: []
+  resources:
+    estimatedMemory: 32Mi
+    estimatedCPU: 100m
+  compatibility:
+    minAgentVersion: "0.5.0"
+    environment: ""

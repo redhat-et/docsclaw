@@ -22,8 +22,8 @@ func SignedCardHandler(path string, fallback http.Handler, log *slog.Logger) htt
 		log.Info("Serving signed agent card", "path", path)
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		_, _ = w.Write(data)
 	})
 }

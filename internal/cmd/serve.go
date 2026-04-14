@@ -129,14 +129,14 @@ func init() {
 	serveCmd.Flags().Int("llm-max-tokens", 4096, "Max tokens for LLM response")
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
 
-	v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
-	v.BindPFlag("document_service_url", serveCmd.Flags().Lookup("document-service-url"))
-	v.BindPFlag("llm.provider", serveCmd.Flags().Lookup("llm-provider"))
-	v.BindPFlag("llm.api_key", serveCmd.Flags().Lookup("llm-api-key"))
-	v.BindPFlag("llm.base_url", serveCmd.Flags().Lookup("llm-base-url"))
-	v.BindPFlag("llm.model", serveCmd.Flags().Lookup("llm-model"))
-	v.BindPFlag("llm.max_tokens", serveCmd.Flags().Lookup("llm-max-tokens"))
-	v.BindPFlag("llm.timeout_seconds", serveCmd.Flags().Lookup("llm-timeout"))
+	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
+	_ = v.BindPFlag("document_service_url", serveCmd.Flags().Lookup("document-service-url"))
+	_ = v.BindPFlag("llm.provider", serveCmd.Flags().Lookup("llm-provider"))
+	_ = v.BindPFlag("llm.api_key", serveCmd.Flags().Lookup("llm-api-key"))
+	_ = v.BindPFlag("llm.base_url", serveCmd.Flags().Lookup("llm-base-url"))
+	_ = v.BindPFlag("llm.model", serveCmd.Flags().Lookup("llm-model"))
+	_ = v.BindPFlag("llm.max_tokens", serveCmd.Flags().Lookup("llm-max-tokens"))
+	_ = v.BindPFlag("llm.timeout_seconds", serveCmd.Flags().Lookup("llm-timeout"))
 }
 
 // Config holds docsclaw configuration.
@@ -149,7 +149,7 @@ type Config struct {
 
 // startAgent loads config from configDir and validates it.
 // This function is separated from runServe for testability.
-func startAgent(configDir string, llmProvider llm.Provider) error {
+func startAgent(configDir string, _ llm.Provider) error {
 	_, err := loadSystemPrompt(configDir)
 	if err != nil {
 		return err
