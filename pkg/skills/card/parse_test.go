@@ -11,7 +11,7 @@ func TestParseValid(t *testing.T) {
 	tmpDir := t.TempDir()
 	skillPath := filepath.Join(tmpDir, "skill.yaml")
 
-	content := `apiVersion: skills.agent.io/v1alpha1
+	content := `apiVersion: docsclaw.io/v1alpha1
 kind: SkillCard
 metadata:
   name: test-skill
@@ -67,7 +67,7 @@ spec:
 
 func TestValidateValid(t *testing.T) {
 	sc := SkillCard{
-		APIVersion: "skills.agent.io/v1alpha1",
+		APIVersion: "docsclaw.io/v1alpha1",
 		Kind:       "SkillCard",
 		Metadata: SkillCardMeta{
 			Name:        "valid-skill",
@@ -86,7 +86,7 @@ func TestValidateValid(t *testing.T) {
 
 func TestValidateMissingName(t *testing.T) {
 	sc := SkillCard{
-		APIVersion: "skills.agent.io/v1alpha1",
+		APIVersion: "docsclaw.io/v1alpha1",
 		Kind:       "SkillCard",
 		Metadata: SkillCardMeta{
 			Name:        "", // Missing name
@@ -100,7 +100,7 @@ func TestValidateMissingName(t *testing.T) {
 
 	err := Validate(sc)
 	if err == nil {
-		t.Error("expected error for missing name, got nil")
+		t.Fatal("expected error for missing name, got nil")
 	}
 
 	if !strings.Contains(err.Error(), "metadata.name is required") {
@@ -154,7 +154,7 @@ func TestValidateBadName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sc := SkillCard{
-				APIVersion: "skills.agent.io/v1alpha1",
+				APIVersion: "docsclaw.io/v1alpha1",
 				Kind:       "SkillCard",
 				Metadata: SkillCardMeta{
 					Name:        tt.skillName,

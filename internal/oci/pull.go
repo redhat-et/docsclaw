@@ -2,6 +2,7 @@ package oci
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -57,10 +58,11 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		return fmt.Errorf("failed to unmarshal manifest: %w", err)
 	}
 
-	// 5. Find the content layer (ContentMediaType)
+	// 5. Find the content layer (artifact or image mode).
 	var contentDesc *ocispec.Descriptor
 	for i := range manifest.Layers {
-		if manifest.Layers[i].MediaType == ContentMediaType {
+		mt := manifest.Layers[i].MediaType
+		if mt == ContentMediaType || mt == ocispec.MediaTypeImageLayerGzip {
 			contentDesc = &manifest.Layers[i]
 			break
 		}
@@ -101,24 +103,27 @@ func fetchBlob(ctx context.Context, storage oras.ReadOnlyTarget, desc ocispec.De
 }
 
 // extractTarGzip extracts a tar+gzip archive to the destination directory.
-// It prevents path traversal attacks by rejecting paths containing "..".
+// It prevents path traversal via ".." components and symlinks.
 func extractTarGzip(data []byte, destDir string) error {
-	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
-	// Create gzip reader
-	gr, err := gzip.NewReader(strings.NewReader(string(data)))
+	// Resolve destDir to catch pre-existing symlinks at the root.
+	resolvedDest, err := filepath.EvalSymlinks(destDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination: %w", err)
+	}
+	destPrefix := filepath.Clean(resolvedDest) + string(os.PathSeparator)
+
+	gr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer gr.Close()
 
-	// Create tar reader
 	tr := tar.NewReader(gr)
 
-	// Extract each file
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -128,48 +133,50 @@ func extractTarGzip(data []byte, destDir string) error {
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		// Prevent path traversal - reject any path with ".."
+		// Reject ".." anywhere in the path.
 		if strings.Contains(header.Name, "..") {
 			return fmt.Errorf("invalid path in archive: %s (contains '..')", header.Name)
 		}
 
-		// Build target path
-		targetPath := filepath.Join(destDir, header.Name)
+		targetPath := filepath.Join(resolvedDest, header.Name)
 
-		// Ensure the target path is within destDir (additional safety check)
-		if !strings.HasPrefix(targetPath, filepath.Clean(destDir)+string(os.PathSeparator)) {
+		// Verify the target stays inside destDir after resolution.
+		if !strings.HasPrefix(targetPath, destPrefix) {
 			return fmt.Errorf("invalid path in archive: %s (outside destination)", header.Name)
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			// Create directory
 			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 			}
 
 		case tar.TypeReg:
-			// Create parent directory
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			// Resolve parent to catch symlinks in intermediate directories.
+			parentDir := filepath.Dir(targetPath)
+			if err := os.MkdirAll(parentDir, 0o755); err != nil {
 				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 			}
+			resolvedParent, err := filepath.EvalSymlinks(parentDir)
+			if err != nil {
+				return fmt.Errorf("failed to resolve parent of %s: %w", targetPath, err)
+			}
+			if !strings.HasPrefix(resolvedParent, filepath.Clean(resolvedDest)) {
+				return fmt.Errorf("symlink escape detected: %s resolves outside destination", targetPath)
+			}
 
-			// Create file
 			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
 			if err != nil {
 				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 			}
-
-			// Copy file content
 			if _, err := io.Copy(outFile, tr); err != nil {
 				outFile.Close()
 				return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 			}
-
 			outFile.Close()
 
 		default:
-			// Skip other types (symlinks, etc.)
+			// Skip symlinks, devices, etc.
 			continue
 		}
 	}

@@ -54,6 +54,11 @@ var skillPullCmd = &cobra.Command{
 			output = filepath.Join(home, ".docsclaw", "skills")
 		}
 
+		// Ensure output directory exists.
+		if err := os.MkdirAll(output, 0o755); err != nil {
+			return fmt.Errorf("failed to create output directory: %w", err)
+		}
+
 		// Pull the skill
 		tlsVerify := pullTLSVerify
 		opts := ociops.PullOptions{TLSVerify: &tlsVerify}

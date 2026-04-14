@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	ociops "github.com/redhat-et/docsclaw/internal/oci"
@@ -35,6 +36,17 @@ var skillPackCmd = &cobra.Command{
 		if _, err := os.Stat(output); err == nil {
 			if !packForce {
 				return fmt.Errorf("output directory %s already exists (use --force to overwrite)", output)
+			}
+			// Only remove if it looks like an OCI layout (has oci-layout file or index.json).
+			isOCI := false
+			if _, err := os.Stat(filepath.Join(output, "oci-layout")); err == nil {
+				isOCI = true
+			}
+			if _, err := os.Stat(filepath.Join(output, "index.json")); err == nil {
+				isOCI = true
+			}
+			if !isOCI {
+				return fmt.Errorf("%s exists but is not an OCI layout (remove it manually)", output)
 			}
 			if err := os.RemoveAll(output); err != nil {
 				return fmt.Errorf("failed to clean output directory: %w", err)

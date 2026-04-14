@@ -36,8 +36,13 @@ func Parse(path string) (SkillCard, error) {
 
 // Validate checks required fields and enforces Agent Skills naming rules.
 func Validate(sc SkillCard) error {
-	if sc.APIVersion == "" {
+	switch sc.APIVersion {
+	case "":
 		return fmt.Errorf("apiVersion is required")
+	case "docsclaw.io/v1alpha1":
+		// supported
+	default:
+		return fmt.Errorf("unsupported apiVersion %q (expected docsclaw.io/v1alpha1)", sc.APIVersion)
 	}
 
 	if sc.Kind != "SkillCard" {

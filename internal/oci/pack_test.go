@@ -14,7 +14,7 @@ import (
 func writeSkillDir(t *testing.T, dir string) {
 	t.Helper()
 
-	skillYAML := `apiVersion: agentskills.io/v1alpha1
+	skillYAML := `apiVersion: docsclaw.io/v1alpha1
 kind: SkillCard
 metadata:
   name: test-skill

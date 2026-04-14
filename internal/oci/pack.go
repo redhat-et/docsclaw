@@ -187,9 +187,12 @@ func tarDirectory(dir, skillName string) (tarResult, error) {
 	// Fixed mtime for reproducible digests (2026-01-01 00:00:00 UTC)
 	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	// Directories to skip when packing (generated artifacts, not skill content).
-	skipDirs := map[string]bool{
-		"oci-layout": true,
+	// Names to skip when packing (OCI layout artifacts, not skill content).
+	skipNames := map[string]bool{
+		"blobs":      true, // OCI layout directory
+		"ingest":     true, // OCI layout directory
+		"oci-layout": true, // OCI layout marker file
+		"index.json": true, // OCI layout index
 	}
 
 	// Collect all file paths and sort them
@@ -198,8 +201,12 @@ func tarDirectory(dir, skillName string) (tarResult, error) {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() && skipDirs[info.Name()] {
-			return filepath.SkipDir
+		name := info.Name()
+		if skipNames[name] {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil // skip file
 		}
 		paths = append(paths, path)
 		return nil

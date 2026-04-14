@@ -31,8 +31,17 @@ var skillDeleteCmd = &cobra.Command{
 		}
 
 		skillPath := filepath.Join(dir, name)
-		if _, err := os.Stat(skillPath); os.IsNotExist(err) {
-			return fmt.Errorf("skill %q not found in %s", name, dir)
+		// Verify the target is actually a skill directory.
+		hasSkillYAML := false
+		hasSkillMD := false
+		if _, err := os.Stat(filepath.Join(skillPath, "skill.yaml")); err == nil {
+			hasSkillYAML = true
+		}
+		if _, err := os.Stat(filepath.Join(skillPath, "SKILL.md")); err == nil {
+			hasSkillMD = true
+		}
+		if !hasSkillYAML && !hasSkillMD {
+			return fmt.Errorf("skill %q not found in %s (no skill.yaml or SKILL.md)", name, dir)
 		}
 
 		if err := os.RemoveAll(skillPath); err != nil {
