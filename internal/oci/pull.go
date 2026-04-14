@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/redhat-et/docsclaw/pkg/skills/card"
+	"gopkg.in/yaml.v3"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry"
@@ -58,7 +60,26 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		return fmt.Errorf("failed to unmarshal manifest: %w", err)
 	}
 
-	// 5. Find the content layer (artifact or image mode).
+	// 5. Determine skill name from SkillCard layer or manifest annotations.
+	skillName := ""
+	for i := range manifest.Layers {
+		if manifest.Layers[i].MediaType == CardMediaType {
+			cardData, cardErr := fetchBlob(ctx, localStore, manifest.Layers[i])
+			if cardErr == nil {
+				var sc card.SkillCard
+				if yamlErr := yaml.Unmarshal(cardData, &sc); yamlErr == nil {
+					skillName = sc.Metadata.Name
+				}
+			}
+			break
+		}
+	}
+	if skillName == "" {
+		// Fall back to manifest annotation.
+		skillName = manifest.Annotations[AnnotationSkillName]
+	}
+
+	// 6. Find the content layer (artifact or image mode).
 	var contentDesc *ocispec.Descriptor
 	for i := range manifest.Layers {
 		mt := manifest.Layers[i].MediaType
@@ -72,14 +93,18 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		return fmt.Errorf("content layer not found in manifest")
 	}
 
-	// 6. Fetch the content layer
+	// 7. Fetch the content layer
 	contentData, err := fetchBlob(ctx, localStore, *contentDesc)
 	if err != nil {
 		return fmt.Errorf("failed to fetch content layer: %w", err)
 	}
 
-	// 7. Extract the tar+gzip to destDir
-	if err := extractTarGzip(contentData, destDir); err != nil {
+	// 8. Extract to a skill-name subdirectory under destDir.
+	extractDir := destDir
+	if skillName != "" {
+		extractDir = filepath.Join(destDir, skillName)
+	}
+	if err := extractTarGzip(contentData, extractDir); err != nil {
 		return fmt.Errorf("failed to extract content: %w", err)
 	}
 

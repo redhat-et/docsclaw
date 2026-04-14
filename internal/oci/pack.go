@@ -89,7 +89,10 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		}
 
 		// Layer 1: tar+gzip of entire skill directory.
-		tar, err := tarDirectory(skillDir, sc.Metadata.Name)
+		// Root at "." so oras pull extracts files directly without
+		// a skill-name prefix. docsclaw skill pull handles subdirectory
+		// creation from the SkillCard name.
+		tar, err := tarDirectory(skillDir, ".")
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
 		}
@@ -98,7 +101,7 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
 		}
 		contentDesc.Annotations = map[string]string{
-			AnnotationTitle: sc.Metadata.Name + ".tar.gz",
+			AnnotationTitle: "content.tar.gz",
 		}
 		layers = []ocispec.Descriptor{cardDesc, contentDesc}
 
