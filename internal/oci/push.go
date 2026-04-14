@@ -87,6 +87,7 @@ func resolveTarget(ref string, override oras.Target, tlsVerify *bool) (oras.Targ
 	if err == nil {
 		repo.Client = &auth.Client{
 			Credential: credentials.Credential(credStore),
+			Cache:      auth.NewCache(),
 		}
 	}
 
