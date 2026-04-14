@@ -149,11 +149,19 @@ func tarDirectory(dir, skillName string) ([]byte, error) {
 	// Fixed mtime for reproducible digests (2026-01-01 00:00:00 UTC)
 	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
+	// Directories to skip when packing (generated artifacts, not skill content).
+	skipDirs := map[string]bool{
+		"oci-layout": true,
+	}
+
 	// Collect all file paths and sort them
 	var paths []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		if info.IsDir() && skipDirs[info.Name()] {
+			return filepath.SkipDir
 		}
 		paths = append(paths, path)
 		return nil
