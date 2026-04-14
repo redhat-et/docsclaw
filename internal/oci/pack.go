@@ -55,7 +55,8 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 
 	if opts.AsImage {
 		// Single layer: tar+gzip of entire skill directory.
-		tar, err := tarDirectory(skillDir, sc.Metadata.Name)
+		// Root at "." (no prefix) since the mount path provides scoping.
+		tar, err := tarDirectory(skillDir, ".")
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
 		}
