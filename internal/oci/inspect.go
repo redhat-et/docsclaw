@@ -75,7 +75,23 @@ func Inspect(ctx context.Context, ref string, opts InspectOptions) (card.SkillCa
 		}
 	}
 
-	// Fallback: image-mode artifact — extract skill.yaml from the content layer.
+	// Fallback: file-per-layer artifact — find skill.yaml by title annotation.
+	for i := range manifest.Layers {
+		title := manifest.Layers[i].Annotations[AnnotationTitle]
+		if title == "skill.yaml" {
+			cardData, err := fetchBlob(ctx, localStore, manifest.Layers[i])
+			if err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to fetch skill.yaml layer: %w", err)
+			}
+			var sc card.SkillCard
+			if err := yaml.Unmarshal(cardData, &sc); err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to parse skill.yaml: %w", err)
+			}
+			return sc, nil
+		}
+	}
+
+	// Fallback: image-mode — extract skill.yaml from the content tarball.
 	for i := range manifest.Layers {
 		mt := manifest.Layers[i].MediaType
 		if mt == ContentMediaType || mt == ocispec.MediaTypeImageLayerGzip {
@@ -87,7 +103,7 @@ func Inspect(ctx context.Context, ref string, opts InspectOptions) (card.SkillCa
 		}
 	}
 
-	return card.SkillCard{}, fmt.Errorf("no skill card or content layer found in manifest")
+	return card.SkillCard{}, fmt.Errorf("no skill card found in manifest")
 }
 
 // extractSkillCardFromTar finds and parses skill.yaml inside a tar+gzip archive.

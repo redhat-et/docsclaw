@@ -13,8 +13,6 @@ import (
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/redhat-et/docsclaw/pkg/skills/card"
-	"gopkg.in/yaml.v3"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry"
@@ -60,26 +58,18 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		return fmt.Errorf("failed to unmarshal manifest: %w", err)
 	}
 
-	// 5. Determine skill name from SkillCard layer or manifest annotations.
-	skillName := ""
-	for i := range manifest.Layers {
-		if manifest.Layers[i].MediaType == CardMediaType {
-			cardData, cardErr := fetchBlob(ctx, localStore, manifest.Layers[i])
-			if cardErr == nil {
-				var sc card.SkillCard
-				if yamlErr := yaml.Unmarshal(cardData, &sc); yamlErr == nil {
-					skillName = sc.Metadata.Name
-				}
-			}
-			break
-		}
-	}
-	if skillName == "" {
-		// Fall back to manifest annotation.
-		skillName = manifest.Annotations[AnnotationSkillName]
+	// 5. Determine skill name from manifest annotations.
+	skillName := manifest.Annotations[AnnotationSkillName]
+
+	// 6. Determine format and extract.
+	// - Individual file layers (artifact mode): each layer has a title annotation
+	// - Tarball layer (image mode or legacy): ContentMediaType or ImageLayerGzip
+	extractDir := destDir
+	if skillName != "" {
+		extractDir = filepath.Join(destDir, skillName)
 	}
 
-	// 6. Find the content layer (artifact or image mode).
+	// Check for tarball layer first (image mode or legacy artifact).
 	var contentDesc *ocispec.Descriptor
 	for i := range manifest.Layers {
 		mt := manifest.Layers[i].MediaType
@@ -89,23 +79,37 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		}
 	}
 
-	if contentDesc == nil {
-		return fmt.Errorf("content layer not found in manifest")
-	}
-
-	// 7. Fetch the content layer
-	contentData, err := fetchBlob(ctx, localStore, *contentDesc)
-	if err != nil {
-		return fmt.Errorf("failed to fetch content layer: %w", err)
-	}
-
-	// 8. Extract to a skill-name subdirectory under destDir.
-	extractDir := destDir
-	if skillName != "" {
-		extractDir = filepath.Join(destDir, skillName)
-	}
-	if err := extractTarGzip(contentData, extractDir); err != nil {
-		return fmt.Errorf("failed to extract content: %w", err)
+	if contentDesc != nil {
+		// Tarball mode: extract tar+gzip.
+		contentData, fetchErr := fetchBlob(ctx, localStore, *contentDesc)
+		if fetchErr != nil {
+			return fmt.Errorf("failed to fetch content layer: %w", fetchErr)
+		}
+		if err := extractTarGzip(contentData, extractDir); err != nil {
+			return fmt.Errorf("failed to extract content: %w", err)
+		}
+	} else {
+		// File-per-layer mode: write each layer as a named file.
+		if err := os.MkdirAll(extractDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+		for i := range manifest.Layers {
+			title := manifest.Layers[i].Annotations[AnnotationTitle]
+			if title == "" {
+				continue
+			}
+			data, fetchErr := fetchBlob(ctx, localStore, manifest.Layers[i])
+			if fetchErr != nil {
+				return fmt.Errorf("failed to fetch layer %s: %w", title, fetchErr)
+			}
+			filePath := filepath.Join(extractDir, title)
+			if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+				return fmt.Errorf("failed to create directory for %s: %w", title, err)
+			}
+			if err := os.WriteFile(filePath, data, 0o644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", title, err)
+			}
+		}
 	}
 
 	return nil
