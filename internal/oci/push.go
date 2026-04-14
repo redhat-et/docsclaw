@@ -8,6 +8,8 @@ import (
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
+	"oras.land/oras-go/v2/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/credentials"
 )
 
 // PushOptions configures the push operation.
@@ -78,6 +80,14 @@ func resolveTarget(ref string, override oras.Target, tlsVerify *bool) (oras.Targ
 
 	if tlsVerify != nil && !*tlsVerify {
 		repo.PlainHTTP = true
+	}
+
+	// Set up credential resolution from Docker/Podman config.
+	credStore, err := credentials.NewStoreFromDocker(credentials.StoreOptions{})
+	if err == nil {
+		repo.Client = &auth.Client{
+			Credential: credentials.Credential(credStore),
+		}
 	}
 
 	return repo, nil
