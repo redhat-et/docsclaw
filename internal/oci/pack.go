@@ -75,26 +75,13 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 			return ocispec.Descriptor{}, fmt.Errorf("failed to marshal image config: %w", err)
 		}
 	} else {
-		// Layer 0: skill.yaml as SkillCard metadata.
-		skillYAMLData, err := os.ReadFile(skillYAMLPath)
+		// Artifact mode: each file is a separate layer so that
+		// 'oras pull' extracts them directly as named files.
+		fileLayers, err := pushFileLayers(ctx, target, skillDir)
 		if err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("failed to read skill.yaml: %w", err)
+			return ocispec.Descriptor{}, fmt.Errorf("failed to push file layers: %w", err)
 		}
-		cardDesc, err := pushBlob(ctx, target, CardMediaType, skillYAMLData)
-		if err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("failed to push card layer: %w", err)
-		}
-
-		// Layer 1: tar+gzip of entire skill directory.
-		tar, err := tarDirectory(skillDir, sc.Metadata.Name)
-		if err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
-		}
-		contentDesc, err := pushBlob(ctx, target, ContentMediaType, tar.gzipped)
-		if err != nil {
-			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
-		}
-		layers = []ocispec.Descriptor{cardDesc, contentDesc}
+		layers = fileLayers
 
 		// Skill-specific config with metadata for community tools.
 		configMediaType = ConfigMediaType
@@ -108,6 +95,11 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 	configDesc, err := pushBlob(ctx, target, configMediaType, configData)
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to push config blob: %w", err)
+	}
+	if !opts.AsImage {
+		configDesc.Annotations = map[string]string{
+			AnnotationTitle: "config.json",
+		}
 	}
 
 	// 4. Build manifest with annotations
@@ -159,6 +151,54 @@ func buildConfig(sc card.SkillCard) map[string]any {
 		cfg["required"] = sc.Spec.Tools.Required
 	}
 	return cfg
+}
+
+// pushFileLayers walks a skill directory and pushes each file as a separate
+// OCI layer with a title annotation. This enables 'oras pull' to extract
+// files directly without needing to unpack a tarball.
+func pushFileLayers(ctx context.Context, target content.Storage, skillDir string) ([]ocispec.Descriptor, error) {
+	var layers []ocispec.Descriptor
+
+	err := filepath.Walk(skillDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			// Skip OCI layout and dot-prefixed directories (.git, etc).
+			name := info.Name()
+			if name == "oci-layout" || (strings.HasPrefix(name, ".") && name != ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		rel, err := filepath.Rel(skillDir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+		// Normalize to forward slashes for OCI annotations.
+		rel = strings.ReplaceAll(rel, string(filepath.Separator), "/")
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", rel, err)
+		}
+
+		desc, err := pushBlob(ctx, target, FileMediaType, data)
+		if err != nil {
+			return fmt.Errorf("failed to push %s: %w", rel, err)
+		}
+		desc.Annotations = map[string]string{
+			AnnotationTitle: rel,
+		}
+		layers = append(layers, desc)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return layers, nil
 }
 
 // pushBlob creates a descriptor and pushes data to the target storage.

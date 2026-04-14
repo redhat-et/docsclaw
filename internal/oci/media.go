@@ -7,6 +7,7 @@ const (
 	ImageConfigMediaType = "application/vnd.oci.image.config.v1+json"
 	CardMediaType        = "application/vnd.docsclaw.skill.card.v1+yaml"
 	ContentMediaType     = "application/vnd.agentskills.skill.content.v1.tar+gzip"
+	FileMediaType        = "application/octet-stream"
 )
 
 const (

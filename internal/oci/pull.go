@@ -58,7 +58,18 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		return fmt.Errorf("failed to unmarshal manifest: %w", err)
 	}
 
-	// 5. Find the content layer (artifact or image mode).
+	// 5. Determine skill name from manifest annotations.
+	skillName := manifest.Annotations[AnnotationSkillName]
+
+	// 6. Determine format and extract.
+	// - Individual file layers (artifact mode): each layer has a title annotation
+	// - Tarball layer (image mode or legacy): ContentMediaType or ImageLayerGzip
+	extractDir := destDir
+	if skillName != "" {
+		extractDir = filepath.Join(destDir, skillName)
+	}
+
+	// Check for tarball layer first (image mode or legacy artifact).
 	var contentDesc *ocispec.Descriptor
 	for i := range manifest.Layers {
 		mt := manifest.Layers[i].MediaType
@@ -68,19 +79,45 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 		}
 	}
 
-	if contentDesc == nil {
-		return fmt.Errorf("content layer not found in manifest")
-	}
-
-	// 6. Fetch the content layer
-	contentData, err := fetchBlob(ctx, localStore, *contentDesc)
-	if err != nil {
-		return fmt.Errorf("failed to fetch content layer: %w", err)
-	}
-
-	// 7. Extract the tar+gzip to destDir
-	if err := extractTarGzip(contentData, destDir); err != nil {
-		return fmt.Errorf("failed to extract content: %w", err)
+	if contentDesc != nil {
+		// Tarball mode: extract tar+gzip.
+		contentData, fetchErr := fetchBlob(ctx, localStore, *contentDesc)
+		if fetchErr != nil {
+			return fmt.Errorf("failed to fetch content layer: %w", fetchErr)
+		}
+		if err := extractTarGzip(contentData, extractDir); err != nil {
+			return fmt.Errorf("failed to extract content: %w", err)
+		}
+	} else {
+		// File-per-layer mode: write each layer as a named file.
+		if err := os.MkdirAll(extractDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+		for i := range manifest.Layers {
+			title := manifest.Layers[i].Annotations[AnnotationTitle]
+			if title == "" {
+				continue
+			}
+			// Prevent path traversal via malicious title annotations.
+			if strings.Contains(title, "..") || filepath.IsAbs(title) {
+				return fmt.Errorf("invalid layer title: %s", title)
+			}
+			data, fetchErr := fetchBlob(ctx, localStore, manifest.Layers[i])
+			if fetchErr != nil {
+				return fmt.Errorf("failed to fetch layer %s: %w", title, fetchErr)
+			}
+			filePath := filepath.Join(extractDir, title)
+			// Verify resolved path stays inside extractDir.
+			if !strings.HasPrefix(filepath.Clean(filePath), filepath.Clean(extractDir)+string(os.PathSeparator)) {
+				return fmt.Errorf("layer title escapes destination: %s", title)
+			}
+			if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+				return fmt.Errorf("failed to create directory for %s: %w", title, err)
+			}
+			if err := os.WriteFile(filePath, data, 0o644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", title, err)
+			}
+		}
 	}
 
 	return nil
