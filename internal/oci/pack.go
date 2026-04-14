@@ -115,6 +115,11 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to push config blob: %w", err)
 	}
+	if !opts.AsImage {
+		configDesc.Annotations = map[string]string{
+			AnnotationTitle: "config.json",
+		}
+	}
 
 	// 4. Build manifest with annotations
 	annotations := buildAnnotations(sc)
