@@ -1,9 +1,14 @@
 package oci
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/redhat-et/docsclaw/pkg/skills/card"
@@ -53,30 +58,83 @@ func Inspect(ctx context.Context, ref string, opts InspectOptions) (card.SkillCa
 		return card.SkillCard{}, fmt.Errorf("failed to unmarshal manifest: %w", err)
 	}
 
-	// 5. Find the SkillCard layer (CardMediaType)
-	var cardDesc *ocispec.Descriptor
+	// 5. Find the SkillCard layer (CardMediaType).
+	// For image-mode artifacts, fall back to extracting skill.yaml
+	// from the content layer (tar+gzip).
 	for i := range manifest.Layers {
 		if manifest.Layers[i].MediaType == CardMediaType {
-			cardDesc = &manifest.Layers[i]
-			break
+			cardData, err := fetchBlob(ctx, localStore, manifest.Layers[i])
+			if err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to fetch skill card layer: %w", err)
+			}
+			var sc card.SkillCard
+			if err := yaml.Unmarshal(cardData, &sc); err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to unmarshal skill card: %w", err)
+			}
+			return sc, nil
 		}
 	}
 
-	if cardDesc == nil {
-		return card.SkillCard{}, fmt.Errorf("skill card layer not found in manifest")
+	// Fallback: image-mode artifact — extract skill.yaml from the content layer.
+	for i := range manifest.Layers {
+		mt := manifest.Layers[i].MediaType
+		if mt == ContentMediaType || mt == ocispec.MediaTypeImageLayerGzip {
+			layerData, err := fetchBlob(ctx, localStore, manifest.Layers[i])
+			if err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to fetch content layer: %w", err)
+			}
+			return extractSkillCardFromTar(layerData)
+		}
 	}
 
-	// 6. Fetch the SkillCard layer
-	cardData, err := fetchBlob(ctx, localStore, *cardDesc)
+	return card.SkillCard{}, fmt.Errorf("no skill card or content layer found in manifest")
+}
+
+// extractSkillCardFromTar finds and parses skill.yaml inside a tar+gzip archive.
+func extractSkillCardFromTar(data []byte) (card.SkillCard, error) {
+	gr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
-		return card.SkillCard{}, fmt.Errorf("failed to fetch skill card layer: %w", err)
+		return card.SkillCard{}, fmt.Errorf("failed to decompress content layer: %w", err)
 	}
+	defer gr.Close()
 
-	// 7. Unmarshal as YAML into card.SkillCard
-	var sc card.SkillCard
-	if err := yaml.Unmarshal(cardData, &sc); err != nil {
-		return card.SkillCard{}, fmt.Errorf("failed to unmarshal skill card: %w", err)
+	tr := tar.NewReader(gr)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return card.SkillCard{}, fmt.Errorf("failed to read tar: %w", err)
+		}
+		// Match skill.yaml at root or single-dir depth only
+		// (e.g., "skill.yaml" or "resume-screener/skill.yaml",
+		// but not "examples/foo/skill.yaml").
+		if header.Typeflag == tar.TypeReg && isSkillYAMLPath(header.Name) {
+			cardData, err := io.ReadAll(tr)
+			if err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to read skill.yaml from archive: %w", err)
+			}
+			var sc card.SkillCard
+			if err := yaml.Unmarshal(cardData, &sc); err != nil {
+				return card.SkillCard{}, fmt.Errorf("failed to parse skill.yaml from archive: %w", err)
+			}
+			return sc, nil
+		}
 	}
+	return card.SkillCard{}, fmt.Errorf("skill.yaml not found in content layer")
+}
 
-	return sc, nil
+// isSkillYAMLPath returns true if the tar entry path is "skill.yaml" or
+// "<single-dir>/skill.yaml" (at most one directory level).
+func isSkillYAMLPath(name string) bool {
+	if name == "skill.yaml" {
+		return true
+	}
+	// Accept "<dir>/skill.yaml" but not "a/b/skill.yaml".
+	if strings.HasSuffix(name, "/skill.yaml") {
+		prefix := strings.TrimSuffix(name, "/skill.yaml")
+		return !strings.Contains(prefix, "/")
+	}
+	return false
 }

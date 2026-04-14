@@ -29,7 +29,7 @@ var skillPackCmd = &cobra.Command{
 		// Use default output if not specified
 		output := packOutput
 		if output == "" {
-			output = skillDir + "/oci-layout"
+			output = filepath.Join(skillDir, "oci-layout")
 		}
 
 		// Check if layout already exists

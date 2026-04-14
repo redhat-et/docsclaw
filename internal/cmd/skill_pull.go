@@ -29,9 +29,10 @@ var skillPullCmd = &cobra.Command{
 
 		// Verify signature if requested
 		if pullVerify {
-			mode := verify.ModeWarn
-			if pullKey != "" {
-				mode = verify.ModeEnforce
+			mode := verify.ModeEnforce
+			if pullKey == "" {
+				fmt.Fprintln(os.Stderr, "Warning: --verify without --key skips signature verification")
+				mode = verify.ModeWarn
 			}
 
 			policy := verify.Policy{

@@ -2,6 +2,7 @@ package skills
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,14 +40,19 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 
 		meta, err := parseFrontmatter(skillFile)
 		if err != nil {
+			slog.Warn("skipping skill with invalid SKILL.md", "dir", entry.Name(), "error", err)
 			continue
 		}
 		meta.Dir = filepath.Join(skillsDir, entry.Name())
 
 		// If skill.yaml exists, prefer its description.
 		cardPath := filepath.Join(skillsDir, entry.Name(), "skill.yaml")
-		if sc, err := card.Parse(cardPath); err == nil {
-			meta.Description = sc.Metadata.Description
+		if _, statErr := os.Stat(cardPath); statErr == nil {
+			if sc, parseErr := card.Parse(cardPath); parseErr == nil {
+				meta.Description = sc.Metadata.Description
+			} else {
+				slog.Warn("skill.yaml exists but failed to parse", "dir", entry.Name(), "error", parseErr)
+			}
 		}
 
 		skills = append(skills, meta)

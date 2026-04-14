@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -57,8 +58,7 @@ func Validate(sc SkillCard) error {
 		return fmt.Errorf("metadata.name %q does not match Agent Skills naming rules (lowercase a-z, digits 0-9, hyphens, 1-64 chars, no leading/trailing/consecutive hyphens)", sc.Metadata.Name)
 	}
 
-	// Additional check for consecutive hyphens
-	if regexp.MustCompile(`--`).MatchString(sc.Metadata.Name) {
+	if strings.Contains(sc.Metadata.Name, "--") {
 		return fmt.Errorf("metadata.name %q contains consecutive hyphens", sc.Metadata.Name)
 	}
 

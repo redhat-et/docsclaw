@@ -45,11 +45,11 @@ description: A test skill for unit testing
 This is a test skill for unit testing.
 `
 
-	if err := os.WriteFile(filepath.Join(dir, "skill.yaml"), []byte(skillYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "skill.yaml"), []byte(skillYAML), 0o644); err != nil {
 		t.Fatalf("failed to write skill.yaml: %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skillMD), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(skillMD), 0o644); err != nil {
 		t.Fatalf("failed to write SKILL.md: %v", err)
 	}
 }
@@ -137,7 +137,7 @@ func TestPackMissingSkillYaml(t *testing.T) {
 
 This skill is missing skill.yaml.
 `
-	if err := os.WriteFile(filepath.Join(tmpDir, "SKILL.md"), []byte(skillMD), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "SKILL.md"), []byte(skillMD), 0o644); err != nil {
 		t.Fatalf("failed to write SKILL.md: %v", err)
 	}
 
