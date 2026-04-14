@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/redhat-et/docsclaw/pkg/skills/card"
@@ -106,8 +107,10 @@ func extractSkillCardFromTar(data []byte) (card.SkillCard, error) {
 		if err != nil {
 			return card.SkillCard{}, fmt.Errorf("failed to read tar: %w", err)
 		}
-		// Match skill.yaml at any depth (e.g., "skill.yaml" or "resume-screener/skill.yaml").
-		if header.Typeflag == tar.TypeReg && (header.Name == "skill.yaml" || len(header.Name) > 11 && header.Name[len(header.Name)-11:] == "/skill.yaml") {
+		// Match skill.yaml at root or single-dir depth only
+		// (e.g., "skill.yaml" or "resume-screener/skill.yaml",
+		// but not "examples/foo/skill.yaml").
+		if header.Typeflag == tar.TypeReg && isSkillYAMLPath(header.Name) {
 			cardData, err := io.ReadAll(tr)
 			if err != nil {
 				return card.SkillCard{}, fmt.Errorf("failed to read skill.yaml from archive: %w", err)
@@ -120,4 +123,18 @@ func extractSkillCardFromTar(data []byte) (card.SkillCard, error) {
 		}
 	}
 	return card.SkillCard{}, fmt.Errorf("skill.yaml not found in content layer")
+}
+
+// isSkillYAMLPath returns true if the tar entry path is "skill.yaml" or
+// "<single-dir>/skill.yaml" (at most one directory level).
+func isSkillYAMLPath(name string) bool {
+	if name == "skill.yaml" {
+		return true
+	}
+	// Accept "<dir>/skill.yaml" but not "a/b/skill.yaml".
+	if strings.HasSuffix(name, "/skill.yaml") {
+		prefix := strings.TrimSuffix(name, "/skill.yaml")
+		return !strings.Contains(prefix, "/")
+	}
+	return false
 }

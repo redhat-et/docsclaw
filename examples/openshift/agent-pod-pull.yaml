@@ -1,25 +1,35 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: docsclaw-skill-test
+  name: docsclaw-skill-pull
 spec:
   initContainers:
     - name: skill-puller
-      image: ghcr.io/redhat-et/docsclaw:9415c38
+      image: ghcr.io/redhat-et/docsclaw:latest
       command:
-        - /app/docsclaw
+        - docsclaw
         - skill
         - pull
         - -o
         - /skills
         - quay.io/docsclaw/skill-resume-screener:1.0.0
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
       volumeMounts:
         - mountPath: /skills
           name: skills-vol
   containers:
     - name: docsclaw
-      image: ghcr.io/redhat-et/docsclaw:9415c38
+      image: ghcr.io/redhat-et/docsclaw:latest
       command: ["sleep", "infinity"]
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
       volumeMounts:
         - mountPath: /skills
           name: skills-vol

@@ -161,7 +161,7 @@ func extractTarGzip(data []byte, destDir string) error {
 			if err != nil {
 				return fmt.Errorf("failed to resolve parent of %s: %w", targetPath, err)
 			}
-			if !strings.HasPrefix(resolvedParent, filepath.Clean(resolvedDest)) {
+			if !strings.HasPrefix(resolvedParent, destPrefix) && resolvedParent != filepath.Clean(resolvedDest) {
 				return fmt.Errorf("symlink escape detected: %s resolves outside destination", targetPath)
 			}
 

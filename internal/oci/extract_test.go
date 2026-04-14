@@ -94,13 +94,15 @@ func TestExtractRejectsAbsolutePath(t *testing.T) {
 
 	dest := t.TempDir()
 	err := extractTarGzip(gzBuf.Bytes(), dest)
-	if err == nil {
-		// Check that the file wasn't written outside dest
-		if _, statErr := os.Stat("/etc/passwd.test"); statErr == nil {
-			t.Fatal("file written outside destination")
-		}
+	if err != nil {
+		// Error is the expected safe outcome
+		return
 	}
-	// Either an error or the file is safely inside dest — both acceptable
+	// If no error, the file must be safely inside dest (not at /etc/passwd)
+	safePath := filepath.Join(dest, "etc", "passwd")
+	if _, statErr := os.Stat(safePath); statErr != nil {
+		t.Fatalf("file not found at safe path %s and no error returned", safePath)
+	}
 }
 
 func TestExtractAppliesPermissionMask(t *testing.T) {
