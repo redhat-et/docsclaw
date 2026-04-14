@@ -3,6 +3,7 @@ package oci
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
@@ -84,7 +85,9 @@ func resolveTarget(ref string, override oras.Target, tlsVerify *bool) (oras.Targ
 
 	// Set up credential resolution from Docker/Podman config.
 	credStore, err := credentials.NewStoreFromDocker(credentials.StoreOptions{})
-	if err == nil {
+	if err != nil {
+		slog.Debug("no Docker/Podman credentials found, using anonymous access", "error", err)
+	} else {
 		repo.Client = &auth.Client{
 			Credential: credentials.Credential(credStore),
 			Cache:      auth.NewCache(),

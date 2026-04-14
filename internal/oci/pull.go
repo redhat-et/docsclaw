@@ -147,7 +147,7 @@ func extractTarGzip(data []byte, destDir string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)&0o755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 			}
 
@@ -165,7 +165,7 @@ func extractTarGzip(data []byte, destDir string) error {
 				return fmt.Errorf("symlink escape detected: %s resolves outside destination", targetPath)
 			}
 
-			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode)&0o644)
 			if err != nil {
 				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 			}

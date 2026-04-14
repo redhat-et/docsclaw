@@ -1,0 +1,17 @@
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: docsclaw-image-vol-test3
+  spec:
+    containers:
+      - name: docsclaw
+        image: ghcr.io/redhat-et/docsclaw:416f70e
+        command: ["sleep", "infinity"]
+        volumeMounts:
+          - name: skill-resume-screener
+            mountPath: /skills/resume-screener
+    volumes:
+      - name: skill-resume-screener
+        image:
+          reference: quay.io/docsclaw/skill-resume-screener:1.0.0-image3
+          pullPolicy: IfNotPresent

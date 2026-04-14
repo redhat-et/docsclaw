@@ -26,15 +26,6 @@ type PackOptions struct {
 	AsImage bool // If true, use image config media type instead of artifact type
 }
 
-// skillConfig represents the config blob stored in the OCI artifact.
-type skillConfig struct {
-	Name         string   `json:"name"`
-	Version      string   `json:"version"`
-	Description  string   `json:"description"`
-	License      string   `json:"license,omitempty"`
-	AllowedTools string   `json:"allowedTools,omitempty"`
-	Required     []string `json:"required,omitempty"`
-}
 
 // Pack creates an OCI artifact from a skill directory and pushes it to the target storage.
 // Returns the manifest descriptor.
@@ -149,16 +140,25 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 	return manifestDesc, nil
 }
 
-// buildConfig creates a skillConfig from a SkillCard.
-func buildConfig(sc card.SkillCard) skillConfig {
-	return skillConfig{
-		Name:         sc.Metadata.Name,
-		Version:      sc.Metadata.Version,
-		Description:  sc.Metadata.Description,
-		License:      sc.Metadata.License,
-		AllowedTools: sc.Spec.AllowedTools,
-		Required:     sc.Spec.Tools.Required,
+// buildConfig creates a config blob from a SkillCard.
+// Uses a map to avoid duplicating SkillCard fields in a separate struct.
+func buildConfig(sc card.SkillCard) map[string]any {
+	cfg := map[string]any{
+		"schemaVersion": "1",
+		"name":          sc.Metadata.Name,
+		"version":       sc.Metadata.Version,
+		"description":   sc.Metadata.Description,
 	}
+	if sc.Metadata.License != "" {
+		cfg["license"] = sc.Metadata.License
+	}
+	if sc.Spec.AllowedTools != "" {
+		cfg["allowedTools"] = sc.Spec.AllowedTools
+	}
+	if len(sc.Spec.Tools.Required) > 0 {
+		cfg["required"] = sc.Spec.Tools.Required
+	}
+	return cfg
 }
 
 // pushBlob creates a descriptor and pushes data to the target storage.
@@ -187,13 +187,8 @@ func tarDirectory(dir, skillName string) (tarResult, error) {
 	// Fixed mtime for reproducible digests (2026-01-01 00:00:00 UTC)
 	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	// Names to skip when packing (OCI layout artifacts, not skill content).
-	skipNames := map[string]bool{
-		"blobs":      true, // OCI layout directory
-		"ingest":     true, // OCI layout directory
-		"oci-layout": true, // OCI layout marker file
-		"index.json": true, // OCI layout index
-	}
+	// OCI layout directory name to skip (only at the top level of the skill dir).
+	const ociLayoutDir = "oci-layout"
 
 	// Collect all file paths and sort them
 	var paths []string
@@ -201,12 +196,16 @@ func tarDirectory(dir, skillName string) (tarResult, error) {
 		if err != nil {
 			return err
 		}
-		name := info.Name()
-		if skipNames[name] {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil // skip file
+		// Skip the OCI layout directory at the top level only.
+		// Uses relative path to avoid false matches on legitimate
+		// subdirectories with names like "blobs" or "index.json".
+		rel, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			return relErr
+		}
+		topLevel := strings.SplitN(rel, string(filepath.Separator), 2)[0]
+		if topLevel == ociLayoutDir && info.IsDir() {
+			return filepath.SkipDir
 		}
 		paths = append(paths, path)
 		return nil
@@ -268,11 +267,11 @@ func tarDirectory(dir, skillName string) (tarResult, error) {
 			if err != nil {
 				return tarResult{}, fmt.Errorf("failed to open %s: %w", path, err)
 			}
-			if _, err := io.Copy(tw, f); err != nil {
-				f.Close()
-				return tarResult{}, fmt.Errorf("failed to copy file content: %w", err)
-			}
+			_, copyErr := io.Copy(tw, f)
 			f.Close()
+			if copyErr != nil {
+				return tarResult{}, fmt.Errorf("failed to copy file content: %w", copyErr)
+			}
 		}
 	}
 

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: docsclaw-skill-test
+spec:
+  initContainers:
+    - name: skill-puller
+      image: ghcr.io/redhat-et/docsclaw:9415c38
+      command:
+        - /app/docsclaw
+        - skill
+        - pull
+        - -o
+        - /skills
+        - quay.io/docsclaw/skill-resume-screener:1.0.0
+      volumeMounts:
+        - mountPath: /skills
+          name: skills-vol
+  containers:
+    - name: docsclaw
+      image: ghcr.io/redhat-et/docsclaw:9415c38
+      command: ["sleep", "infinity"]
+      volumeMounts:
+        - mountPath: /skills
+          name: skills-vol
+  volumes:
+    - name: skills-vol
+      emptyDir: {}
