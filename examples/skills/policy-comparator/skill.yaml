@@ -3,7 +3,7 @@ kind: SkillCard
 metadata:
   name: policy-comparator
   namespace: official
-  ref: quay.io/docsclaw/official/skill-policy-comparator
+  ref: quay.io/docsclaw/skill-policy-comparator
   version: 1.0.0
   description: >-
     Compare policy documents side by side. Produces a structured

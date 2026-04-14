@@ -32,7 +32,7 @@ kind: SkillCard
 metadata:
   name: resume-screener
   namespace: official
-  ref: quay.io/docsclaw/official/skill-resume-screener
+  ref: quay.io/docsclaw/skill-resume-screener
   version: 1.0.0
   description: >-
     Screen resumes against a job description. Use when HR
@@ -85,20 +85,20 @@ Pack and push in one step:
 
 ```bash
 docsclaw skill push examples/skills/resume-screener \
-  quay.io/docsclaw/official/skill-resume-screener:1.0.0
+  quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 Push as a mountable image:
 
 ```bash
 docsclaw skill push --as-image examples/skills/resume-screener \
-  quay.io/docsclaw/official/skill-resume-screener:1.0.0
+  quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 ### Pull a skill from a registry
 
 ```bash
-docsclaw skill pull quay.io/docsclaw/official/skill-resume-screener:1.0.0
+docsclaw skill pull quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 Skills are extracted to `~/.docsclaw/skills/` by default. Use `-o`
@@ -106,14 +106,14 @@ to specify a different directory:
 
 ```bash
 docsclaw skill pull -o /skills \
-  quay.io/docsclaw/official/skill-resume-screener:1.0.0
+  quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 Pull with signature verification:
 
 ```bash
 docsclaw skill pull --verify --key cosign.pub \
-  quay.io/docsclaw/official/skill-resume-screener:1.0.0
+  quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 ### Inspect a skill
@@ -122,7 +122,7 @@ Show SkillCard metadata without pulling the full content:
 
 ```bash
 docsclaw skill inspect \
-  quay.io/docsclaw/official/skill-resume-screener:1.0.0
+  quay.io/docsclaw/skill-resume-screener:1.0.0
 
 # Output:
 # Name:        resume-screener
@@ -140,7 +140,7 @@ docsclaw skill inspect \
 
 ```bash
 docsclaw skill verify --key cosign.pub \
-  quay.io/docsclaw/official/skill-resume-screener:1.0.0
+  quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 ## Deploy on OpenShift 4.20+ with image volumes
@@ -165,11 +165,11 @@ spec:
   volumes:
     - name: skill-resume-screener
       image:
-        reference: quay.io/docsclaw/official/skill-resume-screener:1.0.0
+        reference: quay.io/docsclaw/skill-resume-screener:1.0.0
         pullPolicy: IfNotPresent
     - name: skill-policy-comparator
       image:
-        reference: quay.io/docsclaw/official/skill-policy-comparator:1.0.0
+        reference: quay.io/docsclaw/skill-policy-comparator:1.0.0
         pullPolicy: IfNotPresent
 ```
 
@@ -202,7 +202,7 @@ spec:
       command: ["docsclaw", "skill", "pull", "--verify",
                 "--key", "/etc/docsclaw/keys/cosign.pub",
                 "-o", "/skills",
-                "quay.io/docsclaw/official/skill-resume-screener:1.0.0"]
+                "quay.io/docsclaw/skill-resume-screener:1.0.0"]
       volumeMounts:
         - mountPath: /skills
           name: skills-pvc

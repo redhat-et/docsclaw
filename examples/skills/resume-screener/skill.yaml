@@ -3,7 +3,7 @@ kind: SkillCard
 metadata:
   name: resume-screener
   namespace: official
-  ref: quay.io/docsclaw/official/skill-resume-screener
+  ref: quay.io/docsclaw/skill-resume-screener
   version: 1.0.0
   description: >-
     Screen resumes against a job description. Scores candidates on

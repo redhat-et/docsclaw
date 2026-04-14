@@ -3,7 +3,7 @@ kind: SkillCard
 metadata:
   name: checklist-auditor
   namespace: official
-  ref: quay.io/docsclaw/official/skill-checklist-auditor
+  ref: quay.io/docsclaw/skill-checklist-auditor
   version: 1.0.0
   description: >-
     Audit checklists for consistency against a corporate standard.
