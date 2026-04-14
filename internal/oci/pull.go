@@ -98,11 +98,19 @@ func Pull(ctx context.Context, ref, destDir string, opts PullOptions) error {
 			if title == "" {
 				continue
 			}
+			// Prevent path traversal via malicious title annotations.
+			if strings.Contains(title, "..") || filepath.IsAbs(title) {
+				return fmt.Errorf("invalid layer title: %s", title)
+			}
 			data, fetchErr := fetchBlob(ctx, localStore, manifest.Layers[i])
 			if fetchErr != nil {
 				return fmt.Errorf("failed to fetch layer %s: %w", title, fetchErr)
 			}
 			filePath := filepath.Join(extractDir, title)
+			// Verify resolved path stays inside extractDir.
+			if !strings.HasPrefix(filepath.Clean(filePath), filepath.Clean(extractDir)+string(os.PathSeparator)) {
+				return fmt.Errorf("layer title escapes destination: %s", title)
+			}
 			if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
 				return fmt.Errorf("failed to create directory for %s: %w", title, err)
 			}

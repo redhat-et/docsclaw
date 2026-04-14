@@ -164,8 +164,9 @@ func pushFileLayers(ctx context.Context, target content.Storage, skillDir string
 			return err
 		}
 		if info.IsDir() {
-			// Skip the OCI layout directory.
-			if info.Name() == "oci-layout" {
+			// Skip OCI layout and dot-prefixed directories (.git, etc).
+			name := info.Name()
+			if name == "oci-layout" || (strings.HasPrefix(name, ".") && name != ".") {
 				return filepath.SkipDir
 			}
 			return nil
