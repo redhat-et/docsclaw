@@ -73,49 +73,54 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		return ocispec.Descriptor{}, fmt.Errorf("failed to push config blob: %w", err)
 	}
 
-	// 3. Create layer 0: skill.yaml
-	skillYAMLData, err := os.ReadFile(skillYAMLPath)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to read skill.yaml: %w", err)
-	}
+	// 3. Build layers.
+	// In artifact mode: two layers (SkillCard YAML + content tarball).
+	// In image mode: single tar+gzip layer with all content (like FROM scratch).
+	var layers []ocispec.Descriptor
 
-	// In image mode, use standard OCI layer media type so registries
-	// and the kubelet treat layers as normal image layers.
-	cardMediaType := CardMediaType
 	if opts.AsImage {
-		cardMediaType = ocispec.MediaTypeImageLayer
-	}
-	cardDesc, err := pushBlob(ctx, target, cardMediaType, skillYAMLData)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to push card layer: %w", err)
+		// Single layer: tar+gzip of entire skill directory.
+		// skill.yaml is included in the tarball — no separate layer.
+		tarData, err := tarDirectory(skillDir, sc.Metadata.Name)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
+		}
+		contentDesc, err := pushBlob(ctx, target, ocispec.MediaTypeImageLayerGzip, tarData)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
+		}
+		layers = []ocispec.Descriptor{contentDesc}
+	} else {
+		// Layer 0: skill.yaml as SkillCard metadata.
+		skillYAMLData, err := os.ReadFile(skillYAMLPath)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to read skill.yaml: %w", err)
+		}
+		cardDesc, err := pushBlob(ctx, target, CardMediaType, skillYAMLData)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to push card layer: %w", err)
+		}
+
+		// Layer 1: tar+gzip of entire skill directory.
+		tarData, err := tarDirectory(skillDir, sc.Metadata.Name)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
+		}
+		contentDesc, err := pushBlob(ctx, target, ContentMediaType, tarData)
+		if err != nil {
+			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
+		}
+		layers = []ocispec.Descriptor{cardDesc, contentDesc}
 	}
 
-	// 4. Create layer 1: tar+gzip of entire skill directory
-	tarData, err := tarDirectory(skillDir, sc.Metadata.Name)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
-	}
-
-	contentMediaType := ContentMediaType
-	if opts.AsImage {
-		contentMediaType = ocispec.MediaTypeImageLayerGzip
-	}
-	contentDesc, err := pushBlob(ctx, target, contentMediaType, tarData)
-	if err != nil {
-		return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
-	}
-
-	// 5. Build manifest with annotations
+	// 4. Build manifest with annotations
 	annotations := buildAnnotations(sc)
 
 	manifest := ocispec.Manifest{
 		Versioned: specs.Versioned{SchemaVersion: 2},
 		MediaType: ocispec.MediaTypeImageManifest,
 		Config:    configDesc,
-		Layers: []ocispec.Descriptor{
-			cardDesc,
-			contentDesc,
-		},
+		Layers:    layers,
 		Annotations: annotations,
 	}
 
