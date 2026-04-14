@@ -46,16 +46,26 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 	}
 
 	// 2. Build config blob
-	cfg := buildConfig(sc)
-	configData, err := json.Marshal(cfg)
+	var configData []byte
+	var configMediaType string
+	if opts.AsImage {
+		// Minimal valid OCI image config for a scratch image.
+		// Registries (quay.io) validate this structure.
+		configMediaType = ImageConfigMediaType
+		imgCfg := map[string]any{
+			"architecture": "",
+			"os":           "",
+			"config":       map[string]any{},
+		}
+		configData, err = json.Marshal(imgCfg)
+	} else {
+		// Skill-specific config with metadata for community tools.
+		configMediaType = ConfigMediaType
+		cfg := buildConfig(sc)
+		configData, err = json.Marshal(cfg)
+	}
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	// Choose config media type based on AsImage option
-	configMediaType := ConfigMediaType
-	if opts.AsImage {
-		configMediaType = ImageConfigMediaType
 	}
 
 	configDesc, err := pushBlob(ctx, target, configMediaType, configData)
@@ -63,13 +73,19 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		return ocispec.Descriptor{}, fmt.Errorf("failed to push config blob: %w", err)
 	}
 
-	// 3. Create layer 0: skill.yaml as CardMediaType
+	// 3. Create layer 0: skill.yaml
 	skillYAMLData, err := os.ReadFile(skillYAMLPath)
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to read skill.yaml: %w", err)
 	}
 
-	cardDesc, err := pushBlob(ctx, target, CardMediaType, skillYAMLData)
+	// In image mode, use standard OCI layer media type so registries
+	// and the kubelet treat layers as normal image layers.
+	cardMediaType := CardMediaType
+	if opts.AsImage {
+		cardMediaType = ocispec.MediaTypeImageLayer
+	}
+	cardDesc, err := pushBlob(ctx, target, cardMediaType, skillYAMLData)
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to push card layer: %w", err)
 	}
@@ -80,7 +96,11 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
 	}
 
-	contentDesc, err := pushBlob(ctx, target, ContentMediaType, tarData)
+	contentMediaType := ContentMediaType
+	if opts.AsImage {
+		contentMediaType = ocispec.MediaTypeImageLayerGzip
+	}
+	contentDesc, err := pushBlob(ctx, target, contentMediaType, tarData)
 	if err != nil {
 		return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
 	}
