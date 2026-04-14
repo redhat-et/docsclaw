@@ -55,15 +55,12 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 
 	if opts.AsImage {
 		// Single layer: tar+gzip of entire skill directory.
-		tarData, err := tarDirectory(skillDir, sc.Metadata.Name)
+		tar, err := tarDirectory(skillDir, sc.Metadata.Name)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
 		}
 
-		// Compute uncompressed digest for rootfs.diff_ids.
-		uncompressedDigest := digest.FromBytes(tarData)
-
-		contentDesc, err := pushBlob(ctx, target, ocispec.MediaTypeImageLayerGzip, tarData)
+		contentDesc, err := pushBlob(ctx, target, ocispec.MediaTypeImageLayerGzip, tar.gzipped)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
 		}
@@ -78,7 +75,7 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 			},
 			RootFS: ocispec.RootFS{
 				Type:    "layers",
-				DiffIDs: []digest.Digest{uncompressedDigest},
+				DiffIDs: []digest.Digest{tar.uncompressedDigest},
 			},
 		}
 		configData, err = json.Marshal(imgCfg)
@@ -97,11 +94,11 @@ func Pack(ctx context.Context, skillDir string, target content.Storage, opts Pac
 		}
 
 		// Layer 1: tar+gzip of entire skill directory.
-		tarData, err := tarDirectory(skillDir, sc.Metadata.Name)
+		tar, err := tarDirectory(skillDir, sc.Metadata.Name)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to create tarball: %w", err)
 		}
-		contentDesc, err := pushBlob(ctx, target, ContentMediaType, tarData)
+		contentDesc, err := pushBlob(ctx, target, ContentMediaType, tar.gzipped)
 		if err != nil {
 			return ocispec.Descriptor{}, fmt.Errorf("failed to push content layer: %w", err)
 		}
@@ -172,12 +169,19 @@ func pushBlob(ctx context.Context, target content.Storage, mediaType string, dat
 	return desc, nil
 }
 
+// tarResult holds the output of tarDirectory.
+type tarResult struct {
+	gzipped            []byte
+	uncompressedDigest digest.Digest
+}
+
 // tarDirectory creates a deterministic tar+gzip of the skill directory.
 // All entries are rooted at <skillName>/ and have a fixed mtime for reproducibility.
-func tarDirectory(dir, skillName string) ([]byte, error) {
-	var buf bytes.Buffer
-	gw := gzip.NewWriter(&buf)
-	tw := tar.NewWriter(gw)
+// Returns the gzipped data and the digest of the uncompressed tar (for rootfs.diff_ids).
+func tarDirectory(dir, skillName string) (tarResult, error) {
+	// Write tar to an intermediate buffer to compute the uncompressed digest.
+	var tarBuf bytes.Buffer
+	tw := tar.NewWriter(&tarBuf)
 
 	// Fixed mtime for reproducible digests (2026-01-01 00:00:00 UTC)
 	fixedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -200,7 +204,7 @@ func tarDirectory(dir, skillName string) ([]byte, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to walk directory: %w", err)
+		return tarResult{}, fmt.Errorf("failed to walk directory: %w", err)
 	}
 
 	sort.Strings(paths)
@@ -209,13 +213,13 @@ func tarDirectory(dir, skillName string) ([]byte, error) {
 	for _, path := range paths {
 		info, err := os.Lstat(path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to stat %s: %w", path, err)
+			return tarResult{}, fmt.Errorf("failed to stat %s: %w", path, err)
 		}
 
 		// Get relative path from skill directory
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get relative path: %w", err)
+			return tarResult{}, fmt.Errorf("failed to get relative path: %w", err)
 		}
 
 		// Skip the directory itself (relPath == ".")
@@ -247,31 +251,43 @@ func tarDirectory(dir, skillName string) ([]byte, error) {
 		}
 
 		if err := tw.WriteHeader(header); err != nil {
-			return nil, fmt.Errorf("failed to write tar header: %w", err)
+			return tarResult{}, fmt.Errorf("failed to write tar header: %w", err)
 		}
 
 		// Write file content for regular files
 		if info.Mode().IsRegular() {
 			f, err := os.Open(path)
 			if err != nil {
-				return nil, fmt.Errorf("failed to open %s: %w", path, err)
+				return tarResult{}, fmt.Errorf("failed to open %s: %w", path, err)
 			}
 			if _, err := io.Copy(tw, f); err != nil {
 				f.Close()
-				return nil, fmt.Errorf("failed to copy file content: %w", err)
+				return tarResult{}, fmt.Errorf("failed to copy file content: %w", err)
 			}
 			f.Close()
 		}
 	}
 
 	if err := tw.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close tar writer: %w", err)
-	}
-	if err := gw.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+		return tarResult{}, fmt.Errorf("failed to close tar writer: %w", err)
 	}
 
-	return buf.Bytes(), nil
+	uncompressedDigest := digest.FromBytes(tarBuf.Bytes())
+
+	// Gzip the tar.
+	var gzBuf bytes.Buffer
+	gw := gzip.NewWriter(&gzBuf)
+	if _, err := gw.Write(tarBuf.Bytes()); err != nil {
+		return tarResult{}, fmt.Errorf("failed to gzip: %w", err)
+	}
+	if err := gw.Close(); err != nil {
+		return tarResult{}, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return tarResult{
+		gzipped:            gzBuf.Bytes(),
+		uncompressedDigest: uncompressedDigest,
+	}, nil
 }
 
 // buildAnnotations creates OCI annotations from a SkillCard.
