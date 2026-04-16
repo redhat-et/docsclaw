@@ -637,7 +637,7 @@
           <div class="arch-arrow">&xrarr;</div>
           <div class="arch-box highlight">
             <img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/container-image.svg" alt="">
-            docsclaw skill pack
+            skillctl pack
           </div>
           <div class="arch-arrow">&xrarr;</div>
           <div class="arch-box">
@@ -654,7 +654,7 @@
           <div class="arch-arrow">&xrarr;</div>
           <div class="arch-box highlight">
             <img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/upload.svg" alt="">
-            docsclaw skill push
+            skillctl push
           </div>
           <div class="arch-arrow">&xrarr;</div>
           <div class="arch-box">
@@ -686,23 +686,23 @@
     <!-- ============================================================ -->
     <!-- SLIDE 7: THE WORKFLOW                                         -->
     <!-- ============================================================ -->
-    <div class="slide" data-notes="The --as-image flag produces an OCI image (with rootfs layer) instead of an OCI artifact. This is required for Kubernetes image volumes, which expect a proper container image that the kubelet can pull via the container runtime.<br><br>Credential resolution is automatic: docsclaw reads podman/docker auth configs, so if you've done 'podman login quay.io', push/pull just works.">
+    <div class="slide" data-notes="The --as-image flag produces an OCI image (with rootfs layer) instead of an OCI artifact. This is required for Kubernetes image volumes, which expect a proper container image that the kubelet can pull via the container runtime.<br><br>Credential resolution is automatic: skillctl reads podman/docker auth configs, so if you've done 'podman login quay.io', push/pull just works.">
       <div class="slide-label animate-in"><img class="rh-icon small accent" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/command-line.svg" alt=""> Demo</div>
       <h2 class="animate-in">The Workflow: <span class="accent">Pack, Push, Mount</span></h2>
       <div class="code-block animate-in">
         <span class="comment"># Pack skill into a local OCI layout</span><br>
-        <span class="cmd">$ docsclaw skill pack</span> <span class="arg">examples/skills/resume-screener</span><br>
+        <span class="cmd">$ skillctl pack</span> <span class="arg">examples/skills/resume-screener</span><br>
         <span style="color: var(--text-muted);">Packed skill &rarr; oci-layout &middot; sha256:65af81ce... &middot; 1226 bytes</span><br><br>
 
         <span class="comment"># Push to registry (uses podman/docker credentials)</span><br>
-        <span class="cmd">$ docsclaw skill push</span> <span class="arg">examples/skills/resume-screener \<br>&ensp;&ensp;quay.io/docsclaw/skill-resume-screener:1.0.0</span><br>
+        <span class="cmd">$ skillctl push</span> <span class="arg">examples/skills/resume-screener \<br>&ensp;&ensp;quay.io/docsclaw/skill-resume-screener:1.0.0</span><br>
         <span style="color: var(--text-muted);">Pushed &rarr; quay.io/docsclaw/skill-resume-screener:1.0.0</span><br><br>
 
         <span class="comment"># Push as mountable image (for image volumes)</span><br>
-        <span class="cmd">$ docsclaw skill push --as-image</span> <span class="arg">examples/skills/resume-screener \<br>&ensp;&ensp;quay.io/docsclaw/skill-resume-screener:1.0.0-image</span><br><br>
+        <span class="cmd">$ skillctl push --as-image</span> <span class="arg">examples/skills/resume-screener \<br>&ensp;&ensp;quay.io/docsclaw/skill-resume-screener:1.0.0-image</span><br><br>
 
         <span class="comment"># Inspect remotely (no download needed)</span><br>
-        <span class="cmd">$ docsclaw skill inspect</span> <span class="arg">quay.io/docsclaw/skill-resume-screener:1.0.0</span><br>
+        <span class="cmd">$ skillctl inspect</span> <span class="arg">quay.io/docsclaw/skill-resume-screener:1.0.0</span><br>
         <span style="color: var(--text-muted);">Name: resume-screener &middot; Version: 1.0.0 &middot; Tools: [read_file]</span>
       </div>
     </div>
@@ -717,7 +717,7 @@
         <div>
           <p class="body-text">The <strong style="color: var(--text-primary);">SkillCard</strong> (<code style="font-family: var(--font-mono); background: var(--bg-surface); padding: 2px 8px; border-radius: 3px;">skill.yaml</code>) carries structured metadata alongside the skill instructions. Inspect it remotely without pulling the full content:</p>
           <div class="code-block" style="margin-top: 16px; max-width: 100%;">
-            <span class="cmd">$ docsclaw skill inspect</span> <span class="arg">\<br>&ensp;&ensp;quay.io/docsclaw/skill-resume-screener:1.0.0</span><br><br>
+            <span class="cmd">$ skillctl inspect</span> <span class="arg">\<br>&ensp;&ensp;quay.io/docsclaw/skill-resume-screener:1.0.0</span><br><br>
             <span style="color: #6ec8f5;">Name:</span>&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;resume-screener<br>
             <span style="color: #6ec8f5;">Namespace:</span>&ensp;&ensp;&ensp;official<br>
             <span style="color: #6ec8f5;">Version:</span>&ensp;&ensp;&ensp;&ensp;&ensp;1.0.0<br>
@@ -782,12 +782,12 @@
     <!-- ============================================================ -->
     <!-- SLIDE 10: INIT CONTAINER FALLBACK                              -->
     <!-- ============================================================ -->
-    <div class="slide" data-notes="For older clusters, the init container approach uses docsclaw itself to pull skills from the registry before the main container starts. Use a PVC (not emptyDir) to persist the skill cache across pod restarts and avoid filling node ephemeral storage.<br><br>Signature verification happens at pull time: --verify + --key flags enforce cosign verification before extracting the skill.">
+    <div class="slide" data-notes="For older clusters, the init container approach uses skillctl to pull skills from the registry before the main container starts. Use a PVC (not emptyDir) to persist the skill cache across pod restarts and avoid filling node ephemeral storage.<br><br>Signature verification happens at pull time: --verify + --key flags enforce cosign verification before extracting the skill.">
       <div class="slide-label animate-in"><img class="rh-icon small" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/server-stack.svg" alt=""> Universal Fallback</div>
       <h2 class="animate-in">Init Container for <span class="accent">Older Clusters</span></h2>
       <div class="two-col animate-in">
         <div>
-          <p class="body-text">For Kubernetes &lt; 1.33 or OpenShift &lt; 4.20, use DocsClaw itself as an init container to pull skills before the agent starts.</p>
+          <p class="body-text">For Kubernetes &lt; 1.33 or OpenShift &lt; 4.20, use skillctl as an init container to pull skills before the agent starts.</p>
           <ul class="feature-list" style="margin-top: 24px;">
             <li><img class="rh-icon small" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/download.svg" alt=""> <span>Pull at pod startup, verify signatures</span></li>
             <li><img class="rh-icon small" src="https://cdn.jsdelivr.net/npm/@rhds/icons@2.1.0/standard/storage.svg" alt=""> <span>Cache on a PVC across restarts</span></li>
@@ -798,10 +798,9 @@
           <span class="key">initContainers:</span><br>
           &ensp;&ensp;- <span class="key">name:</span> <span class="val">skill-puller</span><br>
           &ensp;&ensp;&ensp;&ensp;<span class="key">image:</span> <span class="val">ghcr.io/redhat-et/</span><br>
-          &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;<span class="val">docsclaw:latest</span><br>
+          &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;&ensp;<span class="val">skillctl:latest</span><br>
           &ensp;&ensp;&ensp;&ensp;<span class="key">command:</span><br>
-          &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;- <span class="val">"docsclaw"</span><br>
-          &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;- <span class="val">"skill"</span><br>
+          &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;- <span class="val">"skillctl"</span><br>
           &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;- <span class="val">"pull"</span><br>
           &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;- <span class="val">"--verify"</span><br>
           &ensp;&ensp;&ensp;&ensp;&ensp;&ensp;- <span class="val">"-o"</span><br>
