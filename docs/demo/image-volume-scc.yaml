@@ -1,0 +1,90 @@
+# Security context constraint for image volumes.
+#
+# OpenShift's default "restricted" SCC does not allow the "image"
+# volume type. This SCC extends restricted-v2 with image volume
+# support so that skill images can be mounted directly into pods.
+#
+# Requires cluster-admin to create the SCC. The ServiceAccount
+# and RoleBinding are namespace-scoped.
+#
+# Apply:
+#   oc apply -f image-volume-scc.yaml
+
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: restricted-with-image-volumes
+  annotations:
+    kubernetes.io/description: >-
+      Like restricted-v2 but allows image volume mounts for
+      OCI-based skill delivery.
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+fsGroup:
+  type: MustRunAs
+groups: []
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+  - ALL
+runAsUser:
+  type: MustRunAsRange
+seLinuxContext:
+  type: MustRunAs
+seccompProfiles:
+  - runtime/default
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - ephemeral
+  - image
+  - persistentVolumeClaim
+  - projected
+  - secret
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: docsclaw-agent
+  namespace: panni-docsclaw
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: use-image-volume-scc
+rules:
+  - apiGroups:
+      - security.openshift.io
+    resources:
+      - securitycontextconstraints
+    resourceNames:
+      - restricted-with-image-volumes
+    verbs:
+      - use
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: docsclaw-image-volume-scc
+  namespace: panni-docsclaw
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: use-image-volume-scc
+subjects:
+  - kind: ServiceAccount
+    name: docsclaw-agent
+    namespace: panni-docsclaw
