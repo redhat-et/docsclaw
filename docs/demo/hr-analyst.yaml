@@ -1,0 +1,216 @@
+# HR Analyst Agent — document reviewer skill
+#
+# Demonstrates an agent that reviews HR documents: resumes
+# against job descriptions, policy drafts, and onboarding
+# checklists for completeness and consistency.
+#
+# Maps to user stories:
+#   - Resume screening and candidate ranking (HR)
+#   - Policy document comparison (HR)
+#   - Employee onboarding checklist audit (HR)
+#
+# Skill image: quay.io/skillimage/document-reviewer:1.0.0-draft
+#
+# Prerequisites:
+#   oc project panni-docsclaw
+#   oc apply -f image-volume-scc.yaml   (one-time, needs cluster-admin)
+#   oc apply -f llm-secret.yaml
+#
+# Deploy:
+#   oc apply -f hr-analyst.yaml
+#
+# Test:
+#   ROUTE=$(oc get route hr-analyst -o jsonpath='{.spec.host}')
+#
+#   a2a send --timeout 120s https://$ROUTE \
+#     "Review this resume for a Senior Product Manager role.
+#      Requirements: 5+ years PM experience, B2B SaaS background,
+#      data-driven decision making, cross-functional leadership.
+#
+#      Resume: Jane Chen — 7 years at Datadog (Sr PM, then Group PM).
+#      Led API platform team (12 engineers). Shipped usage-based
+#      billing that grew ARR 40%. Before that: 2 years at Stripe
+#      (Associate PM, payments API). MS Computer Science, Stanford.
+#      Gaps: No mention of user research or customer discovery.
+#      No B2B enterprise sales cycle experience listed."
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hr-analyst-config
+  namespace: panni-docsclaw
+  labels:
+    app: hr-analyst
+data:
+  system-prompt.txt: |
+    You are an HR analyst AI supporting the talent acquisition
+    and HR operations teams.
+
+    Your job is to review HR documents with a critical eye:
+    - Resumes: evaluate against job requirements, flag strengths
+      and gaps, provide a fit score with justification
+    - Policies: check for completeness, consistency with labor
+      regulations, and clarity for employees
+    - Onboarding checklists: verify coverage of required steps,
+      consistency across departments
+
+    Always provide structured, actionable feedback. HR decisions
+    affect people's careers — be thorough but fair. Flag genuine
+    gaps without bias toward pedigree or background.
+
+    When a task matches a known skill, load it first for guidance.
+    Organize findings by severity: Critical, Important, Suggestion.
+  agent-card.json: |
+    {
+      "name": "hr-analyst",
+      "description": "Reviews HR documents — resumes, policies, and onboarding checklists",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://hr-analyst:8000",
+      "skills": [
+        {
+          "id": "document-reviewer",
+          "name": "Document Reviewer",
+          "description": "Reviews documents for clarity, completeness, and consistency with structured severity-based feedback",
+          "tags": ["review", "documents", "quality", "hr"],
+          "examples": [
+            "Review this resume against the job description",
+            "Check this policy draft for gaps and inconsistencies",
+            "Audit these onboarding checklists for completeness"
+          ]
+        }
+      ],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - read_file
+        - write_file
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hr-analyst
+  namespace: panni-docsclaw
+  labels:
+    app: hr-analyst
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hr-analyst
+  template:
+    metadata:
+      labels:
+        app: hr-analyst
+    spec:
+      serviceAccountName: docsclaw-agent
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:602ac9a
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: skill-document-reviewer
+              mountPath: /config/agent/skills/document-reviewer
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+      volumes:
+        - name: agent-config
+          configMap:
+            name: hr-analyst-config
+        - name: skill-document-reviewer
+          image:
+            reference: quay.io/skillimage/business/document-reviewer:1.0.0-draft
+            pullPolicy: IfNotPresent
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hr-analyst
+  namespace: panni-docsclaw
+  labels:
+    app: hr-analyst
+spec:
+  selector:
+    app: hr-analyst
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: hr-analyst
+  namespace: panni-docsclaw
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: hr-analyst
+spec:
+  to:
+    kind: Service
+    name: hr-analyst
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,209 @@
+# Executive Assistant Agent — document summarizer skill
+#
+# Demonstrates an agent that summarizes documents for busy
+# executives: meeting notes, budget reports, capacity analyses,
+# and campaign performance data.
+#
+# Maps to user stories:
+#   - Campaign performance narrative (Marketing)
+#   - Budget variance explanation (Finance)
+#   - Capacity planning report (IT Ops)
+#
+# Skill image: quay.io/skillimage/document-summarizer:1.0.0-testing
+#
+# Prerequisites:
+#   oc project panni-docsclaw
+#   oc apply -f image-volume-scc.yaml   (one-time, needs cluster-admin)
+#   oc apply -f llm-secret.yaml
+#
+# Deploy:
+#   oc apply -f executive-assistant.yaml
+#
+# Test:
+#   ROUTE=$(oc get route executive-assistant -o jsonpath='{.spec.host}')
+#
+#   a2a send --timeout 120s https://$ROUTE \
+#     "Summarize this quarterly report for the VP meeting: Our Q1
+#      cloud spend was $2.4M, up 18% from Q4. Three projects drove
+#      the increase: Project Atlas ($400K migration costs), Project
+#      Beacon ($200K new GPU instances), and an unplanned DR failover
+#      ($150K). We expect Q2 to normalize to $2.1M as Atlas completes."
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: executive-assistant-config
+  namespace: panni-docsclaw
+  labels:
+    app: executive-assistant
+data:
+  system-prompt.txt: |
+    You are an executive assistant AI deployed by the CTO office.
+
+    Your job is to help busy leaders process information quickly.
+    When given documents, reports, or meeting notes, produce
+    structured summaries that surface decisions, risks, and
+    action items.
+
+    Adapt your output to the audience:
+    - For VP-level: focus on business impact and decisions needed
+    - For team leads: include technical context and timelines
+    - For standup updates: keep it under 5 bullet points
+
+    When a task matches a known skill, load it first for guidance.
+    Be concise. Executives do not read walls of text.
+  agent-card.json: |
+    {
+      "name": "executive-assistant",
+      "description": "Summarizes documents and reports for executive review",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://executive-assistant:8000",
+      "skills": [
+        {
+          "id": "document-summarizer",
+          "name": "Document Summarizer",
+          "description": "Produces structured summaries of technical documents, reports, and meeting notes",
+          "tags": ["summarization", "documents", "productivity"],
+          "examples": [
+            "Summarize this quarterly report for the VP meeting",
+            "Give me a standup update from these meeting notes",
+            "Extract action items from the architecture review doc"
+          ]
+        }
+      ],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - read_file
+        - write_file
+        - web_fetch
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 5
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: executive-assistant
+  namespace: panni-docsclaw
+  labels:
+    app: executive-assistant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: executive-assistant
+  template:
+    metadata:
+      labels:
+        app: executive-assistant
+    spec:
+      serviceAccountName: docsclaw-agent
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:602ac9a
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: skill-document-summarizer
+              mountPath: /config/agent/skills/document-summarizer
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+      volumes:
+        - name: agent-config
+          configMap:
+            name: executive-assistant-config
+        - name: skill-document-summarizer
+          image:
+            reference: quay.io/skillimage/business/document-summarizer:1.0.0-testing
+            pullPolicy: IfNotPresent
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: executive-assistant
+  namespace: panni-docsclaw
+  labels:
+    app: executive-assistant
+spec:
+  selector:
+    app: executive-assistant
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: executive-assistant
+  namespace: panni-docsclaw
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: executive-assistant
+spec:
+  to:
+    kind: Service
+    name: executive-assistant
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
