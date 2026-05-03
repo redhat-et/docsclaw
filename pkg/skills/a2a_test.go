@@ -175,6 +175,75 @@ metadata:
 	}
 }
 
+func TestToAgentSkillsSkillimageFormat(t *testing.T) {
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "document-summarizer")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	skillMD := "---\nname: document-summarizer\ndescription: From SKILL.md\n---\n# Summarizer\n"
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skillMD), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	skillYAML := `apiVersion: skillimage.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: document-summarizer
+  namespace: business
+  version: 1.0.0
+  description: Summarizes technical documents into actionable summaries.
+  tags:
+    - summarization
+    - documents
+    - productivity
+  authors:
+    - name: OCTO Team
+      email: octo@redhat.com
+spec:
+  prompt: SKILL.md
+  examples:
+    - input: "Summarize this design doc for the team standup."
+    - input: "Extract action items from the architecture review."
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "skill.yaml"), []byte(skillYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	metas := []SkillMeta{
+		{Name: "document-summarizer", Description: "From SKILL.md", Dir: skillDir},
+	}
+
+	result := ToAgentSkills(metas)
+
+	if len(result) != 1 {
+		t.Fatalf("len(result) = %d, want 1", len(result))
+	}
+
+	skill := result[0]
+	if skill.Description != "Summarizes technical documents into actionable summaries." {
+		t.Errorf("Description = %q", skill.Description)
+	}
+
+	wantTags := []string{"summarization", "documents", "productivity"}
+	if len(skill.Tags) != len(wantTags) {
+		t.Fatalf("Tags = %v, want %v", skill.Tags, wantTags)
+	}
+	for i, tag := range wantTags {
+		if skill.Tags[i] != tag {
+			t.Errorf("Tags[%d] = %q, want %q", i, skill.Tags[i], tag)
+		}
+	}
+
+	if len(skill.Examples) != 2 {
+		t.Fatalf("Examples = %v, want 2 entries", skill.Examples)
+	}
+	if skill.Examples[0] != "Summarize this design doc for the team standup." {
+		t.Errorf("Examples[0] = %q", skill.Examples[0])
+	}
+}
+
 func TestToAgentSkillsDedup(t *testing.T) {
 	existing := []a2a.AgentSkill{
 		{ID: "code-review", Name: "code-review", Description: "Static definition"},
