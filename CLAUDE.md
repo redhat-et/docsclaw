@@ -14,7 +14,31 @@ make build       # Build binary to bin/docsclaw
 make test        # Run all tests
 make lint        # Run golangci-lint
 make fmt         # Format code
+make image       # Build container image (local dev)
+make image-push  # Build and push to GHCR
 ```
+
+## Release
+
+Releases use [GoReleaser](https://goreleaser.com/) triggered by
+version tags (`v*`). Config in `.goreleaser.yaml`, workflow in
+`.github/workflows/release.yaml`.
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+Produces binaries (linux/darwin/windows, amd64/arm64), multi-arch
+container images on `ghcr.io/redhat-et/docsclaw`, and a Homebrew
+formula. Version is injected via ldflags into
+`internal/cmd.version`.
+
+Two Dockerfiles:
+- `Dockerfile` — local dev builds (multi-stage with Go builder)
+- `Dockerfile.release` — GoReleaser builds (scratch, pre-built binary)
+
+Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
+`pavelanni/homebrew-tap`).
 
 ## Project structure
 
@@ -65,3 +89,4 @@ The agent reads personality from a config directory:
 - **A2A (a2a-go)** for agent protocol
 - **log/slog** for structured logging
 - **Prometheus** for metrics
+- **GoReleaser** for automated releases

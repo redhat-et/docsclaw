@@ -12,12 +12,14 @@ import (
 var (
 	cfgFile string
 	v       *viper.Viper
+	version = "dev"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "docsclaw",
-	Short: "DocsClaw Agent Runtime",
-	Long:  "Universal AI agent runtime with ConfigMap-driven personality.",
+	Use:     "docsclaw",
+	Short:   "DocsClaw Agent Runtime",
+	Long:    "Universal AI agent runtime with ConfigMap-driven personality.",
+	Version: version,
 }
 
 func Execute() {

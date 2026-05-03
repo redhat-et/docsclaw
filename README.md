@@ -214,7 +214,7 @@ Set via environment variables:
 make build          # Build binary to bin/docsclaw
 make test           # Run tests
 make lint           # Run golangci-lint
-make image          # Build container image
+make image          # Build container image (local dev)
 make image-push     # Build and push to GHCR
 ```
 
@@ -224,6 +224,22 @@ Override defaults:
 make image REGISTRY=my-registry.io/docsclaw DEV_TAG=v1.0
 make image CONTAINER_ENGINE=docker
 ```
+
+## Release
+
+Releases are automated via [GoReleaser](https://goreleaser.com/).
+Tag a commit and push to trigger the workflow:
+
+```bash
+git tag v0.1.0
+git push --tags
+```
+
+This produces:
+- Binaries for linux/darwin/windows (amd64, arm64)
+- Multi-arch container images on `ghcr.io/redhat-et/docsclaw`
+- Homebrew formula (`brew install pavelanni/tap/docsclaw`)
+- SHA256 checksums
 
 ## License
 
