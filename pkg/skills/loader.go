@@ -45,9 +45,13 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 
 		// If skill.yaml exists, prefer its description.
 		cardPath := filepath.Join(skillsDir, entry.Name(), "skill.yaml")
-		if sy, parseErr := ParseSkillYAML(cardPath); parseErr == nil {
-			if sy.Metadata.Description != "" {
-				meta.Description = sy.Metadata.Description
+		if _, statErr := os.Stat(cardPath); statErr == nil {
+			if sy, parseErr := ParseSkillYAML(cardPath); parseErr == nil {
+				if sy.Metadata.Description != "" {
+					meta.Description = sy.Metadata.Description
+				}
+			} else {
+				slog.Warn("skill.yaml exists but failed to parse", "dir", entry.Name(), "error", parseErr)
 			}
 		}
 
