@@ -1,0 +1,87 @@
+version: 2
+
+project_name: docsclaw
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - main: ./cmd/docsclaw
+    binary: docsclaw
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/redhat-et/docsclaw/internal/cmd.version={{.Version}}
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: redhat-et
+    name: docsclaw
+
+brews:
+  - name: docsclaw
+    repository:
+      owner: pavelanni
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/redhat-et/docsclaw
+    description: Universal AI agent runtime with ConfigMap-driven personality
+    license: Apache-2.0
+    install: |
+      bin.install "docsclaw"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
+    use: buildx
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    goarch: amd64
+  - image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
+    use: buildx
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/arm64"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/redhat-et/docsclaw:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/redhat-et/docsclaw:latest"
+    image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
