@@ -19,6 +19,7 @@ func ToAgentSkills(metas []SkillMeta) []a2a.AgentSkill {
 			ID:          m.Name,
 			Name:        m.Name,
 			Description: m.Description,
+			Tags:        []string{},
 		}
 
 		cardPath := filepath.Join(m.Dir, "skill.yaml")
