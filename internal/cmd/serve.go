@@ -295,6 +295,21 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return result, nil
 	}
 
+	// Discover skills (runs in both phase 1 and phase 2)
+	skillsDir := filepath.Join(cfg.ConfigDir, "skills")
+	discoveredSkills, err := skills.Discover(skillsDir)
+	if err != nil {
+		log.Warn("Failed to load skills", "error", err)
+	}
+	if len(discoveredSkills) > 0 {
+		agentSkills := skills.ToAgentSkills(discoveredSkills)
+		agentCard.Skills = skills.MergeSkills(agentCard.Skills, agentSkills)
+
+		log.Info("Skills discovered",
+			"count", len(discoveredSkills),
+			"names", skillNames(discoveredSkills))
+	}
+
 	// Register additional tools and skills when in phase 2 mode
 	if toolRegistry != nil {
 		// Register fetch_document tool (uses delegation transport)
@@ -304,21 +319,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 			},
 		))
 
-		// Load skills
-		skillsDir := filepath.Join(cfg.ConfigDir, "skills")
-		discoveredSkills, err := skills.Discover(skillsDir)
-		if err != nil {
-			log.Warn("Failed to load skills", "error", err)
-		} else if len(discoveredSkills) > 0 {
+		// Register skill loading tool in phase 2
+		if len(discoveredSkills) > 0 {
 			skillsSummary = skills.BuildSummary(discoveredSkills)
 
 			toolRegistry.RegisterAlwaysAllowed(&loadSkillTool{
 				skillsDir: skillsDir,
 			})
-
-			log.Info("Skills loaded",
-				"count", len(discoveredSkills),
-				"names", skillNames(discoveredSkills))
 		}
 
 		log.Info("Tools enabled",
