@@ -102,6 +102,10 @@ metadata:
   namespace: panni-docsclaw
   labels:
     app: hr-analyst
+    kagenti.io/type: agent
+    protocol.kagenti.io/a2a: ""
+    a2a-agent.demo/protocol: a2a
+    a2a-agent.demo/type: agent
 spec:
   replicas: 1
   selector:
@@ -111,6 +115,10 @@ spec:
     metadata:
       labels:
         app: hr-analyst
+        kagenti.io/type: agent
+        protocol.kagenti.io/a2a: ""
+        a2a-agent.demo/protocol: a2a
+        a2a-agent.demo/type: agent
     spec:
       serviceAccountName: docsclaw-agent
       securityContext:

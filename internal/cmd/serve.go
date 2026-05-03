@@ -120,6 +120,8 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Flags().String("config-dir", "/config/agent",
 		"Directory containing system-prompt.txt, agent-card.json, and optional prompts.json")
+	serveCmd.Flags().String("skills-dir", "",
+		"Directory containing skill subdirectories (default: <config-dir>/skills)")
 	serveCmd.Flags().String("document-service-url", "http://localhost:8080",
 		"Document service URL")
 	serveCmd.Flags().String("llm-provider", "", "LLM provider (anthropic, openai, litellm)")
@@ -130,6 +132,7 @@ func init() {
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
 
 	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
+	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
 	_ = v.BindPFlag("document_service_url", serveCmd.Flags().Lookup("document-service-url"))
 	_ = v.BindPFlag("llm.provider", serveCmd.Flags().Lookup("llm-provider"))
 	_ = v.BindPFlag("llm.api_key", serveCmd.Flags().Lookup("llm-api-key"))
@@ -142,9 +145,10 @@ func init() {
 // Config holds docsclaw configuration.
 type Config struct {
 	config.CommonConfig `mapstructure:",squash"`
-	ConfigDir           string     `mapstructure:"config_dir"`
-	DocumentServiceURL  string     `mapstructure:"document_service_url"`
-	LLM                 llm.Config `mapstructure:"llm"`
+	ConfigDir          string     `mapstructure:"config_dir"`
+	SkillsDir          string     `mapstructure:"skills_dir"`
+	DocumentServiceURL string     `mapstructure:"document_service_url"`
+	LLM                llm.Config `mapstructure:"llm"`
 }
 
 // startAgent loads config from configDir and validates it.
@@ -295,6 +299,24 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return result, nil
 	}
 
+	// Discover skills (runs in both phase 1 and phase 2)
+	skillsDir := cfg.SkillsDir
+	if skillsDir == "" {
+		skillsDir = filepath.Join(cfg.ConfigDir, "skills")
+	}
+	discoveredSkills, err := skills.Discover(skillsDir)
+	if err != nil {
+		log.Warn("Failed to load skills", "error", err)
+	}
+	if len(discoveredSkills) > 0 {
+		agentSkills := skills.ToAgentSkills(discoveredSkills)
+		agentCard.Skills = skills.MergeSkills(agentCard.Skills, agentSkills)
+
+		log.Info("Skills discovered",
+			"count", len(discoveredSkills),
+			"names", skillNames(discoveredSkills))
+	}
+
 	// Register additional tools and skills when in phase 2 mode
 	if toolRegistry != nil {
 		// Register fetch_document tool (uses delegation transport)
@@ -304,21 +326,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 			},
 		))
 
-		// Load skills
-		skillsDir := filepath.Join(cfg.ConfigDir, "skills")
-		discoveredSkills, err := skills.Discover(skillsDir)
-		if err != nil {
-			log.Warn("Failed to load skills", "error", err)
-		} else if len(discoveredSkills) > 0 {
+		// Register skill loading tool in phase 2
+		if len(discoveredSkills) > 0 {
 			skillsSummary = skills.BuildSummary(discoveredSkills)
 
 			toolRegistry.RegisterAlwaysAllowed(&loadSkillTool{
 				skillsDir: skillsDir,
 			})
-
-			log.Info("Skills loaded",
-				"count", len(discoveredSkills),
-				"names", skillNames(discoveredSkills))
 		}
 
 		log.Info("Tools enabled",

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/redhat-et/docsclaw/pkg/skills/card"
+	"github.com/redhat-et/docsclaw/pkg/skills"
 )
 
 var skillListCmd = &cobra.Command{
@@ -45,15 +45,26 @@ var skillListCmd = &cobra.Command{
 
 			// Try skill.yaml first, fall back to SKILL.md presence
 			cardPath := filepath.Join(skillDir, "skill.yaml")
-			if sc, err := card.Parse(cardPath); err == nil {
-				fmt.Printf("%-25s %-10s %s\n", sc.Metadata.Name, sc.Metadata.Version, sc.Metadata.Description)
+			if sy, err := skills.ParseSkillYAML(cardPath); err == nil {
+				name := sy.Metadata.Name
+				if name == "" {
+					name = entry.Name()
+				}
+				fmt.Printf("%-25s %-10s %s\n", name, sy.Metadata.Version, sy.Metadata.Description)
 				found++
 				continue
 			}
 
 			mdPath := filepath.Join(skillDir, "SKILL.md")
-			if _, err := os.Stat(mdPath); err == nil {
-				fmt.Printf("%-25s %-10s %s\n", entry.Name(), "-", "(no skill.yaml)")
+			if meta, err := skills.ParseFrontmatter(mdPath); err == nil {
+				name := meta.Name
+				if name == "" {
+					name = entry.Name()
+				}
+				fmt.Printf("%-25s %-10s %s\n", name, "-", meta.Description)
+				found++
+			} else if _, statErr := os.Stat(mdPath); statErr == nil {
+				fmt.Printf("%-25s %-10s %s\n", entry.Name(), "-", "(failed to parse SKILL.md)")
 				found++
 			}
 		}

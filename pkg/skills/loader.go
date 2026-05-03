@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/redhat-et/docsclaw/pkg/skills/card"
 )
 
 // SkillMeta holds the metadata from a SKILL.md frontmatter.
@@ -38,7 +36,7 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 			continue
 		}
 
-		meta, err := parseFrontmatter(skillFile)
+		meta, err := ParseFrontmatter(skillFile)
 		if err != nil {
 			slog.Warn("skipping skill with invalid SKILL.md", "dir", entry.Name(), "error", err)
 			continue
@@ -48,8 +46,10 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 		// If skill.yaml exists, prefer its description.
 		cardPath := filepath.Join(skillsDir, entry.Name(), "skill.yaml")
 		if _, statErr := os.Stat(cardPath); statErr == nil {
-			if sc, parseErr := card.Parse(cardPath); parseErr == nil {
-				meta.Description = sc.Metadata.Description
+			if sy, parseErr := ParseSkillYAML(cardPath); parseErr == nil {
+				if sy.Metadata.Description != "" {
+					meta.Description = sy.Metadata.Description
+				}
 			} else {
 				slog.Warn("skill.yaml exists but failed to parse", "dir", entry.Name(), "error", parseErr)
 			}
@@ -90,9 +90,9 @@ func BuildSummary(skills []SkillMeta) string {
 	return sb.String()
 }
 
-// parseFrontmatter extracts name and description from YAML
+// ParseFrontmatter extracts name and description from YAML
 // frontmatter in a SKILL.md file.
-func parseFrontmatter(path string) (SkillMeta, error) {
+func ParseFrontmatter(path string) (SkillMeta, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return SkillMeta{}, err
