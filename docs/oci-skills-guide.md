@@ -215,6 +215,40 @@ spec:
     - name: skill-registry-creds
 ```
 
+### Volume nesting gotcha
+
+Image volumes **must not** be mounted as subdirectories of a
+ConfigMap or other projected volume. The parent volume's filesystem
+shadows the child mount, causing it to appear empty.
+
+**Broken** — image volume nested under ConfigMap mount:
+
+```yaml
+volumeMounts:
+  - name: config
+    mountPath: /config/agent           # ConfigMap
+  - name: my-skill
+    mountPath: /config/agent/skills/x  # empty!
+```
+
+**Working** — skills at a separate top-level path:
+
+```yaml
+volumeMounts:
+  - name: config
+    mountPath: /config/agent           # ConfigMap
+  - name: my-skill
+    mountPath: /skills/x               # works
+```
+
+For DocsClaw, use `--skills-dir /skills` to point to the separate
+mount path. Other agent frameworks may need an equivalent config
+option or environment variable (e.g., `SKILLS_DIR=/skills`).
+
+This is a general Kubernetes limitation, not specific to any agent
+or OCI image format. It applies equally to ConfigMap-on-ConfigMap
+nesting.
+
 ## Deploy on older clusters with init container
 
 For Kubernetes < 1.33 or OpenShift < 4.20, use an init container

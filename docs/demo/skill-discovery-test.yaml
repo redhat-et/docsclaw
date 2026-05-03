@@ -8,6 +8,11 @@
 #   1. OCI image volume (document-summarizer from quay.io)
 #   2. ConfigMap (code-review, inline)
 #
+# Skills are mounted at /skills (separate from /config/agent) using
+# the --skills-dir flag. This avoids a Kubernetes limitation where
+# image volumes mounted as subdirectories of a ConfigMap volume
+# appear empty.
+#
 # Prerequisites:
 #   oc project panni-docsclaw
 #   oc apply -f image-volume-scc.yaml   (one-time, needs cluster-admin)
@@ -114,7 +119,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: docsclaw
-          image: ghcr.io/redhat-et/docsclaw:latest
+          image: ghcr.io/redhat-et/docsclaw:0d93493
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -128,6 +133,8 @@ spec:
             - serve
             - --config-dir
             - /config/agent
+            - --skills-dir
+            - /skills
             - --listen-plain-http
           ports:
             - containerPort: 8000
@@ -161,10 +168,10 @@ spec:
               mountPath: /config/agent
               readOnly: true
             - name: skill-document-summarizer
-              mountPath: /config/agent/skills/document-summarizer
+              mountPath: /skills/document-summarizer
               readOnly: true
             - name: skill-code-review
-              mountPath: /config/agent/skills/code-review
+              mountPath: /skills/code-review
               readOnly: true
             - name: workspace
               mountPath: /tmp/agent-workspace
@@ -175,7 +182,7 @@ spec:
         - name: skill-document-summarizer
           image:
             reference: quay.io/skillimage/business/document-summarizer:1.0.0-testing
-            pullPolicy: IfNotPresent
+            pullPolicy: Always
         - name: skill-code-review
           configMap:
             name: skill-discovery-test-code-review
