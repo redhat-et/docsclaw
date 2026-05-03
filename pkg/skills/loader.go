@@ -36,7 +36,7 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 			continue
 		}
 
-		meta, err := parseFrontmatter(skillFile)
+		meta, err := ParseFrontmatter(skillFile)
 		if err != nil {
 			slog.Warn("skipping skill with invalid SKILL.md", "dir", entry.Name(), "error", err)
 			continue
@@ -90,9 +90,9 @@ func BuildSummary(skills []SkillMeta) string {
 	return sb.String()
 }
 
-// parseFrontmatter extracts name and description from YAML
+// ParseFrontmatter extracts name and description from YAML
 // frontmatter in a SKILL.md file.
-func parseFrontmatter(path string) (SkillMeta, error) {
+func ParseFrontmatter(path string) (SkillMeta, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return SkillMeta{}, err

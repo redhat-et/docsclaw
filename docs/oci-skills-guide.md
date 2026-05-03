@@ -162,8 +162,10 @@ skillctl inspect \
 
 ### List and delete local skills
 
+These commands remain in docsclaw (not moved to skillctl):
+
 ```bash
-docsclaw skill list  # or: skillctl list /tmp/skills
+docsclaw skill list /tmp/skills
 docsclaw skill delete resume-screener --dir /tmp/skills
 ```
 

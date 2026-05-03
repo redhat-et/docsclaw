@@ -8,7 +8,7 @@
 DocsClaw contains OCI skill pack/push/pull/inspect code that has moved
 to the standalone [skillimage](https://github.com/redhat-et/skillimage)
 project. This dead code should be removed. Additionally, the AgentCard
-served at `/.well-known/agent.json` never includes discovered skills,
+served at `/.well-known/agent-card.json` never includes discovered skills,
 even though `pkg/skills/Discover()` already finds them at runtime.
 
 ## Part 1: OCI Code Removal

@@ -56,8 +56,15 @@ var skillListCmd = &cobra.Command{
 			}
 
 			mdPath := filepath.Join(skillDir, "SKILL.md")
-			if _, err := os.Stat(mdPath); err == nil {
-				fmt.Printf("%-25s %-10s %s\n", entry.Name(), "-", "(no skill.yaml)")
+			if meta, err := skills.ParseFrontmatter(mdPath); err == nil {
+				name := meta.Name
+				if name == "" {
+					name = entry.Name()
+				}
+				fmt.Printf("%-25s %-10s %s\n", name, "-", meta.Description)
+				found++
+			} else if _, statErr := os.Stat(mdPath); statErr == nil {
+				fmt.Printf("%-25s %-10s %s\n", entry.Name(), "-", "(failed to parse SKILL.md)")
 				found++
 			}
 		}
