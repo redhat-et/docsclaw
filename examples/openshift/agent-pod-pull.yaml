@@ -5,10 +5,9 @@ metadata:
 spec:
   initContainers:
     - name: skill-puller
-      image: ghcr.io/redhat-et/docsclaw:latest
+      image: ghcr.io/redhat-et/skillctl:latest
       command:
-        - docsclaw
-        - skill
+        - skillctl
         - pull
         - -o
         - /skills

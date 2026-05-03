@@ -101,17 +101,27 @@ Step-by-step instructions for the LLM to follow...
 See `testdata/standalone/skills/` for examples (url-summary,
 code-review).
 
+### Automatic AgentCard skill injection
+
+Discovered skills are automatically added to the AgentCard served
+at `/.well-known/agent-card.json`. If a skill includes a
+`skill.yaml` with richer metadata (namespace, author, tools), the
+AgentCard entry gets derived tags. Static skills in
+`agent-card.json` take precedence on ID conflict.
+
 ### OCI skill distribution
 
 Skills can be packaged as OCI artifacts and distributed via
-registries (quay.io, GHCR, Harbor, Zot). On OpenShift 4.20+ they
-mount directly as image volumes — no init container needed.
+registries (quay.io, GHCR, Harbor, Zot) using the
+[skillctl](https://github.com/redhat-et/skillimage) CLI. On
+OpenShift 4.20+ they mount directly as image volumes — no init
+container needed.
 
 ```bash
-docsclaw skill pack examples/skills/resume-screener
-docsclaw skill push --as-image examples/skills/resume-screener \
+skillctl pack examples/skills/resume-screener
+skillctl push --as-image examples/skills/resume-screener \
   quay.io/myorg/skill-resume-screener:1.0.0
-docsclaw skill inspect quay.io/myorg/skill-resume-screener:1.0.0
+skillctl inspect quay.io/myorg/skill-resume-screener:1.0.0
 ```
 
 See the [OCI skills guide](docs/oci-skills-guide.md) for the full
@@ -125,7 +135,10 @@ The agent's personality. Plain text, no special format.
 
 ### agent-card.json
 
-A2A protocol metadata — name, description, capabilities. See the
+A2A protocol metadata — name, description, capabilities.
+Discovered skills are merged into the card at startup; you only
+need to hardcode skills here if you want static entries that
+override discovery. See the
 [A2A spec](https://google.github.io/A2A/) for the full schema.
 
 ### agent-config.yaml

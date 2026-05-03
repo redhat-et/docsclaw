@@ -1,20 +1,25 @@
 # OCI skill distribution guide
 
-Package, sign, and distribute skills as OCI artifacts. Skills can
-be pushed to any OCI-compliant registry (quay.io, GHCR, Harbor,
-Zot) and consumed in two ways:
+Package, sign, and distribute skills as OCI artifacts using the
+[skillctl](https://github.com/redhat-et/skillimage) CLI. Skills
+can be pushed to any OCI-compliant registry (quay.io, GHCR,
+Harbor, Zot) and consumed in two ways:
 
-- **Individual users** pull skills with `oras` CLI — no DocsClaw
-  needed, files land directly
+- **Individual users** pull skills with `oras` or `skillctl` CLI
 - **Platform operators** mount skills as image volumes on
   OpenShift 4.20+ — no init container needed
 
+DocsClaw discovers mounted skills at startup and automatically
+populates the AgentCard's `skills` array so the A2A endpoint
+reflects runtime-available capabilities.
+
 ## Prerequisites
 
-- DocsClaw binary (`make build`)
+- [skillctl](https://github.com/redhat-et/skillimage) CLI
+  (`go install github.com/redhat-et/skillimage/cmd/skillctl@latest`)
 - An OCI-compliant registry (Zot recommended for local testing)
 - Optional: [oras CLI](https://oras.land/) for pulling skills
-  without DocsClaw
+  without skillctl
 - Optional: cosign key pair for signing
 
 ## Skill structure
@@ -65,19 +70,19 @@ live in the same registry, typically with different tags.
 | | Artifact (default) | Image (`--as-image`) |
 |-|-------------------|---------------------|
 | **Audience** | Individual users, personal agents | Platform deployments on K8s |
-| **Pull tool** | `oras pull` or `docsclaw skill pull` | Kubelet (image volume mount) |
+| **Pull tool** | `oras pull` or `skillctl pull` | Kubelet (image volume mount) |
 | **Format** | Each file is a separate OCI layer | Single tar+gzip layer |
 | **Result** | Files extracted directly | Mounted as read-only volume |
 
 **Publishing workflow:** push both formats for each skill release:
 
 ```bash
-# Artifact format — for oras pull / docsclaw skill pull
-docsclaw skill push examples/skills/resume-screener \
+# Artifact format — for oras pull / skillctl pull
+skillctl push examples/skills/resume-screener \
   quay.io/docsclaw/skill-resume-screener:1.0.0
 
 # Image format — for OpenShift image volume mounting
-docsclaw skill push --as-image examples/skills/resume-screener \
+skillctl push --as-image examples/skills/resume-screener \
   quay.io/docsclaw/skill-resume-screener:1.0.0-image
 ```
 
@@ -91,14 +96,14 @@ rationale behind the dual format.
 Package a skill directory into a local OCI layout:
 
 ```bash
-docsclaw skill pack examples/skills/resume-screener
+skillctl pack examples/skills/resume-screener
 ```
 
 Use `--as-image` for the image format, `-o` for output directory,
 `--force` to overwrite an existing layout:
 
 ```bash
-docsclaw skill pack --as-image --force -o /tmp/layout \
+skillctl pack --as-image --force -o /tmp/layout \
   examples/skills/resume-screener
 ```
 
@@ -106,18 +111,18 @@ docsclaw skill pack --as-image --force -o /tmp/layout \
 
 ```bash
 # Artifact format (default)
-docsclaw skill push examples/skills/resume-screener \
+skillctl push examples/skills/resume-screener \
   quay.io/docsclaw/skill-resume-screener:1.0.0
 
 # Image format
-docsclaw skill push --as-image examples/skills/resume-screener \
+skillctl push --as-image examples/skills/resume-screener \
   quay.io/docsclaw/skill-resume-screener:1.0.0-image
 ```
 
 For local registries without TLS:
 
 ```bash
-docsclaw skill push --tls-verify=false \
+skillctl push --tls-verify=false \
   examples/skills/resume-screener \
   localhost:5000/skill-resume-screener:1.0.0
 ```
@@ -127,7 +132,7 @@ docsclaw skill push --tls-verify=false \
 With DocsClaw:
 
 ```bash
-docsclaw skill pull -o /tmp/skills \
+skillctl pull -o /tmp/skills \
   quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
@@ -151,21 +156,21 @@ resume-screener/
 Show SkillCard metadata without pulling content:
 
 ```bash
-docsclaw skill inspect \
+skillctl inspect \
   quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
 ### List and delete local skills
 
 ```bash
-docsclaw skill list /tmp/skills
+docsclaw skill list  # or: skillctl list /tmp/skills
 docsclaw skill delete resume-screener --dir /tmp/skills
 ```
 
 ### Verify a skill signature
 
 ```bash
-docsclaw skill verify --key cosign.pub \
+skillctl verify --key cosign.pub \
   quay.io/docsclaw/skill-resume-screener:1.0.0
 ```
 
@@ -213,7 +218,8 @@ spec:
 ## Deploy on older clusters with init container
 
 For Kubernetes < 1.33 or OpenShift < 4.20, use an init container
-with a PVC. This works with both artifact and image formats.
+with `skillctl` and a PVC. This works with both artifact and image
+formats.
 
 ```yaml
 apiVersion: v1
@@ -223,8 +229,8 @@ metadata:
 spec:
   initContainers:
     - name: skill-puller
-      image: ghcr.io/redhat-et/docsclaw:latest
-      command: ["docsclaw", "skill", "pull",
+      image: ghcr.io/redhat-et/skillctl:latest
+      command: ["skillctl", "pull",
                 "-o", "/skills",
                 "quay.io/docsclaw/skill-resume-screener:1.0.0"]
       securityContext:
@@ -265,11 +271,11 @@ development:
 docker run -d -p 5000:5000 ghcr.io/project-zot/zot-linux-amd64:latest
 
 # Push both formats
-docsclaw skill push --tls-verify=false \
+skillctl push --tls-verify=false \
   examples/skills/resume-screener \
   localhost:5000/skill-resume-screener:1.0.0
 
-docsclaw skill push --as-image --tls-verify=false \
+skillctl push --as-image --tls-verify=false \
   examples/skills/resume-screener \
   localhost:5000/skill-resume-screener:1.0.0-image
 
