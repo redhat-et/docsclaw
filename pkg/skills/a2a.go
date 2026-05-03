@@ -8,12 +8,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// skillYAML is a loose schema for extracting AgentSkill-relevant
+// SkillYAML is a loose schema for extracting AgentSkill-relevant
 // fields from any skill.yaml, regardless of apiVersion.
-type skillYAML struct {
+type SkillYAML struct {
 	Metadata struct {
 		Name        string   `yaml:"name"`
 		Namespace   string   `yaml:"namespace"`
+		Version     string   `yaml:"version"`
 		Description string   `yaml:"description"`
 		Author      string   `yaml:"author"`
 		Tags        []string `yaml:"tags"`
@@ -47,7 +48,7 @@ func ToAgentSkills(metas []SkillMeta) []a2a.AgentSkill {
 		}
 
 		cardPath := filepath.Join(m.Dir, "skill.yaml")
-		if sy, err := parseSkillYAML(cardPath); err == nil {
+		if sy, err := ParseSkillYAML(cardPath); err == nil {
 			if sy.Metadata.Description != "" {
 				skill.Description = sy.Metadata.Description
 			}
@@ -81,19 +82,21 @@ func MergeSkills(static, discovered []a2a.AgentSkill) []a2a.AgentSkill {
 	return merged
 }
 
-func parseSkillYAML(path string) (skillYAML, error) {
+// ParseSkillYAML reads a skill.yaml and extracts metadata without
+// requiring a specific apiVersion.
+func ParseSkillYAML(path string) (SkillYAML, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return skillYAML{}, err
+		return SkillYAML{}, err
 	}
-	var sy skillYAML
+	var sy SkillYAML
 	if err := yaml.Unmarshal(data, &sy); err != nil {
-		return skillYAML{}, err
+		return SkillYAML{}, err
 	}
 	return sy, nil
 }
 
-func deriveTags(sy skillYAML) []string {
+func deriveTags(sy SkillYAML) []string {
 	// Prefer explicit tags (skillimage format)
 	if len(sy.Metadata.Tags) > 0 {
 		return sy.Metadata.Tags
@@ -117,7 +120,7 @@ func deriveTags(sy skillYAML) []string {
 	return tags
 }
 
-func deriveExamples(sy skillYAML) []string {
+func deriveExamples(sy SkillYAML) []string {
 	if len(sy.Spec.Examples) == 0 {
 		return nil
 	}

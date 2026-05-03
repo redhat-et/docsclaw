@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/redhat-et/docsclaw/pkg/skills/card"
 )
 
 // SkillMeta holds the metadata from a SKILL.md frontmatter.
@@ -47,11 +45,9 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 
 		// If skill.yaml exists, prefer its description.
 		cardPath := filepath.Join(skillsDir, entry.Name(), "skill.yaml")
-		if _, statErr := os.Stat(cardPath); statErr == nil {
-			if sc, parseErr := card.Parse(cardPath); parseErr == nil {
-				meta.Description = sc.Metadata.Description
-			} else {
-				slog.Warn("skill.yaml exists but failed to parse", "dir", entry.Name(), "error", parseErr)
+		if sy, parseErr := ParseSkillYAML(cardPath); parseErr == nil {
+			if sy.Metadata.Description != "" {
+				meta.Description = sy.Metadata.Description
 			}
 		}
 
