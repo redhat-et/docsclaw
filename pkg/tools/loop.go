@@ -33,6 +33,15 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 			return "", fmt.Errorf("LLM call failed: %w", err)
 		}
 
+		slog.Info("LLM response received",
+			"provider", provider.ProviderName(),
+			"model", provider.Model(),
+			"iteration", i+1,
+			"input_tokens", resp.Usage.InputTokens,
+			"output_tokens", resp.Usage.OutputTokens,
+			"total_tokens", resp.Usage.TotalTokens,
+			"stop_reason", resp.StopReason)
+
 		if !resp.HasToolCalls() {
 			return resp.Content, nil
 		}

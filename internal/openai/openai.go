@@ -109,6 +109,11 @@ type openAIChatResponseWithTools struct {
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
 	Error *openAIError `json:"error,omitempty"`
 }
 
@@ -345,7 +350,13 @@ func (p *OpenAICompatProvider) CompleteWithTools(ctx context.Context,
 	}
 
 	choice := chatResp.Choices[0]
-	resp := &llm.Response{}
+	resp := &llm.Response{
+		Usage: llm.Usage{
+			InputTokens:  chatResp.Usage.PromptTokens,
+			OutputTokens: chatResp.Usage.CompletionTokens,
+			TotalTokens:  chatResp.Usage.TotalTokens,
+		},
+	}
 
 	if choice.FinishReason == "tool_calls" {
 		resp.StopReason = llm.StopReasonToolUse
