@@ -84,6 +84,10 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 		// Tool errors are captured in ToolResult.Error, not returned from goroutines.
 		_ = g.Wait()
 
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+
 		messages = append(messages, llm.Message{
 			Role:        "tool",
 			ToolResults: results,
