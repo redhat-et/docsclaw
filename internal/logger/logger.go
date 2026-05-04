@@ -110,14 +110,14 @@ func (h *ColorHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	// Format: emoji [COMPONENT] message attrs...
-	fmt.Fprintf(h.out, "%s%s [%s]%s %s", color, levelEmoji, h.component, reset, r.Message)
+	_, _ = fmt.Fprintf(h.out, "%s%s [%s]%s %s", color, levelEmoji, h.component, reset, r.Message)
 
 	// Add any attributes
 	r.Attrs(func(a slog.Attr) bool {
-		fmt.Fprintf(h.out, " %s=%v", a.Key, a.Value)
+		_, _ = fmt.Fprintf(h.out, " %s=%v", a.Key, a.Value)
 		return true
 	})
-	fmt.Fprintln(h.out)
+	_, _ = fmt.Fprintln(h.out)
 
 	return nil
 }

@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/redhat-et/docsclaw/pkg/llm"
@@ -148,5 +149,79 @@ func TestRunToolLoopUnknownTool(t *testing.T) {
 	}
 	if result != "Tool not found, sorry." {
 		t.Fatalf("expected error recovery response, got %q", result)
+	}
+}
+
+func TestRunToolLoopTruncatesLargeOutput(t *testing.T) {
+	largeOutput := strings.Repeat("x", 50000)
+	provider := &mockProvider{
+		responses: []*llm.Response{
+			{
+				StopReason: llm.StopReasonToolUse,
+				ToolCalls: []llm.ToolCall{
+					{ID: "tc1", Name: "big_tool", Args: map[string]any{}},
+				},
+				Usage: llm.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
+			},
+			{
+				StopReason: llm.StopReasonEndTurn,
+				Content:    "Done.",
+				Usage:      llm.Usage{InputTokens: 200, OutputTokens: 10, TotalTokens: 210},
+			},
+		},
+	}
+
+	registry := NewRegistry(nil)
+	registry.Register(&mockTool{name: "big_tool", output: largeOutput})
+
+	cfg := DefaultLoopConfig()
+	cfg.MaxResultBytes = 1000
+
+	messages := []llm.Message{
+		{Role: "user", Content: "Run the tool"},
+	}
+
+	result, err := RunToolLoop(context.Background(), provider, messages,
+		registry, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "Done." {
+		t.Fatalf("expected 'Done.', got %q", result)
+	}
+}
+
+func TestTruncateResult(t *testing.T) {
+	// No truncation when under limit
+	short := "hello"
+	if got := truncateResult(short, 100); got != short {
+		t.Fatalf("expected no truncation, got %q", got)
+	}
+
+	// No truncation when limit is 0 (disabled)
+	long := strings.Repeat("x", 1000)
+	if got := truncateResult(long, 0); got != long {
+		t.Fatal("expected no truncation with limit 0")
+	}
+
+	// Truncation applies
+	got := truncateResult(long, 100)
+	if !strings.HasPrefix(got, strings.Repeat("x", 100)) {
+		t.Fatal("expected output to start with 100 x's")
+	}
+	if !strings.Contains(got, "[Truncated: showing first 100 bytes of 1000 total]") {
+		t.Fatalf("expected truncation notice, got %q", got)
+	}
+
+	// UTF-8 safe: don't split multi-byte characters
+	// "日" is 3 bytes (E6 97 A5); cutting at byte 2 would produce invalid UTF-8
+	utf8Str := strings.Repeat("日", 10) // 30 bytes
+	got = truncateResult(utf8Str, 5)
+	// Should back up to nearest valid rune boundary (3 bytes = 1 char)
+	if !strings.HasPrefix(got, "日") {
+		t.Fatal("expected UTF-8 safe prefix")
+	}
+	if strings.ContainsRune(got[:strings.Index(got, "\n")], '�') {
+		t.Fatal("truncation produced invalid UTF-8")
 	}
 }
