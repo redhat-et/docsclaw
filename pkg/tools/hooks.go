@@ -6,4 +6,6 @@ import "context"
 type Hook interface {
 	BeforeToolCall(ctx context.Context, name string,
 		args map[string]any) (allow bool, reason string)
+	AfterToolCall(ctx context.Context, name string,
+		args map[string]any, result *ToolResult)
 }
