@@ -212,4 +212,16 @@ func TestTruncateResult(t *testing.T) {
 	if !strings.Contains(got, "[Truncated: showing first 100 bytes of 1000 total]") {
 		t.Fatalf("expected truncation notice, got %q", got)
 	}
+
+	// UTF-8 safe: don't split multi-byte characters
+	// "日" is 3 bytes (E6 97 A5); cutting at byte 2 would produce invalid UTF-8
+	utf8Str := strings.Repeat("日", 10) // 30 bytes
+	got = truncateResult(utf8Str, 5)
+	// Should back up to nearest valid rune boundary (3 bytes = 1 char)
+	if !strings.HasPrefix(got, "日") {
+		t.Fatal("expected UTF-8 safe prefix")
+	}
+	if strings.ContainsRune(got[:strings.Index(got, "\n")], '�') {
+		t.Fatal("truncation produced invalid UTF-8")
+	}
 }

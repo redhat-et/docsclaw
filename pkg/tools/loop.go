@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
@@ -13,7 +14,7 @@ const defaultMaxResultBytes = 32768 // 32KB
 // LoopConfig controls the agentic loop behavior.
 type LoopConfig struct {
 	MaxIterations  int
-	MaxResultBytes int // per-tool output limit; 0 uses default (32KB)
+	MaxResultBytes int // per-tool output limit; 0 disables truncation
 }
 
 // DefaultLoopConfig returns sensible defaults.
@@ -118,7 +119,9 @@ func truncateResult(s string, maxBytes int) string {
 	}
 	slog.Warn("tool output truncated",
 		"original_bytes", len(s), "max_bytes", maxBytes)
-	return s[:maxBytes] + fmt.Sprintf("\n\n[Truncated: showing first %d bytes of %d total]", maxBytes, len(s))
+	// Don't split a multi-byte UTF-8 character.
+	truncated := strings.ToValidUTF8(s[:maxBytes], "")
+	return truncated + fmt.Sprintf("\n\n[Truncated: showing first %d bytes of %d total]", maxBytes, len(s))
 }
 
 func truncateLog(s string) string {
