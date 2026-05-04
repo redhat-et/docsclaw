@@ -269,13 +269,17 @@ func TestRunToolLoopParallelExecution(t *testing.T) {
 	registry.Register(&slowMockTool{name: "slow_b", output: "b", delay: delay})
 	registry.Register(&slowMockTool{name: "slow_c", output: "c", delay: delay})
 
+	hook := &mockHook{}
+	cfg := DefaultLoopConfig()
+	cfg.Hook = hook
+
 	messages := []llm.Message{
 		{Role: "user", Content: "Run all tools"},
 	}
 
 	start := time.Now()
 	result, err := RunToolLoop(context.Background(), provider, messages,
-		registry, DefaultLoopConfig())
+		registry, cfg)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -287,6 +291,22 @@ func TestRunToolLoopParallelExecution(t *testing.T) {
 	// Sequential would take 3*delay (300ms). Parallel should finish in ~delay.
 	if elapsed >= 2*delay {
 		t.Fatalf("expected parallel execution under %v, took %v", 2*delay, elapsed)
+	}
+	// Verify all three tools were executed (order may vary due to parallelism)
+	if len(hook.afterCalls) != 3 {
+		t.Fatalf("expected 3 AfterToolCall invocations, got %d", len(hook.afterCalls))
+	}
+	// Verify each tool's result matches its expected output
+	resultsByName := make(map[string]string)
+	for i, name := range hook.afterCalls {
+		resultsByName[name] = hook.afterResults[i].Output
+	}
+	for _, tc := range []struct{ name, output string }{
+		{"slow_a", "a"}, {"slow_b", "b"}, {"slow_c", "c"},
+	} {
+		if got := resultsByName[tc.name]; got != tc.output {
+			t.Fatalf("tool %s: expected output %q, got %q", tc.name, tc.output, got)
+		}
 	}
 }
 
