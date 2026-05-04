@@ -251,6 +251,34 @@ This is a general Kubernetes limitation, not specific to any agent
 or OCI image format. It applies equally to ConfigMap-on-ConfigMap
 nesting.
 
+### Mutating webhooks and image volumes
+
+Mutating admission webhooks that intercept pod creation can
+silently strip `image:` volume fields if they are built with
+Kubernetes client libraries older than 1.31 (when
+`ImageVolumeSource` was added). The webhook deserializes the pod
+spec, drops the unknown field, and returns the pod with the volume
+replaced by `emptyDir: {}`.
+
+A known example is the **peer-pods webhook**
+(`mwebhook.peerpods.io`) from OpenShift Sandboxed Containers.
+It matches all pods in user namespaces with no objectSelector.
+
+**Symptoms:** pod is accepted without errors, but `oc get pod -o
+jsonpath='{.spec.volumes}'` shows `emptyDir` where `image` was
+expected.
+
+**Workaround:** exclude the namespace from the webhook:
+
+```bash
+oc patch mutatingwebhookconfiguration mutating-webhook-configuration \
+  --type='json' \
+  -p='[{"op":"add","path":"/webhooks/0/namespaceSelector/matchExpressions/0/values/-","value":"YOUR-NAMESPACE"}]'
+```
+
+See [docs/demo/image-volume-debug.md](demo/image-volume-debug.md)
+for the full investigation.
+
 ## Deploy on older clusters with init container
 
 For Kubernetes < 1.33 or OpenShift < 4.20, use an init container
