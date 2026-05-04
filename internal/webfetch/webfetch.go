@@ -91,7 +91,7 @@ func (t *webFetchTool) Execute(ctx context.Context, args map[string]any) *tools.
 	if err != nil {
 		return tools.Errorf("fetch failed: %s", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 100000))
 	if err != nil {

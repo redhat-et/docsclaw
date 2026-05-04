@@ -195,7 +195,7 @@ func (p *OpenAICompatProvider) Complete(ctx context.Context, systemPrompt, userP
 	if err != nil {
 		return "", fmt.Errorf("API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -327,7 +327,7 @@ func (p *OpenAICompatProvider) CompleteWithTools(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("API request failed: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {

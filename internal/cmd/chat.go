@@ -39,7 +39,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 	// Fetch agent card from well-known endpoint.
 	card, err := fetchAgentCard(agentURL)
 	if err != nil {
-		fmt.Fprintf(cmd.ErrOrStderr(),
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 			"Warning: could not fetch agent card: %v\n", err)
 	} else {
 		agentName = card.Name
@@ -77,7 +77,7 @@ func fetchAgentCard(agentURL string) (*a2a.AgentCard, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status %d from %s",

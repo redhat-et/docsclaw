@@ -8,15 +8,19 @@ import (
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
+const defaultMaxResultBytes = 32768 // 32KB
+
 // LoopConfig controls the agentic loop behavior.
 type LoopConfig struct {
-	MaxIterations int
+	MaxIterations  int
+	MaxResultBytes int // per-tool output limit; 0 uses default (32KB)
 }
 
 // DefaultLoopConfig returns sensible defaults.
 func DefaultLoopConfig() LoopConfig {
 	return LoopConfig{
-		MaxIterations: 10,
+		MaxIterations:  10,
+		MaxResultBytes: defaultMaxResultBytes,
 	}
 }
 
@@ -63,9 +67,10 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 		var results []llm.ToolResultContent
 		for _, tc := range resp.ToolCalls {
 			result := executeTool(ctx, registry, tc, nil)
+			output := truncateResult(result.Output, config.MaxResultBytes)
 			results = append(results, llm.ToolResultContent{
 				ToolUseID: tc.ID,
-				Output:    result.Output,
+				Output:    output,
 				IsError:   result.Error,
 			})
 		}
@@ -105,6 +110,15 @@ func executeTool(ctx context.Context, registry *Registry,
 	}
 
 	return result
+}
+
+func truncateResult(s string, maxBytes int) string {
+	if maxBytes <= 0 || len(s) <= maxBytes {
+		return s
+	}
+	slog.Warn("tool output truncated",
+		"original_bytes", len(s), "max_bytes", maxBytes)
+	return s[:maxBytes] + fmt.Sprintf("\n\n[Truncated: showing first %d bytes of %d total]", maxBytes, len(s))
 }
 
 func truncateLog(s string) string {
