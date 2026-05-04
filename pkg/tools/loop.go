@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/redhat-et/docsclaw/pkg/llm"
+	"golang.org/x/sync/errgroup"
 )
 
 const defaultMaxResultBytes = 32768 // 32KB
@@ -14,7 +15,8 @@ const defaultMaxResultBytes = 32768 // 32KB
 // LoopConfig controls the agentic loop behavior.
 type LoopConfig struct {
 	MaxIterations  int
-	MaxResultBytes int // per-tool output limit; 0 disables truncation
+	MaxResultBytes int  // per-tool output limit; 0 disables truncation
+	Hook           Hook // optional hook for intercepting tool calls
 }
 
 // DefaultLoopConfig returns sensible defaults.
@@ -65,15 +67,25 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 			ToolCalls: resp.ToolCalls,
 		})
 
-		var results []llm.ToolResultContent
-		for _, tc := range resp.ToolCalls {
-			result := executeTool(ctx, registry, tc, nil)
-			output := truncateResult(result.Output, config.MaxResultBytes)
-			results = append(results, llm.ToolResultContent{
-				ToolUseID: tc.ID,
-				Output:    output,
-				IsError:   result.Error,
+		results := make([]llm.ToolResultContent, len(resp.ToolCalls))
+		g, gctx := errgroup.WithContext(ctx)
+		for i, tc := range resp.ToolCalls {
+			g.Go(func() error {
+				result := executeTool(gctx, registry, tc, config.Hook)
+				output := truncateResult(result.Output, config.MaxResultBytes)
+				results[i] = llm.ToolResultContent{
+					ToolUseID: tc.ID,
+					Output:    output,
+					IsError:   result.Error,
+				}
+				return nil
 			})
+		}
+		// Tool errors are captured in ToolResult.Error, not returned from goroutines.
+		_ = g.Wait()
+
+		if ctx.Err() != nil {
+			return "", ctx.Err()
 		}
 
 		messages = append(messages, llm.Message{
@@ -108,6 +120,10 @@ func executeTool(ctx context.Context, registry *Registry,
 	if result.Error {
 		slog.Warn("tool returned error",
 			"tool", tc.Name, "output", truncateLog(result.Output))
+	}
+
+	if hook != nil {
+		hook.AfterToolCall(ctx, tc.Name, tc.Args, result)
 	}
 
 	return result

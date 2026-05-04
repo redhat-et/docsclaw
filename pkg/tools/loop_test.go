@@ -3,7 +3,9 @@ package tools
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
@@ -223,5 +225,199 @@ func TestTruncateResult(t *testing.T) {
 	}
 	if strings.ContainsRune(got[:strings.Index(got, "\n")], '�') {
 		t.Fatal("truncation produced invalid UTF-8")
+	}
+}
+
+// slowMockTool sleeps before returning, used to verify parallel execution.
+type slowMockTool struct {
+	name   string
+	output string
+	delay  time.Duration
+}
+
+func (m *slowMockTool) Name() string               { return m.name }
+func (m *slowMockTool) Description() string        { return "slow mock tool" }
+func (m *slowMockTool) Parameters() map[string]any { return map[string]any{"type": "object"} }
+func (m *slowMockTool) Execute(_ context.Context, _ map[string]any) *ToolResult {
+	time.Sleep(m.delay)
+	return &ToolResult{Output: m.output}
+}
+
+func TestRunToolLoopParallelExecution(t *testing.T) {
+	delay := 100 * time.Millisecond
+	provider := &mockProvider{
+		responses: []*llm.Response{
+			{
+				StopReason: llm.StopReasonToolUse,
+				ToolCalls: []llm.ToolCall{
+					{ID: "tc1", Name: "slow_a", Args: map[string]any{}},
+					{ID: "tc2", Name: "slow_b", Args: map[string]any{}},
+					{ID: "tc3", Name: "slow_c", Args: map[string]any{}},
+				},
+				Usage: llm.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
+			},
+			{
+				StopReason: llm.StopReasonEndTurn,
+				Content:    "All done.",
+				Usage:      llm.Usage{InputTokens: 200, OutputTokens: 10, TotalTokens: 210},
+			},
+		},
+	}
+
+	registry := NewRegistry(nil)
+	registry.Register(&slowMockTool{name: "slow_a", output: "a", delay: delay})
+	registry.Register(&slowMockTool{name: "slow_b", output: "b", delay: delay})
+	registry.Register(&slowMockTool{name: "slow_c", output: "c", delay: delay})
+
+	hook := &mockHook{}
+	cfg := DefaultLoopConfig()
+	cfg.Hook = hook
+
+	messages := []llm.Message{
+		{Role: "user", Content: "Run all tools"},
+	}
+
+	start := time.Now()
+	result, err := RunToolLoop(context.Background(), provider, messages,
+		registry, cfg)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "All done." {
+		t.Fatalf("expected 'All done.', got %q", result)
+	}
+	// Sequential would take 3*delay (300ms). Parallel should finish in ~delay.
+	if elapsed >= 2*delay {
+		t.Fatalf("expected parallel execution under %v, took %v", 2*delay, elapsed)
+	}
+	// Verify all three tools were executed (order may vary due to parallelism)
+	if len(hook.afterCalls) != 3 {
+		t.Fatalf("expected 3 AfterToolCall invocations, got %d", len(hook.afterCalls))
+	}
+	// Verify each tool's result matches its expected output
+	resultsByName := make(map[string]string)
+	for i, name := range hook.afterCalls {
+		resultsByName[name] = hook.afterResults[i].Output
+	}
+	for _, tc := range []struct{ name, output string }{
+		{"slow_a", "a"}, {"slow_b", "b"}, {"slow_c", "c"},
+	} {
+		if got := resultsByName[tc.name]; got != tc.output {
+			t.Fatalf("tool %s: expected output %q, got %q", tc.name, tc.output, got)
+		}
+	}
+}
+
+// mockHook records Before/After calls for verification.
+type mockHook struct {
+	mu           sync.Mutex
+	beforeCalls  []string
+	afterCalls   []string
+	afterResults []*ToolResult
+	denyTool     string
+}
+
+func (h *mockHook) BeforeToolCall(_ context.Context, name string, _ map[string]any) (bool, string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.beforeCalls = append(h.beforeCalls, name)
+	if name == h.denyTool {
+		return false, "denied by test"
+	}
+	return true, ""
+}
+
+func (h *mockHook) AfterToolCall(_ context.Context, name string, _ map[string]any, result *ToolResult) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.afterCalls = append(h.afterCalls, name)
+	h.afterResults = append(h.afterResults, result)
+}
+
+func TestAfterToolCallHook(t *testing.T) {
+	provider := &mockProvider{
+		responses: []*llm.Response{
+			{
+				StopReason: llm.StopReasonToolUse,
+				ToolCalls: []llm.ToolCall{
+					{ID: "tc1", Name: "test_tool", Args: map[string]any{}},
+				},
+				Usage: llm.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
+			},
+			{
+				StopReason: llm.StopReasonEndTurn,
+				Content:    "Done.",
+				Usage:      llm.Usage{InputTokens: 150, OutputTokens: 10, TotalTokens: 160},
+			},
+		},
+	}
+
+	registry := NewRegistry(nil)
+	registry.Register(&mockTool{name: "test_tool", output: "result_value"})
+
+	hook := &mockHook{}
+	cfg := DefaultLoopConfig()
+	cfg.Hook = hook
+
+	messages := []llm.Message{
+		{Role: "user", Content: "Use the tool"},
+	}
+
+	_, err := RunToolLoop(context.Background(), provider, messages, registry, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(hook.beforeCalls) != 1 || hook.beforeCalls[0] != "test_tool" {
+		t.Fatalf("expected BeforeToolCall for test_tool, got %v", hook.beforeCalls)
+	}
+	if len(hook.afterCalls) != 1 || hook.afterCalls[0] != "test_tool" {
+		t.Fatalf("expected AfterToolCall for test_tool, got %v", hook.afterCalls)
+	}
+	if hook.afterResults[0].Output != "result_value" {
+		t.Fatalf("expected result_value, got %q", hook.afterResults[0].Output)
+	}
+}
+
+func TestBeforeToolCallHookDenial(t *testing.T) {
+	provider := &mockProvider{
+		responses: []*llm.Response{
+			{
+				StopReason: llm.StopReasonToolUse,
+				ToolCalls: []llm.ToolCall{
+					{ID: "tc1", Name: "blocked_tool", Args: map[string]any{}},
+				},
+				Usage: llm.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
+			},
+			{
+				StopReason: llm.StopReasonEndTurn,
+				Content:    "Tool was denied.",
+				Usage:      llm.Usage{InputTokens: 150, OutputTokens: 10, TotalTokens: 160},
+			},
+		},
+	}
+
+	registry := NewRegistry(nil)
+	registry.Register(&mockTool{name: "blocked_tool", output: "should not see this"})
+
+	hook := &mockHook{denyTool: "blocked_tool"}
+	cfg := DefaultLoopConfig()
+	cfg.Hook = hook
+
+	messages := []llm.Message{
+		{Role: "user", Content: "Use the tool"},
+	}
+
+	result, err := RunToolLoop(context.Background(), provider, messages, registry, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "Tool was denied." {
+		t.Fatalf("expected 'Tool was denied.', got %q", result)
+	}
+	// AfterToolCall should NOT be called for denied tools
+	if len(hook.afterCalls) != 0 {
+		t.Fatalf("expected no AfterToolCall for denied tool, got %v", hook.afterCalls)
 	}
 }
