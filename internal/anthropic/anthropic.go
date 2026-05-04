@@ -177,7 +177,15 @@ func (p *AnthropicProvider) CompleteWithTools(ctx context.Context,
 	}
 
 	// Parse response
-	resp := &llm.Response{}
+	resp := &llm.Response{
+		Usage: llm.Usage{
+			InputTokens:      int(message.Usage.InputTokens),
+			OutputTokens:     int(message.Usage.OutputTokens),
+			CacheReadTokens:  int(message.Usage.CacheReadInputTokens),
+			CacheWriteTokens: int(message.Usage.CacheCreationInputTokens),
+			TotalTokens:      int(message.Usage.InputTokens + message.Usage.OutputTokens),
+		},
+	}
 	switch message.StopReason {
 	case "tool_use":
 		resp.StopReason = llm.StopReasonToolUse

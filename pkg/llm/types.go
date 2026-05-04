@@ -39,11 +39,21 @@ type Message struct {
 	ToolResults []ToolResultContent // tool results (tool role only)
 }
 
+// Usage tracks token consumption from an LLM response.
+type Usage struct {
+	InputTokens      int `json:"input_tokens"`
+	OutputTokens     int `json:"output_tokens"`
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // Response is the LLM's reply from CompleteWithTools.
 type Response struct {
 	StopReason StopReason
 	Content    string     // text content (may be empty if only tool calls)
 	ToolCalls  []ToolCall // tool calls (empty if end_turn)
+	Usage      Usage
 }
 
 // HasToolCalls returns true if the response contains tool call

@@ -45,6 +45,13 @@ type openAIMessage struct {
 	Content string `json:"content"`
 }
 
+// openAIUsage represents token usage from the OpenAI API.
+type openAIUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // openAIChatResponse represents the response from OpenAI chat completions API
 type openAIChatResponse struct {
 	ID      string `json:"id"`
@@ -56,11 +63,7 @@ type openAIChatResponse struct {
 		Message      openAIMessage `json:"message"`
 		FinishReason string        `json:"finish_reason"`
 	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
+	Usage openAIUsage  `json:"usage"`
 	Error *openAIError `json:"error,omitempty"`
 }
 
@@ -109,6 +112,7 @@ type openAIChatResponseWithTools struct {
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage openAIUsage  `json:"usage"`
 	Error *openAIError `json:"error,omitempty"`
 }
 
@@ -345,7 +349,15 @@ func (p *OpenAICompatProvider) CompleteWithTools(ctx context.Context,
 	}
 
 	choice := chatResp.Choices[0]
-	resp := &llm.Response{}
+	// CacheReadTokens/CacheWriteTokens left zero: OpenAI's standard
+	// chat completions API does not expose prompt cache metrics.
+	resp := &llm.Response{
+		Usage: llm.Usage{
+			InputTokens:  chatResp.Usage.PromptTokens,
+			OutputTokens: chatResp.Usage.CompletionTokens,
+			TotalTokens:  chatResp.Usage.TotalTokens,
+		},
+	}
 
 	if choice.FinishReason == "tool_calls" {
 		resp.StopReason = llm.StopReasonToolUse
