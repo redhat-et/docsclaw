@@ -32,7 +32,11 @@ func (m *mockProvider) ProviderName() string { return "mock" }
 func TestRunToolLoopNoTools(t *testing.T) {
 	provider := &mockProvider{
 		responses: []*llm.Response{
-			{StopReason: llm.StopReasonEndTurn, Content: "Hello!"},
+			{
+				StopReason: llm.StopReasonEndTurn,
+				Content:    "Hello!",
+				Usage:      llm.Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15},
+			},
 		},
 	}
 	registry := NewRegistry(nil)
@@ -59,10 +63,12 @@ func TestRunToolLoopWithToolCall(t *testing.T) {
 				ToolCalls: []llm.ToolCall{
 					{ID: "tc1", Name: "test_tool", Args: map[string]any{}},
 				},
+				Usage: llm.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
 			},
 			{
 				StopReason: llm.StopReasonEndTurn,
 				Content:    "The result is: ok",
+				Usage:      llm.Usage{InputTokens: 150, OutputTokens: 30, TotalTokens: 180},
 			},
 		},
 	}

@@ -350,6 +350,8 @@ func (p *OpenAICompatProvider) CompleteWithTools(ctx context.Context,
 	}
 
 	choice := chatResp.Choices[0]
+	// CacheReadTokens/CacheWriteTokens left zero: OpenAI's standard
+	// chat completions API does not expose prompt cache metrics.
 	resp := &llm.Response{
 		Usage: llm.Usage{
 			InputTokens:  chatResp.Usage.PromptTokens,

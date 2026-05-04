@@ -75,28 +75,6 @@ var (
 		[]string{"service"},
 	)
 
-	// LLM metrics
-
-	// LLMTokensTotal tracks token usage across LLM calls
-	LLMTokensTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "docsclaw",
-			Name:      "llm_tokens_total",
-			Help:      "Total LLM tokens consumed",
-		},
-		[]string{"provider", "model", "direction"},
-	)
-
-	// LLMRequestsTotal counts LLM API calls
-	LLMRequestsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "docsclaw",
-			Name:      "llm_requests_total",
-			Help:      "Total number of LLM API requests",
-		},
-		[]string{"provider", "model", "stop_reason"},
-	)
-
 	// Delegation metrics
 
 	// DelegationsTotal counts delegation attempts
