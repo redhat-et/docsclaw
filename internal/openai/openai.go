@@ -45,6 +45,13 @@ type openAIMessage struct {
 	Content string `json:"content"`
 }
 
+// openAIUsage represents token usage from the OpenAI API.
+type openAIUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // openAIChatResponse represents the response from OpenAI chat completions API
 type openAIChatResponse struct {
 	ID      string `json:"id"`
@@ -56,11 +63,7 @@ type openAIChatResponse struct {
 		Message      openAIMessage `json:"message"`
 		FinishReason string        `json:"finish_reason"`
 	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
+	Usage openAIUsage  `json:"usage"`
 	Error *openAIError `json:"error,omitempty"`
 }
 
@@ -109,11 +112,7 @@ type openAIChatResponseWithTools struct {
 		} `json:"message"`
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
+	Usage openAIUsage  `json:"usage"`
 	Error *openAIError `json:"error,omitempty"`
 }
 

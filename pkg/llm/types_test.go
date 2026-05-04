@@ -88,11 +88,8 @@ func TestUsageJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &roundtrip); err != nil {
 		t.Fatalf("unmarshal failed: %v", err)
 	}
-	if roundtrip.InputTokens != 1000 {
-		t.Fatalf("expected InputTokens 1000, got %d", roundtrip.InputTokens)
-	}
-	if roundtrip.TotalTokens != 1500 {
-		t.Fatalf("expected TotalTokens 1500, got %d", roundtrip.TotalTokens)
+	if roundtrip != usage {
+		t.Fatalf("round-trip mismatch: got %+v, want %+v", roundtrip, usage)
 	}
 }
 
