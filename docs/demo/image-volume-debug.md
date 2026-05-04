@@ -11,7 +11,7 @@ server accepts the pod but strips the image volume source.
 | | Working (NERC) | Broken (sandbox) |
 |---|---|---|
 | **API** | api.ocp-beta-test.nerc.mghpcc.org | api.ocp.v7hjl.sandbox2288.opentlc.com |
-| **OpenShift** | 4.20.8 | 4.20.14 |
+| **OpenShift** | 4.20.8 | 4.20.14 (not the cause — see root cause below) |
 | **CRI-O** | 1.33.6-2.rhaos4.20.git6d65309 | 1.33.9-2.rhaos4.20.gitb9ac835 |
 | **kubelet** | v1.33.6 | v1.33.6 |
 | **FeatureGate ImageVolume** | enabled | enabled |
@@ -78,13 +78,17 @@ oc get pod image-vol-test -o jsonpath='{.spec.volumes[0]}' | python3 -m json.too
 # Expected: {"image": {"pullPolicy": "Always", "reference": "..."}, "name": "skill-test"}
 ```
 
-## Questions for cluster admin
+## Initial questions for cluster admin (answered below)
 
-1. Is this a known regression between 4.20.8 and 4.20.14?
-1. Can you check kube-apiserver audit logs for the pod creation to
-   see which admission plugin modifies the volume?
-1. Are there any cluster-level admission policies or OPA/Gatekeeper
-   rules that might strip unrecognized volume types?
+1. ~~Is this a known regression between 4.20.8 and 4.20.14?~~
+   Not a version regression — caused by the peer-pods webhook.
+1. ~~Can you check kube-apiserver audit logs for the pod creation
+   to see which admission plugin modifies the volume?~~
+   Identified: `mwebhook.peerpods.io` mutating webhook.
+1. ~~Are there any cluster-level admission policies or
+   OPA/Gatekeeper rules that might strip unrecognized volume
+   types?~~ No OPA/Gatekeeper, but the peer-pods mutating
+   webhook has the same effect.
 
 ---
 
