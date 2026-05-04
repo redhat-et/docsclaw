@@ -81,7 +81,183 @@ oc get pod image-vol-test -o jsonpath='{.spec.volumes[0]}' | python3 -m json.too
 ## Questions for cluster admin
 
 1. Is this a known regression between 4.20.8 and 4.20.14?
-2. Can you check kube-apiserver audit logs for the pod creation to
+1. Can you check kube-apiserver audit logs for the pod creation to
    see which admission plugin modifies the volume?
-3. Are there any cluster-level admission policies or OPA/Gatekeeper
+1. Are there any cluster-level admission policies or OPA/Gatekeeper
    rules that might strip unrecognized volume types?
+
+---
+
+## Root cause analysis (2026-05-03)
+
+### Finding: peer-pods webhook strips `image:` volumes
+
+The OpenShift Sandboxed Containers operator installs a mutating
+webhook (`mwebhook.peerpods.io`) that intercepts **all** pod
+CREATE/UPDATE operations in user namespaces. This webhook
+deserializes the pod spec using Kubernetes API types bundled with
+its image. Because those types predate the `ImageVolumeSource`
+struct (added in Kubernetes 1.31), the `image:` field is silently
+dropped during deserialization. When the webhook returns the pod
+spec, the volume has been replaced with the zero value: `emptyDir: {}`.
+
+### Evidence
+
+| Check | Sandbox (broken) | NERC (working) |
+| --- | --- | --- |
+| kube-apiserver `ImageVolume` flag | `ImageVolume=true` | `ImageVolume=true` |
+| FeatureGate CR `ImageVolume` | enabled (default set) | enabled (default set) |
+| Peer-pods webhook present | yes | **no** |
+
+The kube-apiserver feature gate is correctly configured on **both**
+clusters. The only meaningful difference is the presence of the
+peer-pods webhook on the sandbox cluster.
+
+### Webhook details
+
+```text
+Name:            mutating-webhook-configuration
+Hook:            mwebhook.peerpods.io
+Service:         peer-pods-webhook-svc (openshift-sandboxed-containers-operator)
+Path:            /mutate-v1-pod
+Image:           registry.redhat.io/openshift-sandboxed-containers/osc-cloud-api-adaptor-webhook-rhel9
+objectSelector:  {} (matches ALL pods)
+namespaceSelector: excludes openshift-* and kube-* namespaces only
+failurePolicy:   Fail
+```
+
+The webhook has **no objectSelector** filter. Every pod created in
+user namespaces passes through it, even pods that have nothing to
+do with sandboxed containers or peer pods.
+
+The webhook logs confirm it processes every pod creation:
+
+```text
+2026/05/03 17:42:05 [pod-mutator] CPU Request: 0, CPU Limit: 0, ...
+```
+
+### Mechanism
+
+1. User creates a pod with `volumes[].image` in the spec
+1. kube-apiserver receives the request and calls the peer-pods
+   mutating webhook
+1. The webhook deserializes the pod into its Go struct using
+   client-go types that don't have `ImageVolumeSource`
+1. The `image:` field is silently dropped (unknown fields are
+   pruned during JSON unmarshaling with strict types)
+1. The webhook returns the pod spec (possibly unmodified otherwise)
+1. The zero-value `VolumeSource{}` serializes back as `emptyDir: {}`
+1. kube-apiserver persists the mutated pod to etcd
+
+This is a known class of webhook bugs: webhooks built with older
+Kubernetes client libraries silently drop API fields added in newer
+versions.
+
+### Workarounds
+
+**Option A: exclude namespace from the webhook (requires
+cluster-admin)**
+
+Add `panni-docsclaw` to the webhook's namespace exclusion list:
+
+```bash
+oc patch mutatingwebhookconfiguration mutating-webhook-configuration \
+  --type='json' \
+  -p='[{"op":"add","path":"/webhooks/0/namespaceSelector/matchExpressions/0/values/-","value":"panni-docsclaw"}]'
+```
+
+**Option B: use init container fallback**
+
+Copy skill content from the OCI image into an emptyDir at pod
+startup. Works on any cluster regardless of webhook configuration:
+
+```yaml
+initContainers:
+  - name: load-skill
+    image: quay.io/skillimage/business/document-summarizer:1.0.0-testing
+    command: ["cp", "-r", "/.", "/skills/test/"]
+    volumeMounts:
+      - name: skill-test
+        mountPath: /skills/test
+volumes:
+  - name: skill-test
+    emptyDir: {}
+```
+
+**Option C: report the bug**
+
+File a bug against the `openshift-sandboxed-containers` component
+requesting either:
+
+- An objectSelector so the webhook only matches pods using
+  `kata-remote` RuntimeClass
+- Updated client-go dependency that includes `ImageVolumeSource`
+
+### Commands used in this investigation
+
+```bash
+# Verify kube-apiserver feature gates (both clusters)
+oc get configmap config -n openshift-kube-apiserver -o yaml \
+  | grep -i imagevolume
+
+# List mutating webhooks matching pods
+oc get mutatingwebhookconfigurations -o json | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for wh in data.get('items', []):
+    for hook in wh.get('webhooks', []):
+        for rule in hook.get('rules', []):
+            if 'pods' in rule.get('resources', []):
+                print(f'{wh[\"metadata\"][\"name\"]}: {hook[\"name\"]}')"
+
+# Check webhook image
+oc get deployment peer-pods-webhook \
+  -n openshift-sandboxed-containers-operator \
+  -o jsonpath='{.spec.template.spec.containers[0].image}'
+
+# Confirm webhook processes pod creations
+oc logs deployment/peer-pods-webhook \
+  -n openshift-sandboxed-containers-operator --tail=5
+```
+
+### Verification
+
+After applying workaround A (namespace exclusion), both a bare
+pod and the full skill-discovery-test Deployment correctly
+preserve `image:` volumes.
+
+**Bare pod test:**
+
+```bash
+oc get pod image-vol-test -n panni-docsclaw \
+  -o jsonpath='{.spec.volumes[0]}' | python3 -m json.tool
+```
+
+```json
+{
+    "image": {
+        "pullPolicy": "Always",
+        "reference": "quay.io/skillimage/business/document-summarizer:1.0.0-testing"
+    },
+    "name": "skill-test"
+}
+```
+
+**Full deployment test (skill-discovery-test):**
+
+```bash
+oc rollout restart deployment/skill-discovery-test -n panni-docsclaw
+POD=$(oc get pod -n panni-docsclaw -l app=skill-discovery-test \
+  -o jsonpath='{.items[0].metadata.name}')
+oc exec "$POD" -n panni-docsclaw -- ls -la /skills/document-summarizer/
+```
+
+```text
+dr-xr-xr-x    1 root     root            40 May  4 01:40 .
+drwxr-xr-t    4 root     root            52 May  4 01:40 ..
+-rw-r--r--    1 501      dialout       1487 Apr 21 04:26 SKILL.md
+-rw-r--r--    1 501      dialout        963 Apr 22 18:38 skill.yaml
+```
+
+Both `SKILL.md` and `skill.yaml` are present and readable from
+the OCI image volume.
