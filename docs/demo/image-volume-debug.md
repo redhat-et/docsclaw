@@ -261,3 +261,45 @@ drwxr-xr-t    4 root     root            52 May  4 01:40 ..
 
 Both `SKILL.md` and `skill.yaml` are present and readable from
 the OCI image volume.
+
+### SCC configuration for Kagenti pods
+
+After restoring Kagenti labels (`kagenti.io/type: agent`) on pod
+templates, the Kagenti webhook injects an init container and an
+authbridge sidecar. These injected containers require capabilities
+not present in `restricted-with-image-volumes`:
+
+| Requirement | Source |
+| --- | --- |
+| `runAsUser: 0` | Kagenti `proxy-init` init container |
+| `NET_ADMIN`, `NET_RAW` capabilities | Kagenti `proxy-init` init container |
+| `runAsUser: 1337` | Kagenti authbridge sidecar |
+| `csi` volume (`csi.spiffe.io`) | SPIRE agent socket |
+
+OpenShift picks **one** SCC for the entire pod, so a single SCC
+must allow both image volumes and Kagenti's injected containers.
+
+**Fix applied:** added `image` to the `kagenti-authbridge` SCC's
+allowed volumes and bound `docsclaw-agent` SA to it:
+
+```bash
+# Add image volume support to kagenti-authbridge SCC
+oc patch scc kagenti-authbridge --type='json' \
+  -p='[{"op":"add","path":"/volumes/-","value":"image"}]'
+
+# Create ClusterRole and RoleBinding
+oc create clusterrole use-kagenti-authbridge-scc \
+  --verb=use \
+  --resource=securitycontextconstraints \
+  --resource-name=kagenti-authbridge
+
+oc create rolebinding docsclaw-kagenti-scc \
+  --clusterrole=use-kagenti-authbridge-scc \
+  --serviceaccount=panni-docsclaw:docsclaw-agent \
+  -n panni-docsclaw
+```
+
+After this fix, the pod creates successfully with Kagenti sidecar
+injection and image volumes preserved. The Kagenti infrastructure
+ConfigMaps (`spiffe-helper-config`, `envoy-config`) must be
+provisioned separately as part of Kagenti namespace setup.
