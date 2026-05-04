@@ -117,11 +117,11 @@ func truncateResult(s string, maxBytes int) string {
 	if maxBytes <= 0 || len(s) <= maxBytes {
 		return s
 	}
-	slog.Warn("tool output truncated",
-		"original_bytes", len(s), "max_bytes", maxBytes)
 	// Don't split a multi-byte UTF-8 character.
 	truncated := strings.ToValidUTF8(s[:maxBytes], "")
-	return truncated + fmt.Sprintf("\n\n[Truncated: showing first %d bytes of %d total]", maxBytes, len(s))
+	slog.Warn("tool output truncated",
+		"original_bytes", len(s), "retained_bytes", len(truncated))
+	return truncated + fmt.Sprintf("\n\n[Truncated: showing first %d bytes of %d total]", len(truncated), len(s))
 }
 
 func truncateLog(s string) string {
