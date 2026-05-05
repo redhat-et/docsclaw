@@ -71,8 +71,7 @@ func StreamResponse(w http.ResponseWriter, id, model, content string) {
 
 // StreamFromProvider writes real SSE chunks as they arrive from the
 // LLM provider's streaming callback.
-func StreamFromProvider(w http.ResponseWriter, id, model string) (
-	onEvent func(llm.StreamEvent), flush func()) {
+func StreamFromProvider(w http.ResponseWriter, id, model string) func(llm.StreamEvent) {
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -97,7 +96,7 @@ func StreamFromProvider(w http.ResponseWriter, id, model string) (
 	})
 	flusher.Flush()
 
-	onEvent = func(event llm.StreamEvent) {
+	return func(event llm.StreamEvent) {
 		switch event.Type {
 		case llm.StreamEventTextDelta:
 			writeChunk(w, ChatCompletionChunk{
@@ -128,12 +127,6 @@ func StreamFromProvider(w http.ResponseWriter, id, model string) (
 			StreamError(w, event.Content)
 		}
 	}
-
-	flush = func() {
-		flusher.Flush()
-	}
-
-	return onEvent, flush
 }
 
 // StreamError writes an error as an SSE event followed by [DONE].

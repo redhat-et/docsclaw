@@ -197,12 +197,16 @@ func (p *AnthropicProvider) StreamWithTools(ctx context.Context,
 			return nil, fmt.Errorf("stream accumulate failed: %w", err)
 		}
 
-		// Emit text deltas for content_block_delta events
-		if event.Type == "content_block_delta" && event.Delta.Text != "" && onEvent != nil {
-			onEvent(llm.StreamEvent{
-				Type:    llm.StreamEventTextDelta,
-				Content: event.Delta.Text,
-			})
+		// Emit text deltas via type-safe SDK accessors
+		if onEvent != nil {
+			if delta, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent); ok {
+				if td, ok := delta.Delta.AsAny().(anthropic.TextDelta); ok && td.Text != "" {
+					onEvent(llm.StreamEvent{
+						Type:    llm.StreamEventTextDelta,
+						Content: td.Text,
+					})
+				}
+			}
 		}
 	}
 	if err := stream.Err(); err != nil {

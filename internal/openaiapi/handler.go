@@ -104,11 +104,10 @@ func (h *Handler) streamCompletion(w http.ResponseWriter,
 	}
 
 	// Phase 1: real streaming from provider
-	onEvent, _ := StreamFromProvider(w, id, model)
+	onEvent := StreamFromProvider(w, id, model)
 	_, err := h.Provider.StreamWithTools(r.Context(), allMsgs, nil, onEvent)
 	if err != nil {
 		slog.Error("streaming failed", "error", err)
-		StreamError(w, "LLM error: "+err.Error())
 	}
 }
 

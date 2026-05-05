@@ -388,6 +388,10 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 
 	scanner := bufio.NewScanner(httpResp.Body)
 	for scanner.Scan() {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		line := scanner.Text()
 
 		// Skip empty lines (SSE separators)
