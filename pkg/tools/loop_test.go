@@ -29,6 +29,12 @@ func (m *mockProvider) CompleteWithTools(_ context.Context, _ []llm.Message, _ [
 	return resp, nil
 }
 
+func (m *mockProvider) StreamWithTools(_ context.Context,
+	msgs []llm.Message, tools []llm.ToolDefinition,
+	_ func(llm.StreamEvent)) (*llm.Response, error) {
+	return m.CompleteWithTools(context.Background(), msgs, tools)
+}
+
 func (m *mockProvider) Model() string        { return "mock" }
 func (m *mockProvider) ProviderName() string { return "mock" }
 

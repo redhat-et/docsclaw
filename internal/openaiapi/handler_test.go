@@ -31,7 +31,30 @@ func (m *mockProvider) CompleteWithTools(_ context.Context,
 	}, nil
 }
 
-func (m *mockProvider) Model() string      { return "mock-model" }
+func (m *mockProvider) StreamWithTools(_ context.Context,
+	msgs []llm.Message, tools []llm.ToolDefinition,
+	onEvent func(llm.StreamEvent)) (*llm.Response, error) {
+
+	resp, err := m.CompleteWithTools(context.Background(), msgs, tools)
+	if err != nil {
+		return nil, err
+	}
+	if onEvent != nil {
+		if resp.Content != "" {
+			onEvent(llm.StreamEvent{
+				Type:    llm.StreamEventTextDelta,
+				Content: resp.Content,
+			})
+		}
+		onEvent(llm.StreamEvent{
+			Type:  llm.StreamEventDone,
+			Usage: resp.Usage,
+		})
+	}
+	return resp, nil
+}
+
+func (m *mockProvider) Model() string        { return "mock-model" }
 func (m *mockProvider) ProviderName() string { return "mock" }
 
 func TestChatCompletionHandler(t *testing.T) {

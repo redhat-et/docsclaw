@@ -12,6 +12,12 @@ type Provider interface {
 	CompleteWithTools(ctx context.Context, messages []Message,
 		tools []ToolDefinition) (*Response, error)
 
+	// StreamWithTools is like CompleteWithTools but calls onEvent
+	// with incremental text deltas as they arrive. If onEvent is
+	// nil, events are discarded. Returns the accumulated Response.
+	StreamWithTools(ctx context.Context, messages []Message,
+		tools []ToolDefinition, onEvent func(StreamEvent)) (*Response, error)
+
 	// Model returns the configured model name
 	Model() string
 
