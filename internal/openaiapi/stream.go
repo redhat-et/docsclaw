@@ -34,24 +34,44 @@ func StreamResponse(w http.ResponseWriter, id, model, content string) {
 	})
 	flusher.Flush()
 
-	// Content chunks: split by words
+	// Content chunks: split by lines, then by words within each line.
+	// This preserves newlines so markdown renders correctly.
 	if content != "" {
-		words := strings.Fields(content)
-		for i, word := range words {
-			text := word
-			if i < len(words)-1 {
-				text += " "
+		lines := strings.SplitAfter(content, "\n")
+		for _, line := range lines {
+			if line == "" {
+				continue
 			}
-			writeChunk(w, ChatCompletionChunk{
-				ID:      id,
-				Object:  "chat.completion.chunk",
-				Created: created,
-				Model:   model,
-				Choices: []ChatChunkChoice{
-					{Index: 0, Delta: ChatDelta{Content: text}},
-				},
-			})
-			flusher.Flush()
+			words := strings.Fields(line)
+			for i, word := range words {
+				text := word
+				if i < len(words)-1 {
+					text += " "
+				}
+				writeChunk(w, ChatCompletionChunk{
+					ID:      id,
+					Object:  "chat.completion.chunk",
+					Created: created,
+					Model:   model,
+					Choices: []ChatChunkChoice{
+						{Index: 0, Delta: ChatDelta{Content: text}},
+					},
+				})
+				flusher.Flush()
+			}
+			// Emit the trailing newline if the line had one
+			if strings.HasSuffix(line, "\n") {
+				writeChunk(w, ChatCompletionChunk{
+					ID:      id,
+					Object:  "chat.completion.chunk",
+					Created: created,
+					Model:   model,
+					Choices: []ChatChunkChoice{
+						{Index: 0, Delta: ChatDelta{Content: "\n"}},
+					},
+				})
+				flusher.Flush()
+			}
 		}
 	}
 

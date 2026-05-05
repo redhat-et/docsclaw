@@ -64,6 +64,35 @@ func TestStreamResponse(t *testing.T) {
 	}
 }
 
+func TestStreamResponsePreservesNewlines(t *testing.T) {
+	w := httptest.NewRecorder()
+	content := "## Title\n\nFirst paragraph.\n\n- item one\n- item two\n"
+
+	StreamResponse(w, "test-id", "test-model", content)
+
+	result := w.Result()
+	defer func() { _ = result.Body.Close() }()
+
+	scanner := bufio.NewScanner(result.Body)
+	var sb strings.Builder
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" || line == "data: [DONE]" {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		var chunk ChatCompletionChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+		sb.WriteString(chunk.Choices[0].Delta.Content)
+	}
+
+	if got := sb.String(); got != content {
+		t.Fatalf("newlines not preserved:\nexpected: %q\ngot:      %q", content, got)
+	}
+}
+
 func TestStreamResponseEmpty(t *testing.T) {
 	w := httptest.NewRecorder()
 	StreamResponse(w, "test-id", "test-model", "")
