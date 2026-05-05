@@ -38,10 +38,11 @@ type Model struct {
 	input    textinput.Model
 	spinner  spinner.Model
 
-	messages  []ChatMessage
-	sessionID string // stable ID for server-side session continuity
-	waiting   bool
-	err       error
+	messages       []ChatMessage
+	sessionID      string // stable ID for server-side session continuity
+	sessionConfirmed bool // true after first successful response (server has session)
+	waiting        bool
+	err            error
 
 	width  int
 	height int
@@ -151,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseMsg:
 		m.waiting = false
+		m.sessionConfirmed = true
 		m.messages = append(m.messages, ChatMessage{Role: "agent", Text: msg.text})
 		m.updateViewport()
 		return m, textinput.Blink
@@ -293,9 +295,9 @@ func (m *Model) sendMessage(text string) tea.Cmd {
 // text so the agent sees prior turns. On the first message, returns the
 // raw text with no formatting.
 func (m *Model) buildMessageWithHistory(text string) string {
-	// When server-side sessions are active, the server maintains
-	// conversation history — don't prepend it client-side.
-	if m.sessionID != "" {
+	// After the first successful response, the server has our session —
+	// stop prepending history client-side to avoid doubling context.
+	if m.sessionConfirmed {
 		return text
 	}
 

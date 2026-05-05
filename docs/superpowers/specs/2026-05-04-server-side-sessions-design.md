@@ -90,34 +90,33 @@ executor.ProcessMessage = func(ctx context.Context,
 
 ### Client changes (`internal/bridge/client.go`, `internal/chat/model.go`)
 
-**InvokeRequest** gains `TaskID string` field. When set, the A2A
-client sends `message/send` with the existing task ID instead of
-creating a new task.
-
-**InvokeResult** gains `TaskID string` field, populated from the
-A2A response task.
+**InvokeRequest** gains `SessionID string` field. The client
+generates a stable UUID-like session ID per TUI instance and
+sends it as an `x-session-id` header via ServiceParams on every
+request. Each message creates an independent A2A task (respecting
+the protocol's terminal task states).
 
 **Chat TUI** (`internal/chat/model.go`):
-- Store `taskID` from first response
-- Pass `taskID` in subsequent `InvokeRequest`
-- When `taskID` is set, `buildMessageWithHistory` returns the
-  raw text without prepending history (server has it)
+- Generates `sessionID` in `NewModel` via `crypto/rand`
+- Sends `sessionID` in every `InvokeRequest`
+- After first successful response (`sessionConfirmed`), skips
+  history prepending (server has it)
+- First message still includes history (backward compat with
+  servers without session support)
 - Display still shows local messages for scroll buffer
 
 ### Session lifecycle
 
 ```
-TUI: "hello"  →  Server: no taskId → create session S1
+TUI: "hello"  →  Server: x-session-id=S1 → create session S1
                   S1.Messages = [system, user("hello")]
                   LLM call with S1.Messages
                   S1.Messages += [assistant("Hi!")]
-                  Response includes taskId=S1
 
-TUI: "how?"   →  Server: taskId=S1 → load session S1
+TUI: "how?"   →  Server: x-session-id=S1 → load session S1
                   S1.Messages += [user("how?")]
                   LLM call with S1.Messages
                   S1.Messages += [assistant("...")]
-                  Response includes taskId=S1
 
 (30 min idle) →  Reaper deletes S1
 ```

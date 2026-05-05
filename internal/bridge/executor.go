@@ -94,6 +94,10 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			e.Log.Info("A2A free-form request received",
 				"text_length", len(userText))
 
+			if len(sessionID) > 64 {
+				sessionID = sessionID[:64]
+			}
+
 			var messages []llm.Message
 			if e.Sessions != nil && sessionID != "" {
 				sess := e.Sessions.GetOrCreate(sessionID, e.SystemPrompt)
