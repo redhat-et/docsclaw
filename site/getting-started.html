@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — DocsClaw</title>
+  <meta name="description" content="Install DocsClaw and deploy your first AI agent in minutes.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-primary: #000000;
+      --bg-secondary: #1f1f1f;
+      --bg-surface: #292929;
+      --text-primary: #ffffff;
+      --text-secondary: #c7c7c7;
+      --text-muted: #a3a3a3;
+      --accent: #ee0000;
+      --accent-dark: #a60000;
+      --accent-light: #f56e6e;
+      --border: #383838;
+      --font-display: 'Red Hat Display', sans-serif;
+      --font-body: 'Red Hat Text', sans-serif;
+      --font-mono: 'Red Hat Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: var(--font-mono); font-size: 0.9em; }
+
+    /* === NAV === */
+    nav {
+      padding: 16px 64px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+    nav .logo {
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: 1rem;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    nav .logo:hover { text-decoration: none; }
+    nav a { color: var(--text-muted); }
+    nav a:hover { color: var(--text-primary); text-decoration: none; }
+
+    /* === CONTENT === */
+    .content {
+      max-width: 800px;
+      padding: 64px;
+    }
+
+    .content h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 900;
+      margin-bottom: 16px;
+    }
+
+    .content h2 {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-top: 48px;
+      margin-bottom: 16px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .content h2:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .content p {
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      line-height: 1.7;
+    }
+
+    .content .lead {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 32px;
+    }
+
+    /* === INSTALL GRID === */
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .install-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 24px;
+    }
+    .install-card h3 {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .install-card pre {
+      background: var(--bg-surface);
+      border-radius: 3px;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent-light);
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+    .install-card p {
+      font-size: 0.9rem;
+      margin-bottom: 0;
+    }
+
+    /* === CODE BLOCK === */
+    .code-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      overflow-x: auto;
+      margin-bottom: 24px;
+    }
+    .code-block .cmd { color: var(--accent-light); }
+    .code-block .comment { color: var(--text-muted); }
+    .code-block .output { color: var(--text-muted); font-style: italic; }
+
+    /* === FILE TREE === */
+    .file-tree {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+    .file-tree .dir { color: var(--accent-light); }
+    .file-tree .file { color: var(--text-secondary); }
+    .file-tree .desc { color: var(--text-muted); }
+
+    /* === FOOTER === */
+    footer {
+      padding: 40px 64px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    footer .copyright { font-size: 0.85rem; color: var(--text-muted); }
+    footer .links { display: flex; gap: 24px; font-family: var(--font-mono); font-size: 0.8rem; }
+
+    @media (max-width: 768px) {
+      nav { padding: 16px 24px; }
+      .content { padding: 32px 24px; }
+      footer { padding: 24px; }
+      .install-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">DocsClaw</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="demos.html">Demos</a>
+    <a href="https://github.com/redhat-et/docsclaw">GitHub</a>
+  </nav>
+
+  <div class="content">
+    <h1>Getting <span class="accent">Started</span></h1>
+    <p class="lead">Install DocsClaw and deploy your first AI agent in minutes.</p>
+
+    <h2>Install</h2>
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>Homebrew</h3>
+        <pre>brew install pavelanni/tap/docsclaw</pre>
+      </div>
+      <div class="install-card">
+        <h3>Go Install</h3>
+        <pre>go install github.com/redhat-et/docsclaw/cmd/docsclaw@latest</pre>
+      </div>
+      <div class="install-card">
+        <h3>Container</h3>
+        <pre>podman run --rm ghcr.io/redhat-et/docsclaw:latest version</pre>
+      </div>
+      <div class="install-card">
+        <h3>From Source</h3>
+        <pre>git clone https://github.com/redhat-et/docsclaw.git
+cd docsclaw && make build</pre>
+      </div>
+    </div>
+    <p>Pre-built binaries for Linux, macOS, and Windows (amd64/arm64) are available on the <a href="https://github.com/redhat-et/docsclaw/releases">releases page</a>.</p>
+
+    <h2>Agent Configuration</h2>
+    <p>An agent is defined by a config directory with three files:</p>
+
+    <div class="file-tree">
+      <span class="dir">my-agent/</span><br>
+      &nbsp;&nbsp;<span class="file">system-prompt.txt</span> <span class="desc">&mdash; agent personality (required)</span><br>
+      &nbsp;&nbsp;<span class="file">agent-card.json</span> <span class="desc">&mdash; A2A discovery metadata (optional)</span><br>
+      &nbsp;&nbsp;<span class="file">agent-config.yaml</span> <span class="desc">&mdash; tools and loop settings (optional)</span>
+    </div>
+
+    <p>The system prompt defines what the agent does. The agent card tells other agents how to discover and interact with it. The agent config enables tool use (shell commands, web fetch, file operations) and controls the agentic loop.</p>
+
+    <p>Example <code>agent-config.yaml</code> for a tool-enabled agent:</p>
+    <div class="code-block">
+tools:<br>
+&nbsp;&nbsp;allowed:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- exec<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- web_fetch<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- read_file<br>
+&nbsp;&nbsp;&nbsp;&nbsp;- write_file<br>
+&nbsp;&nbsp;exec:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;timeout: 30<br>
+&nbsp;&nbsp;&nbsp;&nbsp;max_output: 50000<br>
+&nbsp;&nbsp;workspace: /tmp/agent-workspace<br>
+<br>
+loop:<br>
+&nbsp;&nbsp;max_iterations: 10
+    </div>
+
+    <h2>Run the Agent</h2>
+    <p>Set your LLM API key and start the server:</p>
+    <div class="code-block">
+      <span class="comment"># Using OpenAI</span><br>
+      <span class="cmd">$ export LLM_API_KEY=sk-...</span><br>
+      <span class="cmd">$ docsclaw serve</span> --config-dir my-agent/ --listen-plain-http<br>
+      <span class="output">INFO Agent name=my-agent</span><br>
+      <span class="output">INFO Listening addr=0.0.0.0:8000</span><br><br>
+
+      <span class="comment"># Using Anthropic</span><br>
+      <span class="cmd">$ export LLM_PROVIDER=anthropic</span><br>
+      <span class="cmd">$ export LLM_API_KEY=sk-ant-...</span><br>
+      <span class="cmd">$ docsclaw serve</span> --config-dir my-agent/ --listen-plain-http
+    </div>
+
+    <h2>Talk to the Agent</h2>
+    <p>Use the built-in interactive chat TUI:</p>
+    <div class="code-block">
+      <span class="cmd">$ docsclaw chat</span> --agent-url http://localhost:8000/a2a
+    </div>
+
+    <p>Or use the <a href="https://github.com/a2aproject/a2a-go/tree/main/cmd">A2A CLI</a> for scripted interactions:</p>
+    <div class="code-block">
+      <span class="cmd">$ a2a discover</span> http://localhost:8000<br>
+      <span class="cmd">$ a2a send</span> http://localhost:8000 "Summarize https://go.dev/blog/go1.24"
+    </div>
+
+    <h2>Next Steps</h2>
+    <p>Explore the <a href="demos.html">demo scenarios</a> for ready-made agent configurations, or check the <a href="https://github.com/redhat-et/docsclaw">GitHub repository</a> for the full documentation.</p>
+  </div>
+
+  <footer>
+    <div class="copyright">Pavel Anni &middot; Office of CTO &middot; Red Hat</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="demos.html">Demos</a>
+      <a href="https://github.com/redhat-et/docsclaw">GitHub</a>
+      <a href="https://github.com/redhat-et/docsclaw/releases">Releases</a>
+    </div>
+  </footer>
+
+</body>
+</html>

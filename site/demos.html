@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demos — DocsClaw</title>
+  <meta name="description" content="Ready-made agent configurations for DocsClaw. Research assistant, document reviewer, HR summarizer, and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-primary: #000000;
+      --bg-secondary: #1f1f1f;
+      --bg-surface: #292929;
+      --text-primary: #ffffff;
+      --text-secondary: #c7c7c7;
+      --text-muted: #a3a3a3;
+      --accent: #ee0000;
+      --accent-dark: #a60000;
+      --accent-light: #f56e6e;
+      --border: #383838;
+      --font-display: 'Red Hat Display', sans-serif;
+      --font-body: 'Red Hat Text', sans-serif;
+      --font-mono: 'Red Hat Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: var(--font-mono); font-size: 0.9em; }
+
+    /* === NAV === */
+    nav {
+      padding: 16px 64px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+    nav .logo {
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: 1rem;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    nav .logo:hover { text-decoration: none; }
+    nav a { color: var(--text-muted); }
+    nav a:hover { color: var(--text-primary); text-decoration: none; }
+
+    /* === CONTENT === */
+    .content {
+      max-width: 1100px;
+      padding: 64px;
+    }
+
+    .content h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 900;
+      margin-bottom: 16px;
+    }
+
+    .content .lead {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 48px;
+      max-width: 640px;
+    }
+
+    /* === DEMO CARDS === */
+    .demos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .demo-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 32px;
+      transition: border-color 0.2s;
+    }
+    .demo-card:hover { border-color: var(--accent); }
+
+    .demo-card .demo-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .demo-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .demo-card p {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    .demo-card .tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .demo-card .tool-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 2px 10px;
+      border: 1px solid var(--border);
+      border-radius: 64px;
+      color: var(--text-muted);
+    }
+
+    .demo-card pre {
+      background: var(--bg-surface);
+      border-radius: 3px;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--accent-light);
+      overflow-x: auto;
+    }
+
+    .demo-card .source-link {
+      display: inline-block;
+      margin-top: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    /* === FOOTER === */
+    footer {
+      padding: 40px 64px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    footer .copyright { font-size: 0.85rem; color: var(--text-muted); }
+    footer .links { display: flex; gap: 24px; font-family: var(--font-mono); font-size: 0.8rem; }
+
+    @media (max-width: 768px) {
+      nav { padding: 16px 24px; }
+      .content { padding: 32px 24px; }
+      footer { padding: 24px; }
+      .demos { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="logo">DocsClaw</a>
+    <a href="getting-started.html">Get Started</a>
+    <a href="demos.html">Demos</a>
+    <a href="https://github.com/redhat-et/docsclaw">GitHub</a>
+  </nav>
+
+  <div class="content">
+    <h1>Demo <span class="accent">Scenarios</span></h1>
+    <p class="lead">Ready-made agent configurations you can run immediately. Each demo is a config directory with a system prompt, agent card, and tool settings.</p>
+
+    <div class="demos">
+
+      <div class="demo-card">
+        <div class="demo-label">General Purpose</div>
+        <h3>Standalone Research Assistant</h3>
+        <p>A general-purpose agent with access to shell commands, web browsing, and file operations. Good starting point for experimentation.</p>
+        <div class="tools">
+          <span class="tool-tag">exec</span>
+          <span class="tool-tag">web_fetch</span>
+          <span class="tool-tag">read_file</span>
+          <span class="tool-tag">write_file</span>
+        </div>
+        <pre>docsclaw serve --config-dir testdata/standalone</pre>
+        <a href="https://github.com/redhat-et/docsclaw/tree/main/testdata/standalone" class="source-link">View config &rarr;</a>
+      </div>
+
+      <div class="demo-card">
+        <div class="demo-label">Document Processing</div>
+        <h3>Research Agent</h3>
+        <p>Fetches documents from an external service, analyzes content, and produces structured research summaries. Uses skill files for specialized prompting.</p>
+        <div class="tools">
+          <span class="tool-tag">exec</span>
+          <span class="tool-tag">web_fetch</span>
+          <span class="tool-tag">read_file</span>
+          <span class="tool-tag">write_file</span>
+          <span class="tool-tag">fetch_document</span>
+        </div>
+        <pre>docsclaw serve --config-dir testdata/research-agent</pre>
+        <a href="https://github.com/redhat-et/docsclaw/tree/main/testdata/research-agent" class="source-link">View config &rarr;</a>
+      </div>
+
+      <div class="demo-card">
+        <div class="demo-label">Compliance</div>
+        <h3>Document Reviewer</h3>
+        <p>Reviews documents for compliance, security, and quality. Specialized for operations teams that need automated document review workflows.</p>
+        <div class="tools">
+          <span class="tool-tag">fetch_document</span>
+        </div>
+        <pre>docsclaw serve --config-dir testdata/reviewer-ops</pre>
+        <a href="https://github.com/redhat-et/docsclaw/tree/main/testdata/reviewer-ops" class="source-link">View config &rarr;</a>
+      </div>
+
+      <div class="demo-card">
+        <div class="demo-label">HR &amp; Analytics</div>
+        <h3>HR Document Summarizer</h3>
+        <p>Summarizes HR documents, policy updates, and employee communications. Produces structured summaries with key decisions and action items.</p>
+        <div class="tools">
+          <span class="tool-tag">fetch_document</span>
+        </div>
+        <pre>docsclaw serve --config-dir testdata/summarizer-hr</pre>
+        <a href="https://github.com/redhat-et/docsclaw/tree/main/testdata/summarizer-hr" class="source-link">View config &rarr;</a>
+      </div>
+
+    </div>
+
+    <div style="margin-top: 48px;">
+      <h2 style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; margin-bottom: 16px;">OpenShift <span class="accent">Deployment</span></h2>
+      <p style="color: var(--text-secondary); max-width: 640px; margin-bottom: 16px;">Demo Kubernetes manifests for deploying agents on OpenShift are available in the <a href="https://github.com/redhat-et/docsclaw/tree/main/docs/demo">docs/demo</a> directory, including:</p>
+      <ul style="color: var(--text-secondary); padding-left: 20px; line-height: 2;">
+        <li>Executive assistant agent deployment</li>
+        <li>HR analyst agent deployment</li>
+        <li>Service account and RBAC configuration</li>
+        <li>Image volume configuration for skill delivery</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <div class="copyright">Pavel Anni &middot; Office of CTO &middot; Red Hat</div>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="getting-started.html">Get Started</a>
+      <a href="https://github.com/redhat-et/docsclaw">GitHub</a>
+      <a href="https://github.com/redhat-et/docsclaw/releases">Releases</a>
+    </div>
+  </footer>
+
+</body>
+</html>
