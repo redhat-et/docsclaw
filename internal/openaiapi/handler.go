@@ -108,6 +108,7 @@ func (h *Handler) streamCompletion(w http.ResponseWriter,
 	_, err := h.Provider.StreamWithTools(r.Context(), allMsgs, nil, onEvent)
 	if err != nil {
 		slog.Error("streaming failed", "error", err)
+		StreamError(w, "LLM error: "+err.Error())
 	}
 }
 

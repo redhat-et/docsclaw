@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -407,7 +408,8 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 		data := strings.TrimPrefix(line, "data: ")
 		var chunk openAIStreamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue // skip malformed chunks
+			slog.Debug("skipping malformed SSE chunk", "error", err, "data", data)
+			continue
 		}
 
 		if len(chunk.Choices) == 0 {
