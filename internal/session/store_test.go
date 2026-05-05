@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -95,6 +97,61 @@ func TestStoreReaper(t *testing.T) {
 	}
 	if s.Get("keep-me") == nil {
 		t.Fatal("expected keep-me to survive")
+	}
+}
+
+func TestAppendAndSnapshot(t *testing.T) {
+	s := NewStore(30 * time.Minute)
+	s.GetOrCreate("task-1", "system")
+
+	msgs := s.AppendAndSnapshot("task-1", llm.Message{Role: "user", Content: "hello"})
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(msgs))
+	}
+
+	// Verify it's a copy — mutating the snapshot shouldn't affect the store
+	msgs[0].Content = "mutated"
+	sess := s.Get("task-1")
+	if sess.Messages[0].Content != "system" {
+		t.Fatal("snapshot mutation affected store")
+	}
+}
+
+func TestAppendAndSnapshotNonexistent(t *testing.T) {
+	s := NewStore(30 * time.Minute)
+	msgs := s.AppendAndSnapshot("nonexistent", llm.Message{Role: "user", Content: "hello"})
+	if msgs != nil {
+		t.Fatal("expected nil for nonexistent session")
+	}
+}
+
+func TestStoreConcurrentRace(t *testing.T) {
+	s := NewStore(30 * time.Minute)
+	s.GetOrCreate("shared", "system")
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				s.GetOrCreate("shared", "system")
+				s.AppendAndSnapshot("shared",
+					llm.Message{Role: "user", Content: fmt.Sprintf("msg-%d", j)})
+				s.Get("shared")
+				s.Len()
+			}
+		}()
+	}
+	wg.Wait()
+
+	if s.Len() != 1 {
+		t.Fatalf("expected 1 session, got %d", s.Len())
+	}
+	sess := s.Get("shared")
+	// 1 system + (50 goroutines * 100 messages)
+	if len(sess.Messages) != 5001 {
+		t.Fatalf("expected 5001 messages, got %d", len(sess.Messages))
 	}
 }
 

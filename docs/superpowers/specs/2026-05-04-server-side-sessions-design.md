@@ -107,7 +107,7 @@ the protocol's terminal task states).
 
 ### Session lifecycle
 
-```
+```text
 TUI: "hello"  →  Server: x-session-id=S1 → create session S1
                   S1.Messages = [system, user("hello")]
                   LLM call with S1.Messages
@@ -133,9 +133,9 @@ additional configuration needed.
 | `internal/session/store.go` | **New**: session store |
 | `internal/session/store_test.go` | **New**: store tests |
 | `internal/bridge/executor.go` | Add Sessions + SystemPrompt fields, session management in Execute |
-| `internal/bridge/client.go` | Add TaskID to InvokeRequest/InvokeResult, pass to A2A |
-| `internal/cmd/serve.go` | Create store, wire to executor, update ProcessMessage signature |
-| `internal/chat/model.go` | Store taskID, skip history prepending when set |
+| `internal/bridge/client.go` | Add `SessionID` to `InvokeRequest`, send as `x-session-id` header via ServiceParams |
+| `internal/cmd/serve.go` | Create store, wire to executor, update `ProcessMessage` signature |
+| `internal/chat/model.go` | Generate `sessionID`, skip history prepending when `sessionConfirmed` |
 
 ## Testing
 

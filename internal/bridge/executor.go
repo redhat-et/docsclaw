@@ -100,9 +100,9 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 
 			var messages []llm.Message
 			if e.Sessions != nil && sessionID != "" {
-				sess := e.Sessions.GetOrCreate(sessionID, e.SystemPrompt)
-				e.Sessions.Append(sessionID, llm.Message{Role: "user", Content: userText})
-				messages = sess.Messages
+				e.Sessions.GetOrCreate(sessionID, e.SystemPrompt)
+				messages = e.Sessions.AppendAndSnapshot(sessionID,
+					llm.Message{Role: "user", Content: userText})
 				e.Log.Info("Processing free-form message via agentic loop",
 					"session_id", sessionID,
 					"message_count", len(messages))

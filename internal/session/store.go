@@ -76,6 +76,25 @@ func (s *Store) Append(id string, msg llm.Message) {
 	sess.LastActive = time.Now()
 }
 
+// AppendAndSnapshot adds a message and returns a copy of the session's
+// messages. All operations happen under the lock, preventing races
+// between concurrent reads and writes.
+func (s *Store) AppendAndSnapshot(id string, msg llm.Message) []llm.Message {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess, ok := s.sessions[id]
+	if !ok {
+		return nil
+	}
+	sess.Messages = append(sess.Messages, msg)
+	sess.LastActive = time.Now()
+
+	snapshot := make([]llm.Message, len(sess.Messages))
+	copy(snapshot, sess.Messages)
+	return snapshot
+}
+
 // Len returns the number of active sessions.
 func (s *Store) Len() int {
 	s.mu.RLock()
