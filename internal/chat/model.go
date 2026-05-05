@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,9 +38,11 @@ type Model struct {
 	input    textinput.Model
 	spinner  spinner.Model
 
-	messages []ChatMessage
-	waiting  bool
-	err      error
+	messages       []ChatMessage
+	sessionID      string // stable ID for server-side session continuity
+	sessionConfirmed bool // true after first successful response (server has session)
+	waiting        bool
+	err            error
 
 	width  int
 	height int
@@ -69,6 +72,7 @@ func NewModel(agentURL, agentName, agentDescription, userName string, skills []S
 		agentDescription: agentDescription,
 		userName:         userName,
 		skills:           skills,
+		sessionID:        generateSessionID(),
 		client:    bridge.NewA2AClient(
 			&http.Client{Timeout: 120 * time.Second},
 			slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -77,6 +81,12 @@ func NewModel(agentURL, agentName, agentDescription, userName string, skills []S
 		spinner:   sp,
 		renderer:  r,
 	}
+}
+
+func generateSessionID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
 // Init returns the initial command for the model.
@@ -142,6 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseMsg:
 		m.waiting = false
+		m.sessionConfirmed = true
 		m.messages = append(m.messages, ChatMessage{Role: "agent", Text: msg.text})
 		m.updateViewport()
 		return m, textinput.Blink
@@ -264,12 +275,14 @@ func (m *Model) updateViewport() {
 func (m *Model) sendMessage(text string) tea.Cmd {
 	client := m.client
 	agentURL := m.agentURL
+	sessionID := m.sessionID
 	messageText := m.buildMessageWithHistory(text)
 
 	return func() tea.Msg {
 		result, err := client.Invoke(context.Background(), &bridge.InvokeRequest{
 			AgentURL:    agentURL,
 			MessageText: messageText,
+			SessionID:   sessionID,
 		})
 		if err != nil {
 			return errMsg{err: err}
@@ -282,6 +295,12 @@ func (m *Model) sendMessage(text string) tea.Cmd {
 // text so the agent sees prior turns. On the first message, returns the
 // raw text with no formatting.
 func (m *Model) buildMessageWithHistory(text string) string {
+	// After the first successful response, the server has our session —
+	// stop prepending history client-side to avoid doubling context.
+	if m.sessionConfirmed {
+		return text
+	}
+
 	// Collect prior turns, excluding error messages and the current
 	// user message (which is already appended to m.messages).
 	var history []ChatMessage

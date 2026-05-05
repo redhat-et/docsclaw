@@ -9,6 +9,8 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 
 	"github.com/redhat-et/docsclaw/internal/logger"
+	"github.com/redhat-et/docsclaw/internal/session"
+	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
 // DocumentFetcher fetches a document by ID from the document-service.
@@ -21,9 +23,9 @@ type DocumentFetcher func(ctx context.Context, documentID, bearerToken string) (
 // LLMProcessor processes a document with an LLM and returns the result text.
 type LLMProcessor func(ctx context.Context, title, content string) (string, error)
 
-// MessageProcessor processes a free-form user message (no document).
+// MessageProcessor processes a conversation with an LLM.
 // Used in phase 2 (tool-use) mode for standalone operation.
-type MessageProcessor func(ctx context.Context, userMessage string) (string, error)
+type MessageProcessor func(ctx context.Context, messages []llm.Message) (string, error)
 
 // AgentExecutor implements a2asrv.AgentExecutor by bridging A2A messages
 // to document fetch and LLM processing.
@@ -31,7 +33,9 @@ type AgentExecutor struct {
 	Log            *logger.Logger
 	FetchDocument  DocumentFetcher
 	ProcessLLM     LLMProcessor
-	ProcessMessage MessageProcessor // optional: handles free-form messages
+	ProcessMessage MessageProcessor   // optional: handles free-form messages
+	Sessions       *session.Store     // optional: server-side conversation state
+	SystemPrompt   string             // system prompt for new sessions
 }
 
 // Execute handles an incoming A2A message: extracts the document ID,
@@ -50,9 +54,10 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			return
 		}
 
-		// Extract bearer token and delegation context from ServiceParams.
+		// Extract bearer token, delegation context, and session ID from ServiceParams.
 		var bearerToken string
 		var userSPIFFEID, agentSPIFFEID string
+		var sessionID string
 		if sp := execCtx.ServiceParams; sp != nil {
 			if vals, found := sp.Get("authorization"); found && len(vals) > 0 {
 				bearerToken = strings.TrimPrefix(vals[0], "Bearer ")
@@ -62,6 +67,9 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			}
 			if vals, found := sp.Get("x-delegation-agent"); found && len(vals) > 0 {
 				agentSPIFFEID = vals[0]
+			}
+			if vals, found := sp.Get("x-session-id"); found && len(vals) > 0 {
+				sessionID = vals[0]
 			}
 		}
 
@@ -80,18 +88,43 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 		var result string
 
 		if docErr != nil && e.ProcessMessage != nil {
-			// Free-form message mode: no document ID, pass raw text
-			// to the agentic loop
+			// Free-form message mode: no document ID, use session-based
+			// conversation or fall back to single-turn.
 			userText := extractTextContent(execCtx.Message)
 			e.Log.Info("A2A free-form request received",
 				"text_length", len(userText))
 
+			if len(sessionID) > 64 {
+				sessionID = sessionID[:64]
+			}
+
+			var messages []llm.Message
+			if e.Sessions != nil && sessionID != "" {
+				e.Sessions.GetOrCreate(sessionID, e.SystemPrompt)
+				messages = e.Sessions.AppendAndSnapshot(sessionID,
+					llm.Message{Role: "user", Content: userText})
+				e.Log.Info("Processing free-form message via agentic loop",
+					"session_id", sessionID,
+					"message_count", len(messages))
+			} else {
+				e.Log.Info("Processing free-form message via agentic loop")
+				messages = []llm.Message{
+					{Role: "system", Content: e.SystemPrompt},
+					{Role: "user", Content: userText},
+				}
+			}
+
 			var err error
-			result, err = e.ProcessMessage(ctx, userText)
+			result, err = e.ProcessMessage(ctx, messages)
 			if err != nil {
 				e.Log.Error("Message processing failed", "error", err)
 				yield(e.failedEvent(execCtx, "Processing failed: "+err.Error()), nil)
 				return
+			}
+
+			if e.Sessions != nil && sessionID != "" {
+				e.Sessions.Append(sessionID,
+					llm.Message{Role: "assistant", Content: result})
 			}
 		} else if docErr != nil {
 			// No document ID and no free-form handler

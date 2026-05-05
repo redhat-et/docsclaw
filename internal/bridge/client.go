@@ -31,6 +31,7 @@ type InvokeRequest struct {
 	DocumentID    string // Legacy: used by Go agents
 	MessageText   string // New: used by gateway mode (e.g., "Summarize s3://...")
 	ReviewType    string
+	SessionID     string // Server-side session continuity (sent as x-session-id header)
 	BearerToken   string // Optional JWT forwarded from the caller (user delegation)
 	UserSPIFFEID  string // User SPIFFE ID — sent as X-Delegation-User header
 	AgentSPIFFEID string // Agent SPIFFE ID — sent as X-Delegation-Agent header
@@ -46,7 +47,6 @@ type InvokeResult struct {
 func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResult, error) {
 	var msg *a2a.Message
 	if req.MessageText != "" {
-		// Gateway mode: send plain text message
 		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(req.MessageText))
 	} else {
 		// Legacy mode: send structured DataPart
@@ -72,6 +72,9 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 	// Forward the bearer token and delegation context as HTTP headers
 	// via a CallInterceptor that injects ServiceParams.
 	sp := a2aclient.ServiceParams{}
+	if req.SessionID != "" {
+		sp.Append("x-session-id", req.SessionID)
+	}
 	if req.BearerToken != "" {
 		sp.Append("authorization", "Bearer "+req.BearerToken)
 	}
