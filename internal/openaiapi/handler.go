@@ -125,13 +125,13 @@ func (h *Handler) complete(ctx context.Context, systemPrompt string,
 		return "LLM provider not configured.", llm.Usage{}, nil
 	}
 
+	allMsgs := append([]llm.Message{{
+		Role:    "system",
+		Content: systemPrompt,
+	}}, msgs...)
+
 	// Phase 2: agentic tool-use loop.
 	if h.Registry != nil && len(h.Registry.Definitions()) > 0 {
-		allMsgs := append([]llm.Message{{
-			Role:    "system",
-			Content: systemPrompt,
-		}}, msgs...)
-
 		content, err := tools.RunToolLoop(ctx, h.Provider, allMsgs,
 			h.Registry, h.LoopConfig)
 		if err != nil {
@@ -140,20 +140,12 @@ func (h *Handler) complete(ctx context.Context, systemPrompt string,
 		return content, llm.Usage{}, nil
 	}
 
-	// Phase 1: single-shot completion.
-	userMsg := ""
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == "user" {
-			userMsg = msgs[i].Content
-			break
-		}
-	}
-
-	content, err := h.Provider.Complete(ctx, systemPrompt, userMsg)
+	// Phase 1: pass full history via CompleteWithTools (no tools).
+	resp, err := h.Provider.CompleteWithTools(ctx, allMsgs, nil)
 	if err != nil {
 		return "", llm.Usage{}, err
 	}
-	return content, llm.Usage{}, nil
+	return resp.Content, resp.Usage, nil
 }
 
 // writeError sends an OpenAI-compatible JSON error response.
