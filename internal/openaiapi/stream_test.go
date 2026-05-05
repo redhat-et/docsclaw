@@ -64,32 +64,43 @@ func TestStreamResponse(t *testing.T) {
 	}
 }
 
-func TestStreamResponsePreservesNewlines(t *testing.T) {
-	w := httptest.NewRecorder()
-	content := "## Title\n\nFirst paragraph.\n\n- item one\n- item two\n"
-
-	StreamResponse(w, "test-id", "test-model", content)
-
-	result := w.Result()
-	defer func() { _ = result.Body.Close() }()
-
-	scanner := bufio.NewScanner(result.Body)
-	var sb strings.Builder
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" || line == "data: [DONE]" {
-			continue
-		}
-		data := strings.TrimPrefix(line, "data: ")
-		var chunk ChatCompletionChunk
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue
-		}
-		sb.WriteString(chunk.Choices[0].Delta.Content)
+func TestStreamResponsePreservesWhitespace(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"markdown", "## Title\n\nFirst paragraph.\n\n- item one\n- item two\n"},
+		{"indentation", "    code line\n\thello\nfoo  bar\n"},
+		{"blank lines", "line one\n\n\nline four\n"},
 	}
 
-	if got := sb.String(); got != content {
-		t.Fatalf("newlines not preserved:\nexpected: %q\ngot:      %q", content, got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			StreamResponse(w, "test-id", "test-model", tc.content)
+
+			result := w.Result()
+			defer func() { _ = result.Body.Close() }()
+
+			scanner := bufio.NewScanner(result.Body)
+			var sb strings.Builder
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line == "" || line == "data: [DONE]" {
+					continue
+				}
+				data := strings.TrimPrefix(line, "data: ")
+				var chunk ChatCompletionChunk
+				if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+					continue
+				}
+				sb.WriteString(chunk.Choices[0].Delta.Content)
+			}
+
+			if got := sb.String(); got != tc.content {
+				t.Fatalf("whitespace not preserved:\nexpected: %q\ngot:      %q", tc.content, got)
+			}
+		})
 	}
 }
 

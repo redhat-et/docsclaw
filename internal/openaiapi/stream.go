@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -34,44 +33,20 @@ func StreamResponse(w http.ResponseWriter, id, model, content string) {
 	})
 	flusher.Flush()
 
-	// Content chunks: split by lines, then by words within each line.
-	// This preserves newlines so markdown renders correctly.
+	// Content chunks: tokenize into whitespace and non-whitespace runs
+	// to preserve exact formatting (indentation, multiple spaces, newlines).
 	if content != "" {
-		lines := strings.SplitAfter(content, "\n")
-		for _, line := range lines {
-			if line == "" {
-				continue
-			}
-			words := strings.Fields(line)
-			for i, word := range words {
-				text := word
-				if i < len(words)-1 {
-					text += " "
-				}
-				writeChunk(w, ChatCompletionChunk{
-					ID:      id,
-					Object:  "chat.completion.chunk",
-					Created: created,
-					Model:   model,
-					Choices: []ChatChunkChoice{
-						{Index: 0, Delta: ChatDelta{Content: text}},
-					},
-				})
-				flusher.Flush()
-			}
-			// Emit the trailing newline if the line had one
-			if strings.HasSuffix(line, "\n") {
-				writeChunk(w, ChatCompletionChunk{
-					ID:      id,
-					Object:  "chat.completion.chunk",
-					Created: created,
-					Model:   model,
-					Choices: []ChatChunkChoice{
-						{Index: 0, Delta: ChatDelta{Content: "\n"}},
-					},
-				})
-				flusher.Flush()
-			}
+		for _, token := range tokenize(content) {
+			writeChunk(w, ChatCompletionChunk{
+				ID:      id,
+				Object:  "chat.completion.chunk",
+				Created: created,
+				Model:   model,
+				Choices: []ChatChunkChoice{
+					{Index: 0, Delta: ChatDelta{Content: token}},
+				},
+			})
+			flusher.Flush()
 		}
 	}
 
@@ -112,6 +87,31 @@ func StreamError(w http.ResponseWriter, msg string) {
 func writeChunk(w http.ResponseWriter, chunk ChatCompletionChunk) {
 	data, _ := json.Marshal(chunk)
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+}
+
+// tokenize splits content into alternating non-whitespace and
+// whitespace runs, preserving exact formatting.
+func tokenize(s string) []string {
+	var tokens []string
+	i := 0
+	for i < len(s) {
+		if s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r' {
+			j := i
+			for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
+				j++
+			}
+			tokens = append(tokens, s[i:j])
+			i = j
+		} else {
+			j := i
+			for j < len(s) && s[j] != ' ' && s[j] != '\t' && s[j] != '\n' && s[j] != '\r' {
+				j++
+			}
+			tokens = append(tokens, s[i:j])
+			i = j
+		}
+	}
+	return tokens
 }
 
 // noopFlusher satisfies http.Flusher for non-streaming writers.

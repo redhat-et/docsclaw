@@ -3,6 +3,7 @@ package openaiapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,12 @@ func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "invalid_request_error",
+				"payload_too_large", "Request body too large (max 1MB).")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid_request_error",
 			"invalid_json", "Failed to parse request body: "+err.Error())
 		return

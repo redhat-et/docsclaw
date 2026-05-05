@@ -79,6 +79,15 @@ func TestChatCompletionHandler(t *testing.T) {
 	if resp.Choices[0].FinishReason != "stop" {
 		t.Errorf("finish_reason = %q, want %q", resp.Choices[0].FinishReason, "stop")
 	}
+	if resp.Usage.PromptTokens != 10 {
+		t.Errorf("prompt_tokens = %d, want 10", resp.Usage.PromptTokens)
+	}
+	if resp.Usage.CompletionTokens != 5 {
+		t.Errorf("completion_tokens = %d, want 5", resp.Usage.CompletionTokens)
+	}
+	if resp.Usage.TotalTokens != 15 {
+		t.Errorf("total_tokens = %d, want 15", resp.Usage.TotalTokens)
+	}
 }
 
 func TestChatCompletionHandlerStreaming(t *testing.T) {

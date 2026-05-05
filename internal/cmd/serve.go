@@ -467,12 +467,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("GET /v1/models", openaiHandler.Models)
 	mux.HandleFunc("GET /v1/skills", openaiHandler.Skills)
 
-	// Main server
+	// Main server — WriteTimeout is 0 because SSE streaming
+	// (OpenAI chat completions) and agentic tool loops can exceed
+	// any fixed deadline. Request-scoped contexts handle cancellation.
 	server := &http.Server{
-		Addr:         cfg.Service.Addr(),
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 120 * time.Second,
+		Addr:        cfg.Service.Addr(),
+		Handler:     mux,
+		ReadTimeout: 10 * time.Second,
 	}
 
 	// Graceful shutdown
