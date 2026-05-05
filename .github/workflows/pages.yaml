@@ -1,10 +1,10 @@
-name: Deploy slides to GitHub Pages
+name: Deploy site to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'docs/slides/**'
+      - 'site/**'
       - '.github/workflows/pages.yaml'
   workflow_dispatch:
 
@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/slides
+          path: site
 
       - id: deployment
         uses: actions/deploy-pages@v4
