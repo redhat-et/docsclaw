@@ -14,30 +14,32 @@ UIs like Open WebUI instead of building a custom frontend.
 
 ## Quick verification
 
-Replace `$ROUTE` with your DocsClaw URL (local or OpenShift route):
+Replace `$BASE` with your DocsClaw base URL:
 
 ```bash
-export ROUTE=localhost:8000
-# or
-export ROUTE=my-agent-namespace.apps.cluster.example.com
+# Local development
+export BASE=http://localhost:8000
+
+# OpenShift route
+export BASE=https://my-agent-namespace.apps.cluster.example.com
 ```
 
 ### Check the model
 
 ```bash
-curl -s https://$ROUTE/v1/models | jq .
+curl -s $BASE/v1/models | jq .
 ```
 
 ### Check available skills
 
 ```bash
-curl -s https://$ROUTE/v1/skills | jq .
+curl -s $BASE/v1/skills | jq .
 ```
 
 ### Non-streaming chat
 
 ```bash
-curl -s https://$ROUTE/v1/chat/completions \
+curl -s $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "docsclaw",
@@ -50,7 +52,7 @@ curl -s https://$ROUTE/v1/chat/completions \
 ### Streaming chat
 
 ```bash
-curl -s -N https://$ROUTE/v1/chat/completions \
+curl -s -N $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "docsclaw",
@@ -64,7 +66,7 @@ curl -s -N https://$ROUTE/v1/chat/completions \
 ### Document summarization (with document-summarizer skill)
 
 ```bash
-curl -s -N https://$ROUTE/v1/chat/completions \
+curl -s -N $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "docsclaw",
@@ -82,12 +84,12 @@ curl -s -N https://$ROUTE/v1/chat/completions \
 
 ```bash
 # Invalid JSON → 400
-curl -s https://$ROUTE/v1/chat/completions \
+curl -s $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d 'not json' | jq .
 
 # Empty messages → 400
-curl -s https://$ROUTE/v1/chat/completions \
+curl -s $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"messages": []}' | jq .
 ```
@@ -100,7 +102,7 @@ Open WebUI is the easiest way to get a full chat interface.
 
 ```bash
 podman run -d -p 3000:8080 \
-  -e OPENAI_API_BASE_URL=https://$ROUTE/v1 \
+  -e OPENAI_API_BASE_URL=${BASE}/v1 \
   -e OPENAI_API_KEY=unused \
   --name open-webui \
   ghcr.io/open-webui/open-webui:main
@@ -140,7 +142,7 @@ role, add boundaries to the system prompt:
 
 **Scope restriction:**
 
-```
+```text
 You are a document summarization assistant. Your role is to
 summarize documents that users provide.
 
@@ -153,7 +155,7 @@ summarize."
 
 **Output format control:**
 
-```
+```text
 Always structure your summaries with these sections:
 - Summary (2-3 sentences)
 - Key decisions
@@ -166,7 +168,7 @@ Omit sections that don't apply to the document.
 
 **Tone and audience:**
 
-```
+```text
 Write for a technical audience familiar with cloud-native
 technologies. Be concise — prefer bullet points over prose.
 Do not use emojis.
@@ -174,7 +176,7 @@ Do not use emojis.
 
 **Skill-aware prompting** (when skills are loaded):
 
-```
+```text
 You have access to specialized skills. Use them when the
 user's request matches a skill's purpose. Do not attempt
 tasks outside your available skills.
@@ -187,7 +189,7 @@ out-of-scope requests:
 
 ```bash
 # In-scope: should produce a structured summary
-curl -s https://$ROUTE/v1/chat/completions \
+curl -s $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "docsclaw",
@@ -197,7 +199,7 @@ curl -s https://$ROUTE/v1/chat/completions \
   }' | jq -r '.choices[0].message.content'
 
 # Out-of-scope: should be redirected
-curl -s https://$ROUTE/v1/chat/completions \
+curl -s $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "docsclaw",
@@ -225,10 +227,10 @@ The same request via both interfaces:
 
 ```bash
 # A2A
-a2a send --timeout 120s "https://$ROUTE" "Summarize: ..."
+a2a send --timeout 120s "$BASE" "Summarize: ..."
 
 # OpenAI API
-curl -s https://$ROUTE/v1/chat/completions \
+curl -s $BASE/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"docsclaw","messages":[{"role":"user","content":"Summarize: ..."}]}'
 ```
