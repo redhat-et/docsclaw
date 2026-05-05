@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
 // StreamResponse writes an SSE-streamed chat completion response.
@@ -65,6 +67,66 @@ func StreamResponse(w http.ResponseWriter, id, model, content string) {
 
 	_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
 	flusher.Flush()
+}
+
+// StreamFromProvider writes real SSE chunks as they arrive from the
+// LLM provider's streaming callback.
+func StreamFromProvider(w http.ResponseWriter, id, model string) func(llm.StreamEvent) {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		flusher = noopFlusher{}
+	}
+
+	created := time.Now().Unix()
+
+	// Send initial role chunk
+	writeChunk(w, ChatCompletionChunk{
+		ID:      id,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []ChatChunkChoice{
+			{Index: 0, Delta: ChatDelta{Role: "assistant"}},
+		},
+	})
+	flusher.Flush()
+
+	return func(event llm.StreamEvent) {
+		switch event.Type {
+		case llm.StreamEventTextDelta:
+			writeChunk(w, ChatCompletionChunk{
+				ID:      id,
+				Object:  "chat.completion.chunk",
+				Created: created,
+				Model:   model,
+				Choices: []ChatChunkChoice{
+					{Index: 0, Delta: ChatDelta{Content: event.Content}},
+				},
+			})
+			flusher.Flush()
+		case llm.StreamEventDone:
+			stop := "stop"
+			writeChunk(w, ChatCompletionChunk{
+				ID:      id,
+				Object:  "chat.completion.chunk",
+				Created: created,
+				Model:   model,
+				Choices: []ChatChunkChoice{
+					{Index: 0, Delta: ChatDelta{}, FinishReason: &stop},
+				},
+			})
+			flusher.Flush()
+			_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+			flusher.Flush()
+		case llm.StreamEventError:
+			StreamError(w, event.Content)
+		}
+	}
 }
 
 // StreamError writes an error as an SSE event followed by [DONE].

@@ -48,21 +48,6 @@ func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 
 	msgs, systemPrompt := ConvertMessages(req.Messages, h.SystemPrompt)
 
-	content, usage, err := h.complete(r.Context(), systemPrompt, msgs)
-	if err != nil {
-		slog.Error("LLM completion failed", "error", err)
-		if req.Stream {
-			w.Header().Set("Content-Type", "text/event-stream")
-			w.Header().Set("Cache-Control", "no-cache")
-			w.Header().Set("Connection", "keep-alive")
-			StreamError(w, "LLM error: "+err.Error())
-			return
-		}
-		writeError(w, http.StatusBadGateway, "server_error",
-			"llm_error", "LLM error: "+err.Error())
-		return
-	}
-
 	id := GenerateID()
 	model := "docsclaw"
 	if h.Provider != nil {
@@ -70,13 +55,60 @@ func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Stream {
-		StreamResponse(w, id, model, content)
+		h.streamCompletion(w, r, id, model, systemPrompt, msgs)
+		return
+	}
+
+	content, usage, err := h.complete(r.Context(), systemPrompt, msgs)
+	if err != nil {
+		slog.Error("LLM completion failed", "error", err)
+		writeError(w, http.StatusBadGateway, "server_error",
+			"llm_error", "LLM error: "+err.Error())
 		return
 	}
 
 	resp := BuildResponse(id, model, content, usage)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// streamCompletion handles streaming responses. Phase 1 uses real
+// provider streaming; phase 2 runs the tool loop then simulates.
+func (h *Handler) streamCompletion(w http.ResponseWriter,
+	r *http.Request, id, model, systemPrompt string, msgs []llm.Message) {
+
+	if h.Provider == nil {
+		StreamResponse(w, id, model, "LLM provider not configured.")
+		return
+	}
+
+	allMsgs := append([]llm.Message{{
+		Role:    "system",
+		Content: systemPrompt,
+	}}, msgs...)
+
+	// Phase 2: tool loop + simulated streaming
+	if h.Registry != nil && len(h.Registry.Definitions()) > 0 {
+		content, err := tools.RunToolLoop(r.Context(),
+			h.Provider, allMsgs, h.Registry, h.LoopConfig)
+		if err != nil {
+			slog.Error("tool loop failed", "error", err)
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			StreamError(w, "LLM error: "+err.Error())
+			return
+		}
+		StreamResponse(w, id, model, content)
+		return
+	}
+
+	// Phase 1: real streaming from provider
+	onEvent := StreamFromProvider(w, id, model)
+	_, err := h.Provider.StreamWithTools(r.Context(), allMsgs, nil, onEvent)
+	if err != nil {
+		slog.Error("streaming failed", "error", err)
+	}
 }
 
 // Models handles GET /v1/models.

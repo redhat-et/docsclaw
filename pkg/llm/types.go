@@ -61,3 +61,19 @@ type Response struct {
 func (r *Response) HasToolCalls() bool {
 	return len(r.ToolCalls) > 0
 }
+
+// StreamEventType identifies the kind of streaming event.
+type StreamEventType string
+
+const (
+	StreamEventTextDelta StreamEventType = "text_delta"
+	StreamEventDone      StreamEventType = "done"
+	StreamEventError     StreamEventType = "error"
+)
+
+// StreamEvent carries a single event from a streaming LLM response.
+type StreamEvent struct {
+	Type    StreamEventType
+	Content string // text chunk for TextDelta, error message for Error
+	Usage   Usage  // populated only for Done events
+}
