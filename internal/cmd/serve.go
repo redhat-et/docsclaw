@@ -19,12 +19,13 @@ import (
 
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/config"
-	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
 	_ "github.com/redhat-et/docsclaw/internal/metrics"
+	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/readfile"
+	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/internal/webfetch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
 	"github.com/redhat-et/docsclaw/pkg/llm"
@@ -453,12 +454,26 @@ func runServe(cmd *cobra.Command, args []string) error {
 	mux.Handle("POST /a2a", jsonrpcHandler)
 	mux.Handle("POST /{$}", jsonrpcHandler)
 
-	// Main server
+	// OpenAI-compatible API
+	openaiHandler := &openaiapi.Handler{
+		Provider:     llmProvider,
+		SystemPrompt: systemPrompt + skillsSummary,
+		Registry:     toolRegistry,
+		LoopConfig:   loopCfg,
+		AgentCard:    agentCard,
+		AgentName:    agentCard.Name,
+	}
+	mux.HandleFunc("POST /v1/chat/completions", openaiHandler.ChatCompletion)
+	mux.HandleFunc("GET /v1/models", openaiHandler.Models)
+	mux.HandleFunc("GET /v1/skills", openaiHandler.Skills)
+
+	// Main server — WriteTimeout is 0 because SSE streaming
+	// (OpenAI chat completions) and agentic tool loops can exceed
+	// any fixed deadline. Request-scoped contexts handle cancellation.
 	server := &http.Server{
-		Addr:         cfg.Service.Addr(),
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 120 * time.Second,
+		Addr:        cfg.Service.Addr(),
+		Handler:     mux,
+		ReadTimeout: 10 * time.Second,
 	}
 
 	// Graceful shutdown
@@ -495,6 +510,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 			"provider", llmProvider.ProviderName(),
 			"model", llmProvider.Model())
 	}
+	log.Info("OpenAI-compatible API enabled",
+		"endpoints", "/v1/chat/completions, /v1/models, /v1/skills")
 
 	// Health server (plain HTTP for K8s probes)
 	healthMux := http.NewServeMux()
