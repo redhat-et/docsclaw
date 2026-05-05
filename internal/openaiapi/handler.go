@@ -25,6 +25,7 @@ type Handler struct {
 
 // ChatCompletion handles POST /v1/chat/completions.
 func (h *Handler) ChatCompletion(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var req ChatCompletionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request_error",
