@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocsClaw — ConfigMap-Driven Agentic Runtime</title>
+  <meta name="description" content="A lightweight, A2A-compatible agentic runtime for OpenShift. Deploy AI agents with a system prompt, agent card, and tool config — no code changes needed.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700;900&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-primary: #000000;
+      --bg-secondary: #1f1f1f;
+      --bg-surface: #292929;
+      --text-primary: #ffffff;
+      --text-secondary: #c7c7c7;
+      --text-muted: #a3a3a3;
+      --accent: #ee0000;
+      --accent-dark: #a60000;
+      --accent-light: #f56e6e;
+      --border: #383838;
+      --font-display: 'Red Hat Display', sans-serif;
+      --font-body: 'Red Hat Text', sans-serif;
+      --font-mono: 'Red Hat Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: var(--font-mono); font-size: 0.9em; }
+
+    /* === HERO === */
+    .hero {
+      min-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px 64px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      right: -10%;
+      width: 60%;
+      height: 60%;
+      background: radial-gradient(ellipse, rgba(238,0,0,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero > * { position: relative; z-index: 1; }
+
+    .hero-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 900;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      max-width: 800px;
+    }
+    .hero .subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+    .accent { color: var(--accent); }
+
+    /* === INSTALL === */
+    .install-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 16px 24px;
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      max-width: 520px;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .install-block .prompt { color: var(--accent-light); user-select: none; }
+    .install-block code { flex: 1; }
+    .install-block .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text-muted);
+      padding: 4px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .install-block .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* === BUTTONS === */
+    .buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 3px;
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn:hover { text-decoration: none; }
+    .btn-primary { background: var(--accent); color: var(--text-primary); }
+    .btn-primary:hover { background: var(--accent-dark); }
+    .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--text-muted); }
+
+    /* === TAGS === */
+    .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      display: inline-block;
+      padding: 4px 16px;
+      border: 1px solid var(--border);
+      border-radius: 64px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .tag-accent { border-color: var(--accent); color: var(--accent); }
+
+    /* === SECTIONS === */
+    section {
+      padding: 80px 64px;
+      border-top: 1px solid var(--border);
+    }
+    section h2 {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 32px;
+    }
+
+    /* === FEATURES GRID === */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+    }
+    .feature-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 24px;
+    }
+    .feature-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* === CODE EXAMPLE === */
+    .code-section { max-width: 800px; }
+    .code-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      overflow-x: auto;
+    }
+    .code-block .cmd { color: var(--accent-light); }
+    .code-block .comment { color: var(--text-muted); }
+    .code-block .output { color: var(--text-muted); font-style: italic; }
+
+    /* === STATS === */
+    .stats {
+      display: flex;
+      gap: 48px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--text-primary);
+    }
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* === PRESENTATIONS === */
+    .presentations {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+    }
+    .pres-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 32px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.2s;
+      display: block;
+    }
+    .pres-card:hover { border-color: var(--accent); text-decoration: none; }
+    .pres-card h3 {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+    .pres-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .pres-card .pres-meta {
+      margin-top: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* === FOOTER === */
+    footer {
+      padding: 40px 64px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    footer .copyright {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    footer .links {
+      display: flex;
+      gap: 24px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 768px) {
+      .hero { padding: 48px 24px; min-height: auto; }
+      section { padding: 48px 24px; }
+      footer { padding: 24px; }
+      .features, .presentations { grid-template-columns: 1fr; }
+      .stats { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-label">docsclaw &middot; v0.3.0</div>
+    <h1>ConfigMap-Driven <span class="accent">Agentic Runtime</span> for OpenShift</h1>
+    <p class="subtitle">Deploy AI agents with a system prompt, agent card, and tool config &mdash; no code changes needed. A2A-compatible, multi-provider, ~5&nbsp;MiB per pod.</p>
+
+    <div class="install-block">
+      <span class="prompt">$</span>
+      <code id="install-cmd">brew install pavelanni/tap/docsclaw</code>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('install-cmd').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
+    </div>
+
+    <div class="buttons">
+      <a href="https://github.com/redhat-et/docsclaw" class="btn btn-primary">GitHub</a>
+      <a href="getting-started.html" class="btn btn-outline">Get Started</a>
+      <a href="demos.html" class="btn btn-outline">Demos</a>
+      <a href="#presentations" class="btn btn-outline">Presentations</a>
+    </div>
+
+    <div class="tags">
+      <span class="tag tag-accent">A2A Protocol</span>
+      <span class="tag">OpenShift</span>
+      <span class="tag">Multi-Provider LLM</span>
+      <span class="tag">Tool Use</span>
+      <span class="tag">Session Management</span>
+    </div>
+  </div>
+
+  <!-- WHY -->
+  <section>
+    <h2>Why <span class="accent">DocsClaw</span>?</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">~5 MiB</div>
+        <div class="stat-label">per pod</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">A2A</div>
+        <div class="stat-label">protocol native</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">Zero</div>
+        <div class="stat-label">code changes</div>
+      </div>
+    </div>
+    <div class="features">
+      <div class="feature-card">
+        <h3>Lightweight Go Binary</h3>
+        <p>Single static binary, ~5 MiB per pod on OpenShift. No Python runtime, no heavy dependencies. Starts in milliseconds.</p>
+      </div>
+      <div class="feature-card">
+        <h3>A2A Protocol Native</h3>
+        <p>Built on the <a href="https://a2a-protocol.org">Agent-to-Agent protocol</a>. Agents discover, delegate, and orchestrate work with any A2A-compatible agent.</p>
+      </div>
+      <div class="feature-card">
+        <h3>ConfigMap Personality</h3>
+        <p>Agent behavior defined by a config directory: system prompt, agent card, tool config. Change personality by swapping a ConfigMap &mdash; no rebuild needed.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Multi-Provider LLM</h3>
+        <p>Anthropic, OpenAI, and any OpenAI-compatible API (LiteLLM, vLLM, Ollama). Switch providers with a config change. Token usage tracking built in.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Tool-Use Agentic Loop</h3>
+        <p>Parallel tool execution via goroutines. Shell commands, file operations, web fetch, document service. Extensible tool registry with before/after hooks.</p>
+      </div>
+      <div class="feature-card">
+        <h3>Server-Side Sessions</h3>
+        <p>Multi-turn conversations with in-memory session management. The server maintains conversation history &mdash; no client-side state needed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICK START -->
+  <section>
+    <h2>Quick <span class="accent">Start</span></h2>
+    <div class="code-section">
+      <div class="code-block">
+        <span class="comment"># Build from source</span><br>
+        <span class="cmd">$ make build</span><br><br>
+
+        <span class="comment"># Start the agent server</span><br>
+        <span class="cmd">$ LLM_API_KEY=sk-...</span> bin/docsclaw serve \<br>
+        &nbsp;&nbsp;--config-dir testdata/standalone \<br>
+        &nbsp;&nbsp;--listen-plain-http<br>
+        <span class="output">INFO Listening addr=0.0.0.0:8000</span><br><br>
+
+        <span class="comment"># Chat with the agent</span><br>
+        <span class="cmd">$ bin/docsclaw chat</span> --agent-url http://localhost:8000/a2a<br><br>
+
+        <span class="comment"># Or use the A2A CLI</span><br>
+        <span class="cmd">$ a2a discover</span> http://localhost:8000<br>
+        <span class="cmd">$ a2a send</span> http://localhost:8000 "What is a transistor?"
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section>
+    <h2>How It <span class="accent">Works</span></h2>
+    <div style="max-width: 800px;">
+      <p style="color: var(--text-secondary); margin-bottom: 24px;">DocsClaw is a universal agent harness. You provide the personality via configuration files; it provides the runtime, protocol handling, and tool execution.</p>
+      <div class="features" style="grid-template-columns: 1fr 1fr;">
+        <div class="feature-card">
+          <h3>You Provide</h3>
+          <p><code>system-prompt.txt</code> &mdash; agent personality<br>
+          <code>agent-card.json</code> &mdash; A2A discovery metadata<br>
+          <code>agent-config.yaml</code> &mdash; tools and loop settings</p>
+        </div>
+        <div class="feature-card">
+          <h3>DocsClaw Provides</h3>
+          <p>A2A protocol server<br>
+          LLM provider abstraction<br>
+          Agentic tool-use loop<br>
+          Session management<br>
+          Metrics and logging</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRESENTATIONS -->
+  <section id="presentations">
+    <h2><span class="accent">Presentations</span></h2>
+    <div class="presentations">
+      <a href="slides/docsclaw-intro.html" class="pres-card">
+        <h3>Introducing DocsClaw</h3>
+        <p>ConfigMap-driven agentic runtime: architecture, deployment, and roadmap for enterprise AI agents on OpenShift.</p>
+        <div class="pres-meta">Slide deck &middot; April 2026</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="copyright">Pavel Anni &middot; Office of CTO &middot; Red Hat</div>
+    <div class="links">
+      <a href="https://github.com/redhat-et/docsclaw">GitHub</a>
+      <a href="getting-started.html">Get Started</a>
+      <a href="demos.html">Demos</a>
+      <a href="https://github.com/redhat-et/docsclaw/releases">Releases</a>
+    </div>
+  </footer>
+
+</body>
+</html>
