@@ -54,9 +54,10 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			return
 		}
 
-		// Extract bearer token and delegation context from ServiceParams.
+		// Extract bearer token, delegation context, and session ID from ServiceParams.
 		var bearerToken string
 		var userSPIFFEID, agentSPIFFEID string
+		var sessionID string
 		if sp := execCtx.ServiceParams; sp != nil {
 			if vals, found := sp.Get("authorization"); found && len(vals) > 0 {
 				bearerToken = strings.TrimPrefix(vals[0], "Bearer ")
@@ -66,6 +67,9 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			}
 			if vals, found := sp.Get("x-delegation-agent"); found && len(vals) > 0 {
 				agentSPIFFEID = vals[0]
+			}
+			if vals, found := sp.Get("x-session-id"); found && len(vals) > 0 {
+				sessionID = vals[0]
 			}
 		}
 
@@ -91,15 +95,15 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 				"text_length", len(userText))
 
 			var messages []llm.Message
-			if e.Sessions != nil {
-				taskID := string(execCtx.TaskID)
-				sess := e.Sessions.GetOrCreate(taskID, e.SystemPrompt)
-				e.Sessions.Append(taskID, llm.Message{Role: "user", Content: userText})
+			if e.Sessions != nil && sessionID != "" {
+				sess := e.Sessions.GetOrCreate(sessionID, e.SystemPrompt)
+				e.Sessions.Append(sessionID, llm.Message{Role: "user", Content: userText})
 				messages = sess.Messages
 				e.Log.Info("Processing free-form message via agentic loop",
-					"session_id", taskID,
+					"session_id", sessionID,
 					"message_count", len(messages))
 			} else {
+				e.Log.Info("Processing free-form message via agentic loop")
 				messages = []llm.Message{
 					{Role: "system", Content: e.SystemPrompt},
 					{Role: "user", Content: userText},
@@ -114,8 +118,8 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 				return
 			}
 
-			if e.Sessions != nil {
-				e.Sessions.Append(string(execCtx.TaskID),
+			if e.Sessions != nil && sessionID != "" {
+				e.Sessions.Append(sessionID,
 					llm.Message{Role: "assistant", Content: result})
 			}
 		} else if docErr != nil {

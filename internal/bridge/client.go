@@ -31,7 +31,7 @@ type InvokeRequest struct {
 	DocumentID    string // Legacy: used by Go agents
 	MessageText   string // New: used by gateway mode (e.g., "Summarize s3://...")
 	ReviewType    string
-	TaskID        string // Continue an existing task/session
+	SessionID     string // Server-side session continuity (sent as x-session-id header)
 	BearerToken   string // Optional JWT forwarded from the caller (user delegation)
 	UserSPIFFEID  string // User SPIFFE ID — sent as X-Delegation-User header
 	AgentSPIFFEID string // Agent SPIFFE ID — sent as X-Delegation-Agent header
@@ -39,9 +39,8 @@ type InvokeRequest struct {
 
 // InvokeResult holds the response from an A2A agent invocation.
 type InvokeResult struct {
-	Text   string `json:"text"`
-	State  string `json:"state"`
-	TaskID string `json:"task_id,omitempty"`
+	Text  string `json:"text"`
+	State string `json:"state"`
 }
 
 // Invoke sends a message/send request to an A2A agent.
@@ -60,10 +59,6 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(data))
 	}
 
-	if req.TaskID != "" {
-		msg.TaskID = a2a.TaskID(req.TaskID)
-	}
-
 	params := &a2a.SendMessageRequest{
 		Message: msg,
 	}
@@ -77,6 +72,9 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 	// Forward the bearer token and delegation context as HTTP headers
 	// via a CallInterceptor that injects ServiceParams.
 	sp := a2aclient.ServiceParams{}
+	if req.SessionID != "" {
+		sp.Append("x-session-id", req.SessionID)
+	}
 	if req.BearerToken != "" {
 		sp.Append("authorization", "Bearer "+req.BearerToken)
 	}
@@ -137,7 +135,6 @@ func (c *A2AClient) parseResult(result a2a.SendMessageResult) (*InvokeResult, er
 
 func (c *A2AClient) parseTask(task *a2a.Task) (*InvokeResult, error) {
 	state := string(task.Status.State)
-	taskID := string(task.ID)
 
 	// Check for failure or rejection
 	if task.Status.State == a2a.TaskStateFailed || task.Status.State == a2a.TaskStateRejected {
@@ -147,24 +144,24 @@ func (c *A2AClient) parseTask(task *a2a.Task) (*InvokeResult, error) {
 				reason = text
 			}
 		}
-		return &InvokeResult{Text: reason, State: state, TaskID: taskID}, nil
+		return &InvokeResult{Text: reason, State: state}, nil
 	}
 
 	// Extract text from artifacts
 	for _, artifact := range task.Artifacts {
 		if text := extractTextFromParts(artifact.Parts); text != "" {
-			return &InvokeResult{Text: text, State: state, TaskID: taskID}, nil
+			return &InvokeResult{Text: text, State: state}, nil
 		}
 	}
 
 	// Fall back to status message
 	if task.Status.Message != nil {
 		if text := extractTextFromParts(task.Status.Message.Parts); text != "" {
-			return &InvokeResult{Text: text, State: state, TaskID: taskID}, nil
+			return &InvokeResult{Text: text, State: state}, nil
 		}
 	}
 
-	return &InvokeResult{Text: "", State: state, TaskID: taskID}, nil
+	return &InvokeResult{Text: "", State: state}, nil
 }
 
 func (c *A2AClient) parseMessage(msg *a2a.Message) (*InvokeResult, error) {
