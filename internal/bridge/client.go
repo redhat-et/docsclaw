@@ -31,6 +31,7 @@ type InvokeRequest struct {
 	DocumentID    string // Legacy: used by Go agents
 	MessageText   string // New: used by gateway mode (e.g., "Summarize s3://...")
 	ReviewType    string
+	TaskID        string // Continue an existing task/session
 	BearerToken   string // Optional JWT forwarded from the caller (user delegation)
 	UserSPIFFEID  string // User SPIFFE ID — sent as X-Delegation-User header
 	AgentSPIFFEID string // Agent SPIFFE ID — sent as X-Delegation-Agent header
@@ -38,15 +39,15 @@ type InvokeRequest struct {
 
 // InvokeResult holds the response from an A2A agent invocation.
 type InvokeResult struct {
-	Text  string `json:"text"`
-	State string `json:"state"`
+	Text   string `json:"text"`
+	State  string `json:"state"`
+	TaskID string `json:"task_id,omitempty"`
 }
 
 // Invoke sends a message/send request to an A2A agent.
 func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResult, error) {
 	var msg *a2a.Message
 	if req.MessageText != "" {
-		// Gateway mode: send plain text message
 		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewTextPart(req.MessageText))
 	} else {
 		// Legacy mode: send structured DataPart
@@ -57,6 +58,10 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 			data["review_type"] = req.ReviewType
 		}
 		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(data))
+	}
+
+	if req.TaskID != "" {
+		msg.TaskID = a2a.TaskID(req.TaskID)
 	}
 
 	params := &a2a.SendMessageRequest{
@@ -132,6 +137,7 @@ func (c *A2AClient) parseResult(result a2a.SendMessageResult) (*InvokeResult, er
 
 func (c *A2AClient) parseTask(task *a2a.Task) (*InvokeResult, error) {
 	state := string(task.Status.State)
+	taskID := string(task.ID)
 
 	// Check for failure or rejection
 	if task.Status.State == a2a.TaskStateFailed || task.Status.State == a2a.TaskStateRejected {
@@ -141,24 +147,24 @@ func (c *A2AClient) parseTask(task *a2a.Task) (*InvokeResult, error) {
 				reason = text
 			}
 		}
-		return &InvokeResult{Text: reason, State: state}, nil
+		return &InvokeResult{Text: reason, State: state, TaskID: taskID}, nil
 	}
 
 	// Extract text from artifacts
 	for _, artifact := range task.Artifacts {
 		if text := extractTextFromParts(artifact.Parts); text != "" {
-			return &InvokeResult{Text: text, State: state}, nil
+			return &InvokeResult{Text: text, State: state, TaskID: taskID}, nil
 		}
 	}
 
 	// Fall back to status message
 	if task.Status.Message != nil {
 		if text := extractTextFromParts(task.Status.Message.Parts); text != "" {
-			return &InvokeResult{Text: text, State: state}, nil
+			return &InvokeResult{Text: text, State: state, TaskID: taskID}, nil
 		}
 	}
 
-	return &InvokeResult{Text: "", State: state}, nil
+	return &InvokeResult{Text: "", State: state, TaskID: taskID}, nil
 }
 
 func (c *A2AClient) parseMessage(msg *a2a.Message) (*InvokeResult, error) {

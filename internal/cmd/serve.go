@@ -19,6 +19,7 @@ import (
 
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/config"
+	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
@@ -415,18 +416,20 @@ func runServe(cmd *cobra.Command, args []string) error {
 		ProcessLLM:    processLLM,
 	}
 
-	// In phase 2 mode, enable free-form message handling
+	// In phase 2 mode, enable free-form message handling with sessions
 	if toolRegistry != nil {
-		executor.ProcessMessage = func(ctx context.Context, userMessage string) (string, error) {
+		sessions := session.NewStore(30 * time.Minute)
+		reaperCtx, reaperCancel := context.WithCancel(context.Background())
+		defer reaperCancel()
+		go sessions.StartReaper(reaperCtx)
+
+		executor.Sessions = sessions
+		executor.SystemPrompt = systemPrompt + skillsSummary
+		executor.ProcessMessage = func(ctx context.Context,
+			messages []llm.Message) (string, error) {
+
 			if llmProvider == nil {
 				return "", fmt.Errorf("LLM provider required for tool-use mode")
-			}
-
-			log.Info("Processing free-form message via agentic loop")
-
-			messages := []llm.Message{
-				{Role: "system", Content: systemPrompt + skillsSummary},
-				{Role: "user", Content: userMessage},
 			}
 
 			result, err := tools.RunToolLoop(ctx, llmProvider, messages,

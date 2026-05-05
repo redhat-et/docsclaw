@@ -8,7 +8,8 @@ type ChatMessage struct {
 
 // responseMsg carries the agent's response text back to the model.
 type responseMsg struct {
-	text string
+	text   string
+	taskID string
 }
 
 // errMsg carries an error back to the model.

@@ -38,6 +38,7 @@ type Model struct {
 	spinner  spinner.Model
 
 	messages []ChatMessage
+	taskID   string // server-side session ID (from A2A taskId)
 	waiting  bool
 	err      error
 
@@ -142,6 +143,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case responseMsg:
 		m.waiting = false
+		if msg.taskID != "" {
+			m.taskID = msg.taskID
+		}
 		m.messages = append(m.messages, ChatMessage{Role: "agent", Text: msg.text})
 		m.updateViewport()
 		return m, textinput.Blink
@@ -264,17 +268,19 @@ func (m *Model) updateViewport() {
 func (m *Model) sendMessage(text string) tea.Cmd {
 	client := m.client
 	agentURL := m.agentURL
+	taskID := m.taskID
 	messageText := m.buildMessageWithHistory(text)
 
 	return func() tea.Msg {
 		result, err := client.Invoke(context.Background(), &bridge.InvokeRequest{
 			AgentURL:    agentURL,
 			MessageText: messageText,
+			TaskID:      taskID,
 		})
 		if err != nil {
 			return errMsg{err: err}
 		}
-		return responseMsg{text: result.Text}
+		return responseMsg{text: result.Text, taskID: result.TaskID}
 	}
 }
 
@@ -282,6 +288,12 @@ func (m *Model) sendMessage(text string) tea.Cmd {
 // text so the agent sees prior turns. On the first message, returns the
 // raw text with no formatting.
 func (m *Model) buildMessageWithHistory(text string) string {
+	// When server-side sessions are active, the server maintains
+	// conversation history — don't prepend it client-side.
+	if m.taskID != "" {
+		return text
+	}
+
 	// Collect prior turns, excluding error messages and the current
 	// user message (which is already appended to m.messages).
 	var history []ChatMessage
