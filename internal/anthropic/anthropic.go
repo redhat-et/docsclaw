@@ -92,6 +92,15 @@ func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt, userProm
 // definitions to the Anthropic API.
 func (p *AnthropicProvider) CompleteWithTools(ctx context.Context,
 	messages []llm.Message, tools []llm.ToolDefinition) (*llm.Response, error) {
+	return p.StreamWithTools(ctx, messages, tools, nil)
+}
+
+// StreamWithTools is like CompleteWithTools but calls onEvent with
+// incremental text deltas as they arrive. If onEvent is nil, events
+// are silently discarded. Returns the fully accumulated Response.
+func (p *AnthropicProvider) StreamWithTools(ctx context.Context,
+	messages []llm.Message, tools []llm.ToolDefinition,
+	onEvent func(llm.StreamEvent)) (*llm.Response, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
@@ -171,29 +180,59 @@ func (p *AnthropicProvider) CompleteWithTools(ctx context.Context,
 		params.System = []anthropic.TextBlockParam{{Text: systemPrompt}}
 	}
 
-	message, err := p.client.Messages.New(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("API request failed: %w", err)
+	// Stream the response
+	stream := p.client.Messages.NewStreaming(ctx, params)
+	defer func() { _ = stream.Close() }()
+
+	accumulated := &anthropic.Message{}
+	for stream.Next() {
+		event := stream.Current()
+		if err := accumulated.Accumulate(event); err != nil {
+			if onEvent != nil {
+				onEvent(llm.StreamEvent{
+					Type:    llm.StreamEventError,
+					Content: fmt.Sprintf("accumulate error: %v", err),
+				})
+			}
+			return nil, fmt.Errorf("stream accumulate failed: %w", err)
+		}
+
+		// Emit text deltas for content_block_delta events
+		if event.Type == "content_block_delta" && event.Delta.Text != "" && onEvent != nil {
+			onEvent(llm.StreamEvent{
+				Type:    llm.StreamEventTextDelta,
+				Content: event.Delta.Text,
+			})
+		}
+	}
+	if err := stream.Err(); err != nil {
+		if onEvent != nil {
+			onEvent(llm.StreamEvent{
+				Type:    llm.StreamEventError,
+				Content: fmt.Sprintf("stream error: %v", err),
+			})
+		}
+		return nil, fmt.Errorf("API streaming failed: %w", err)
 	}
 
-	// Parse response
+	// Parse accumulated response
 	resp := &llm.Response{
 		Usage: llm.Usage{
-			InputTokens:      int(message.Usage.InputTokens),
-			OutputTokens:     int(message.Usage.OutputTokens),
-			CacheReadTokens:  int(message.Usage.CacheReadInputTokens),
-			CacheWriteTokens: int(message.Usage.CacheCreationInputTokens),
-			TotalTokens:      int(message.Usage.InputTokens + message.Usage.OutputTokens),
+			InputTokens:      int(accumulated.Usage.InputTokens),
+			OutputTokens:     int(accumulated.Usage.OutputTokens),
+			CacheReadTokens:  int(accumulated.Usage.CacheReadInputTokens),
+			CacheWriteTokens: int(accumulated.Usage.CacheCreationInputTokens),
+			TotalTokens:      int(accumulated.Usage.InputTokens + accumulated.Usage.OutputTokens),
 		},
 	}
-	switch message.StopReason {
+	switch accumulated.StopReason {
 	case "tool_use":
 		resp.StopReason = llm.StopReasonToolUse
 	default:
 		resp.StopReason = llm.StopReasonEndTurn
 	}
 
-	for _, block := range message.Content {
+	for _, block := range accumulated.Content {
 		switch block.Type {
 		case "text":
 			resp.Content += block.Text
@@ -211,6 +250,14 @@ func (p *AnthropicProvider) CompleteWithTools(ctx context.Context,
 				Args: args,
 			})
 		}
+	}
+
+	// Emit done event with usage info
+	if onEvent != nil {
+		onEvent(llm.StreamEvent{
+			Type:  llm.StreamEventDone,
+			Usage: resp.Usage,
+		})
 	}
 
 	return resp, nil
