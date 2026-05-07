@@ -2,6 +2,8 @@ package mcpclient
 
 import (
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestValidateConfig_StreamableHTTP(t *testing.T) {
@@ -65,5 +67,35 @@ func TestValidateConfig_UnknownTransport(t *testing.T) {
 	}
 	if err := cfg.validate(); err == nil {
 		t.Fatal("expected error for unknown transport")
+	}
+}
+
+func TestMCPServerConfig_YAMLParsing(t *testing.T) {
+	data := []byte(`
+- name: weather
+  transport: streamable_http
+  url: "http://weather-tool:8000/mcp"
+- name: localtools
+  transport: stdio
+  command: python
+  args: ["-m", "local_mcp_server"]
+  env:
+    LOG_LEVEL: debug
+`)
+	var configs []MCPServerConfig
+	if err := yaml.Unmarshal(data, &configs); err != nil {
+		t.Fatalf("YAML parse: %v", err)
+	}
+	if len(configs) != 2 {
+		t.Fatalf("expected 2 configs, got %d", len(configs))
+	}
+	if configs[0].Name != "weather" || configs[0].URL != "http://weather-tool:8000/mcp" {
+		t.Fatalf("unexpected first config: %+v", configs[0])
+	}
+	if configs[1].Command != "python" || len(configs[1].Args) != 2 {
+		t.Fatalf("unexpected second config: %+v", configs[1])
+	}
+	if configs[1].Env["LOG_LEVEL"] != "debug" {
+		t.Fatalf("expected env LOG_LEVEL=debug, got %v", configs[1].Env)
 	}
 }
