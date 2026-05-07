@@ -6,11 +6,11 @@ UIs like Open WebUI instead of building a custom frontend.
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/chat/completions` | Chat completions (streaming and non-streaming) |
-| GET | `/v1/models` | Lists the configured model |
-| GET | `/v1/skills` | Lists agent skills |
+| Method | Path                   | Description                                    |
+| ------ | ---------------------- | ---------------------------------------------- |
+| POST   | `/v1/chat/completions` | Chat completions (streaming and non-streaming) |
+| GET    | `/v1/models`           | Lists the configured model                     |
+| GET    | `/v1/skills`           | Lists agent skills                             |
 
 ## Quick verification
 
@@ -94,9 +94,11 @@ curl -s $BASE/v1/chat/completions \
   -d '{"messages": []}' | jq .
 ```
 
-## Connecting Open WebUI
+## Connecting Open WebUI (recommended)
 
-Open WebUI is the easiest way to get a full chat interface.
+Open WebUI is the easiest way to get a full chat interface — a
+single container with zero configuration. Recommended for demos
+and quick testing.
 
 ### With Podman (or Docker)
 
@@ -122,6 +124,85 @@ becomes admin), and select "docsclaw" from the model dropdown.
 
 ```bash
 podman stop open-webui && podman rm open-webui
+```
+
+## Connecting LibreChat
+
+LibreChat is a heavier alternative — it runs five containers
+(MongoDB, Redis, MeiliSearch, RAG pipeline, API) and offers
+features like multi-model routing, RAG, and agent builders.
+Use it when you need DocsClaw as one of several endpoints in a
+shared chat portal. For simple demos, Open WebUI is faster to
+set up.
+
+LibreChat requires a cloned repo with `docker-compose` (or
+`podman-compose`).
+
+### Setup
+
+1. Clone LibreChat:
+
+   ```bash
+   git clone https://github.com/danny-avila/LibreChat.git
+   cd LibreChat
+   cp .env.example .env
+   ```
+
+2. Create `docker-compose.override.yml` to mount the config and
+   fix MongoDB on Apple Silicon (M1-M4):
+
+   ```yaml
+   services:
+     mongodb:
+       image: mongo:4.4.18
+     api:
+       volumes:
+         - type: bind
+           source: ./librechat.yaml
+           target: /app/librechat.yaml
+   ```
+
+3. Create `librechat.yaml` with DocsClaw as the only endpoint:
+
+   ```yaml
+   version: 1.3.9
+   cache: true
+
+   endpoints:
+     custom:
+       - name: 'DocsClaw'
+         apiKey: 'unused'
+         baseURL: 'https://your-agent.apps.cluster.example.com/v1'
+         models:
+           default: ['docsclaw']
+           fetch: true
+         titleConvo: true
+         titleModel: 'current_model'
+         summarize: false
+         modelDisplayLabel: 'DocsClaw'
+   ```
+
+   Replace the `baseURL` with your DocsClaw route.
+
+4. If using Podman, update `.env` to use the Podman host address:
+
+   ```bash
+   sed -i '' 's|host.docker.internal|host.containers.internal|g' .env
+   ```
+
+5. Start LibreChat:
+
+   ```bash
+   docker compose up -d   # or: podman-compose up -d
+   ```
+
+6. Open http://localhost:3080, create an account, and select
+   "DocsClaw" from the endpoint dropdown.
+
+### Cleanup
+
+```bash
+docker compose down   # or: podman-compose down
 ```
 
 ## System prompt considerations
@@ -209,19 +290,42 @@ curl -s $BASE/v1/chat/completions \
   }' | jq -r '.choices[0].message.content'
 ```
 
+## Client compatibility
+
+DocsClaw's OpenAI API is designed for **chat UIs** that let the
+server control personality and skills. **Agent clients** that have
+their own agentic loop bypass the server-side controls.
+
+| Client      | Type    | Works with DocsClaw? | Notes                                                                      |
+| ----------- | ------- | -------------------- | -------------------------------------------------------------------------- |
+| Open WebUI  | Chat UI | Yes                  | Recommended — single container, zero config                                |
+| LibreChat   | Chat UI | Yes                  | Heavier (5 containers), but has RAG and multi-model routing                |
+| TypingMind  | Chat UI | Untested             | Proprietary (not open source)                                              |
+| Goose       | Agent   | No                   | Sends its own system prompt and tools, treats DocsClaw as a dumb LLM proxy |
+| Claude Code | Agent   | No                   | Same issue — own agentic loop                                              |
+
+The key distinction: chat UIs are a **window** into the agent.
+Agent clients **replace** the agent with their own logic and use
+the endpoint as a model backend.
+
+This is a feature, not a limitation — it means the admin controls
+the agent's behavior entirely through the ConfigMap (system prompt + skills).
+Users connecting via a chat UI can't install extra
+tools or override the personality. The guardrails are server-side.
+
 ## Comparing A2A vs OpenAI API
 
 Both interfaces reach the same LLM and tools. The difference is
 protocol and audience:
 
-| Aspect | A2A | OpenAI API |
-|--------|-----|------------|
-| Protocol | JSON-RPC | REST |
-| Streaming | A2A events (task lifecycle) | SSE (token deltas) |
-| Session | Server-side (x-session-id) | Client-side (full history) |
-| Tools | Visible in task events | Server-side only (v1) |
-| Audience | Agent-to-agent | Human via chat UI |
-| Client | `a2a` CLI, other agents | Open WebUI, curl, any OpenAI client |
+| Aspect    | A2A                         | OpenAI API                          |
+| --------- | --------------------------- | ----------------------------------- |
+| Protocol  | JSON-RPC                    | REST                                |
+| Streaming | A2A events (task lifecycle) | SSE (token deltas)                  |
+| Session   | Server-side (x-session-id)  | Client-side (full history)          |
+| Tools     | Visible in task events      | Server-side only (v1)               |
+| Audience  | Agent-to-agent              | Human via chat UI                   |
+| Client    | `a2a` CLI, other agents     | Open WebUI, curl, any OpenAI client |
 
 The same request via both interfaces:
 
