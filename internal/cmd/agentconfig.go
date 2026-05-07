@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/redhat-et/docsclaw/internal/mcpclient"
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
 
@@ -18,10 +19,11 @@ type AgentConfig struct {
 
 // ToolsConfig configures tool availability and behavior.
 type ToolsConfig struct {
-	Allowed   []string       `yaml:"allowed"`
-	Exec      ExecToolConfig `yaml:"exec"`
-	WebFetch  WebFetchCfg    `yaml:"web_fetch"`
-	Workspace string         `yaml:"workspace"`
+	Allowed   []string                    `yaml:"allowed"`
+	Exec      ExecToolConfig              `yaml:"exec"`
+	WebFetch  WebFetchCfg                 `yaml:"web_fetch"`
+	Workspace string                      `yaml:"workspace"`
+	MCP       []mcpclient.MCPServerConfig `yaml:"mcp"`
 }
 
 // ExecToolConfig configures the exec tool.
