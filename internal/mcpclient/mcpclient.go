@@ -62,13 +62,13 @@ func newManagerFromTransports(ctx context.Context, entries []transportEntry) (*M
 
 		session, err := client.Connect(ctx, entry.transport, nil)
 		if err != nil {
-			mgr.Close()
+			_ = mgr.Close()
 			return nil, fmt.Errorf("MCP server %q: failed to connect: %w", entry.name, err)
 		}
 
 		result, err := session.ListTools(ctx, nil)
 		if err != nil {
-			mgr.Close()
+			_ = mgr.Close()
 			return nil, fmt.Errorf("MCP server %q: failed to list tools: %w", entry.name, err)
 		}
 
@@ -80,7 +80,7 @@ func newManagerFromTransports(ctx context.Context, entries []transportEntry) (*M
 		for _, t := range result.Tools {
 			prefixedName := entry.name + "_" + t.Name
 			if existingServer, ok := toolNames[prefixedName]; ok {
-				mgr.Close()
+				_ = mgr.Close()
 				return nil, fmt.Errorf("MCP tool %q: already registered (from server %q)", prefixedName, existingServer)
 			}
 			toolNames[prefixedName] = entry.name

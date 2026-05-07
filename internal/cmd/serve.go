@@ -249,7 +249,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to connect to MCP servers: %w", err)
 			}
-			defer mcpMgr.Close()
+			defer func() { _ = mcpMgr.Close() }()
 
 			for _, t := range mcpMgr.Tools() {
 				toolRegistry.RegisterAlwaysAllowed(t)

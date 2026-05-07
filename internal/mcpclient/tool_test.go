@@ -40,7 +40,7 @@ func newTestServerAndSession(t *testing.T, tools ...*mcp.Tool) *mcp.ClientSessio
 	if err != nil {
 		t.Fatalf("client connect: %v", err)
 	}
-	t.Cleanup(func() { session.Close() })
+	t.Cleanup(func() { _ = session.Close() })
 	return session
 }
 
@@ -92,7 +92,7 @@ func newTestServerWithHandler(t *testing.T, toolName string, handler func(contex
 	if err != nil {
 		t.Fatalf("client connect: %v", err)
 	}
-	t.Cleanup(func() { session.Close() })
+	t.Cleanup(func() { _ = session.Close() })
 	return session
 }
 

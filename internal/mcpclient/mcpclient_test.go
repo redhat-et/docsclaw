@@ -48,7 +48,7 @@ func TestManager_SingleServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
-	defer mgr.Close()
+	defer func() { _ = mgr.Close() }()
 
 	tools := mgr.Tools()
 	if len(tools) != 2 {
@@ -78,7 +78,7 @@ func TestManager_MultipleServers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
-	defer mgr.Close()
+	defer func() { _ = mgr.Close() }()
 
 	tools := mgr.Tools()
 	if len(tools) != 3 {
@@ -116,7 +116,7 @@ func TestManager_EmptyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer mgr.Close()
+	defer func() { _ = mgr.Close() }()
 
 	if len(mgr.Tools()) != 0 {
 		t.Fatal("expected no tools from empty config")
@@ -132,7 +132,7 @@ func TestManager_ToolExecution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
-	defer mgr.Close()
+	defer func() { _ = mgr.Close() }()
 
 	tools := mgr.Tools()
 	if len(tools) != 1 {
