@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DocsClaw — ConfigMap-Driven Agentic Runtime</title>
+  <title>DocsClaw — Lightweight Agentic Runtime for OpenShift</title>
   <meta name="description" content="A lightweight, A2A-compatible agentic runtime for OpenShift. Deploy AI agents with a system prompt, agent card, and tool config — no code changes needed.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -307,8 +307,8 @@
   <!-- HERO -->
   <div class="hero">
     <div class="hero-label">docsclaw &middot; v0.3.0</div>
-    <h1>ConfigMap-Driven <span class="accent">Agentic Runtime</span> for OpenShift</h1>
-    <p class="subtitle">Deploy AI agents with a system prompt, agent card, and tool config &mdash; no code changes needed. A2A-compatible, multi-provider, ~5&nbsp;MiB per pod.</p>
+    <h1>Lightweight <span class="accent">Agentic Runtime</span> for OpenShift</h1>
+    <p class="subtitle">Deploy AI agents with a system prompt, agent card, and tool config &mdash; no code changes needed. A2A-compatible, multi-provider, ~10&nbsp;MiB per pod.</p>
 
     <div class="install-block">
       <span class="prompt">$</span>
@@ -337,7 +337,7 @@
     <h2>Why <span class="accent">DocsClaw</span>?</h2>
     <div class="stats">
       <div class="stat">
-        <div class="stat-value">~5 MiB</div>
+        <div class="stat-value">~10 MiB</div>
         <div class="stat-label">per pod</div>
       </div>
       <div class="stat">
@@ -352,7 +352,7 @@
     <div class="features">
       <div class="feature-card">
         <h3>Lightweight Go Binary</h3>
-        <p>Single static binary, ~5 MiB per pod on OpenShift. No Python runtime, no heavy dependencies. Starts in milliseconds.</p>
+        <p>Single static binary, ~10 MiB per pod on OpenShift. No Python or TypeScript runtime, no heavy dependencies. Starts in milliseconds.</p>
       </div>
       <div class="feature-card">
         <h3>A2A Protocol Native</h3>
@@ -361,6 +361,10 @@
       <div class="feature-card">
         <h3>ConfigMap Personality</h3>
         <p>Agent behavior defined by a config directory: system prompt, agent card, tool config. Change personality by swapping a ConfigMap &mdash; no rebuild needed.</p>
+      </div>
+      <div class="feature-card">
+        <h3>OCI Skill Images</h3>
+        <p>Mount skills securely into the agent container from OCI images via <a href="https://skillimage.dev">skillimage.dev</a>. Sigstore-signed, versioned, and delivered as Kubernetes image volumes.</p>
       </div>
       <div class="feature-card">
         <h3>Multi-Provider LLM</h3>
@@ -431,7 +435,7 @@
     <div class="presentations">
       <a href="slides/docsclaw-intro.html" class="pres-card">
         <h3>Introducing DocsClaw</h3>
-        <p>ConfigMap-driven agentic runtime: architecture, deployment, and roadmap for enterprise AI agents on OpenShift.</p>
+        <p>Lightweight agentic runtime: architecture, deployment, and roadmap for enterprise AI agents on OpenShift.</p>
         <div class="pres-meta">Slide deck &middot; April 2026</div>
       </a>
     </div>
