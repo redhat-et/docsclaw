@@ -17,29 +17,38 @@ type Session struct {
 	LastActive time.Time
 }
 
-// Store manages in-memory sessions with TTL-based expiry.
-type Store struct {
+// SessionStore is the interface for session persistence backends.
+type SessionStore interface {
+	GetOrCreate(id, systemPrompt string) (*Session, error)
+	Get(id string) (*Session, error)
+	Append(id string, msg llm.Message) error
+	AppendAndSnapshot(id string, msg llm.Message) ([]llm.Message, error)
+	Len() int
+	StartReaper(ctx context.Context)
+	Close() error
+}
+
+// MemoryStore manages in-memory sessions with TTL-based expiry.
+type MemoryStore struct {
 	mu       sync.RWMutex
 	sessions map[string]*Session
 	ttl      time.Duration
 }
 
-// NewStore creates a session store with the given idle TTL.
-func NewStore(ttl time.Duration) *Store {
-	return &Store{
+// NewMemoryStore creates an in-memory session store with the given idle TTL.
+func NewMemoryStore(ttl time.Duration) *MemoryStore {
+	return &MemoryStore{
 		sessions: make(map[string]*Session),
 		ttl:      ttl,
 	}
 }
 
-// GetOrCreate returns an existing session or creates one with the
-// system prompt as the first message.
-func (s *Store) GetOrCreate(id, systemPrompt string) *Session {
+func (s *MemoryStore) GetOrCreate(id, systemPrompt string) (*Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if sess, ok := s.sessions[id]; ok {
-		return sess
+		return sess, nil
 	}
 
 	now := time.Now()
@@ -53,33 +62,16 @@ func (s *Store) GetOrCreate(id, systemPrompt string) *Session {
 	}
 	s.sessions[id] = sess
 	slog.Info("session created", "session_id", id)
-	return sess
+	return sess, nil
 }
 
-// Get returns the session or nil if not found.
-func (s *Store) Get(id string) *Session {
+func (s *MemoryStore) Get(id string) (*Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.sessions[id]
+	return s.sessions[id], nil
 }
 
-// Append adds a message to the session and updates LastActive.
-func (s *Store) Append(id string, msg llm.Message) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	sess, ok := s.sessions[id]
-	if !ok {
-		return
-	}
-	sess.Messages = append(sess.Messages, msg)
-	sess.LastActive = time.Now()
-}
-
-// AppendAndSnapshot adds a message and returns a copy of the session's
-// messages. All operations happen under the lock, preventing races
-// between concurrent reads and writes.
-func (s *Store) AppendAndSnapshot(id string, msg llm.Message) []llm.Message {
+func (s *MemoryStore) Append(id string, msg llm.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -89,22 +81,32 @@ func (s *Store) AppendAndSnapshot(id string, msg llm.Message) []llm.Message {
 	}
 	sess.Messages = append(sess.Messages, msg)
 	sess.LastActive = time.Now()
+	return nil
+}
+
+func (s *MemoryStore) AppendAndSnapshot(id string, msg llm.Message) ([]llm.Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sess, ok := s.sessions[id]
+	if !ok {
+		return nil, nil
+	}
+	sess.Messages = append(sess.Messages, msg)
+	sess.LastActive = time.Now()
 
 	snapshot := make([]llm.Message, len(sess.Messages))
 	copy(snapshot, sess.Messages)
-	return snapshot
+	return snapshot, nil
 }
 
-// Len returns the number of active sessions.
-func (s *Store) Len() int {
+func (s *MemoryStore) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.sessions)
 }
 
-// StartReaper runs a background goroutine that removes sessions
-// idle beyond the TTL. It stops when ctx is cancelled.
-func (s *Store) StartReaper(ctx context.Context) {
+func (s *MemoryStore) StartReaper(ctx context.Context) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
@@ -118,7 +120,11 @@ func (s *Store) StartReaper(ctx context.Context) {
 	}
 }
 
-func (s *Store) reap() {
+func (s *MemoryStore) Close() error {
+	return nil
+}
+
+func (s *MemoryStore) reap() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -132,3 +138,6 @@ func (s *Store) reap() {
 		}
 	}
 }
+
+// Compile-time interface check.
+var _ SessionStore = (*MemoryStore)(nil)
