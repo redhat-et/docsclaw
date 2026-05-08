@@ -57,7 +57,7 @@ Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 | `internal/fetchdoc/` | Document service fetch tool |
 | `internal/workspace/` | Workspace path validation |
 | `internal/bridge/` | A2A protocol bridge (executor, client, delegation) |
-| `internal/session/` | In-memory session store for multi-turn conversations |
+| `internal/session/` | Session store (in-memory and SQLite backends) |
 | `internal/config/` | Viper configuration |
 | `internal/logger/` | Color-coded slog logger |
 | `internal/metrics/` | Prometheus metrics |

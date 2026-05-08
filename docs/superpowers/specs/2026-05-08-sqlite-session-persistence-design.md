@@ -1,7 +1,7 @@
 # SQLite Session Persistence Design
 
 **Date**: 2026-05-08
-**Status**: Draft
+**Status**: Implemented
 **Depends on**: Server-side sessions (#51, merged)
 
 ## Problem
