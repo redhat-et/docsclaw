@@ -14,7 +14,7 @@ func TestSQLiteStoreNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if store.Len() != 0 {
 		t.Fatalf("expected 0 sessions, got %d", store.Len())
@@ -27,7 +27,7 @@ func TestSQLiteStoreGetOrCreate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	sess, err := store.GetOrCreate("task-1", "You are a helpful assistant.")
 	if err != nil {
@@ -53,7 +53,7 @@ func TestSQLiteStoreGetOrCreateExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	_, err = store.GetOrCreate("task-1", "prompt-1")
 	if err != nil {
@@ -78,7 +78,7 @@ func TestSQLiteStoreGetNonexistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	sess, err := store.Get("nonexistent")
 	if err != nil {
@@ -95,7 +95,7 @@ func TestSQLiteStoreAppend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	_, err = store.GetOrCreate("task-1", "system")
 	if err != nil {
@@ -126,7 +126,7 @@ func TestSQLiteStoreAppendNonexistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	err = store.Append("nonexistent", llm.Message{Role: "user", Content: "hello"})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestSQLiteStoreAppendAndSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	_, err = store.GetOrCreate("task-1", "system")
 	if err != nil {
@@ -165,7 +165,7 @@ func TestSQLiteStoreAppendAndSnapshotNonexistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	msgs, err := store.AppendAndSnapshot("nonexistent", llm.Message{Role: "user", Content: "hello"})
 	if err != nil {
@@ -182,7 +182,7 @@ func TestSQLiteStoreReaper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	_, err = store.GetOrCreate("expire-me", "system")
 	if err != nil {
@@ -225,7 +225,7 @@ func TestSQLiteStoreToolCallRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	_, err = store.GetOrCreate("task-1", "system")
 	if err != nil {
@@ -296,13 +296,13 @@ func TestSQLiteStorePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Append failed: %v", err)
 	}
-	store.Close()
+	_ = store.Close()
 
 	store2, err := NewSQLiteStore(dbPath, 30*time.Minute)
 	if err != nil {
 		t.Fatalf("failed to reopen store: %v", err)
 	}
-	defer store2.Close()
+	defer func() { _ = store2.Close() }()
 
 	sess, err := store2.Get("task-1")
 	if err != nil {

@@ -65,7 +65,7 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if finalModel, ok := result.(chat.Model); ok {
-		fmt.Fprintf(cmd.ErrOrStderr(),
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 			"\nSession ID: %s\nTo resume: docsclaw chat --agent-url %s --session-id %s\n",
 			finalModel.SessionID(), agentURL, finalModel.SessionID())
 	}

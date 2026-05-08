@@ -30,7 +30,7 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 		"PRAGMA foreign_keys=ON",
 	} {
 		if _, err := db.Exec(pragma); err != nil {
-			db.Close()
+			_ = db.Close()
 			return nil, fmt.Errorf("exec %s: %w", pragma, err)
 		}
 	}
@@ -53,7 +53,7 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 		UNIQUE(session_id, seq)
 	);`
 	if _, err := db.Exec(schema); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
 
@@ -89,7 +89,7 @@ func (s *SQLiteStore) GetOrCreate(id, systemPrompt string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.Exec(
 		"INSERT INTO sessions (id, system_prompt, created_at, last_active) VALUES (?, ?, ?, ?)",
@@ -148,7 +148,7 @@ func (s *SQLiteStore) loadSession(id string) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var messages []llm.Message
 	for rows.Next() {
@@ -253,7 +253,7 @@ func (s *SQLiteStore) appendMessage(id string, msg llm.Message) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.Exec(
 		"INSERT INTO messages (session_id, seq, role, content, tool_calls, tool_results) VALUES (?, ?, ?, ?, ?, ?)",
@@ -299,7 +299,7 @@ func (s *SQLiteStore) reap() {
 		return
 	}
 	if count, _ := result.RowsAffected(); count > 0 {
-		slog.Info("sessions reaped", "count", count)
+		slog.Info("session expired", "count", count)
 	}
 }
 

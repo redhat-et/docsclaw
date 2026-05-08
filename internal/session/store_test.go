@@ -37,7 +37,7 @@ func TestStoreGetOrCreateExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetOrCreate failed: %v", err)
 	}
-	s.Append("task-1", llm.Message{Role: "user", Content: "hello"})
+	_ = s.Append("task-1", llm.Message{Role: "user", Content: "hello"})
 
 	sess2, err := s.GetOrCreate("task-1", "prompt-2")
 	if err != nil {
@@ -57,7 +57,7 @@ func TestStoreGetOrCreateExisting(t *testing.T) {
 
 func TestStoreAppend(t *testing.T) {
 	s := NewMemoryStore(30 * time.Minute)
-	s.GetOrCreate("task-1", "system")
+	_, _ = s.GetOrCreate("task-1", "system")
 
 	beforeSess, err := s.Get("task-1")
 	if err != nil {
@@ -66,8 +66,8 @@ func TestStoreAppend(t *testing.T) {
 	before := beforeSess.LastActive
 	time.Sleep(time.Millisecond)
 
-	s.Append("task-1", llm.Message{Role: "user", Content: "hello"})
-	s.Append("task-1", llm.Message{Role: "assistant", Content: "hi"})
+	_ = s.Append("task-1", llm.Message{Role: "user", Content: "hello"})
+	_ = s.Append("task-1", llm.Message{Role: "assistant", Content: "hi"})
 
 	sess, err := s.Get("task-1")
 	if err != nil {
@@ -83,7 +83,7 @@ func TestStoreAppend(t *testing.T) {
 
 func TestStoreAppendNonexistent(t *testing.T) {
 	s := NewMemoryStore(30 * time.Minute)
-	s.Append("nonexistent", llm.Message{Role: "user", Content: "hello"})
+	_ = s.Append("nonexistent", llm.Message{Role: "user", Content: "hello"})
 	if s.Len() != 0 {
 		t.Fatal("append to nonexistent session should not create it")
 	}
@@ -102,13 +102,13 @@ func TestStoreGetNonexistent(t *testing.T) {
 
 func TestStoreReaper(t *testing.T) {
 	s := NewMemoryStore(10 * time.Millisecond)
-	s.GetOrCreate("expire-me", "system")
-	s.GetOrCreate("keep-me", "system")
+	_, _ = s.GetOrCreate("expire-me", "system")
+	_, _ = s.GetOrCreate("keep-me", "system")
 
 	time.Sleep(20 * time.Millisecond)
 
 	// Touch keep-me so it survives
-	s.Append("keep-me", llm.Message{Role: "user", Content: "still here"})
+	_ = s.Append("keep-me", llm.Message{Role: "user", Content: "still here"})
 
 	s.reap()
 
@@ -130,7 +130,7 @@ func TestStoreReaper(t *testing.T) {
 
 func TestAppendAndSnapshot(t *testing.T) {
 	s := NewMemoryStore(30 * time.Minute)
-	s.GetOrCreate("task-1", "system")
+	_, _ = s.GetOrCreate("task-1", "system")
 
 	msgs, err := s.AppendAndSnapshot("task-1", llm.Message{Role: "user", Content: "hello"})
 	if err != nil {
@@ -164,7 +164,7 @@ func TestAppendAndSnapshotNonexistent(t *testing.T) {
 
 func TestStoreConcurrentRace(t *testing.T) {
 	s := NewMemoryStore(30 * time.Minute)
-	s.GetOrCreate("shared", "system")
+	_, _ = s.GetOrCreate("shared", "system")
 
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
@@ -172,10 +172,10 @@ func TestStoreConcurrentRace(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 100; j++ {
-				s.GetOrCreate("shared", "system")
-				s.AppendAndSnapshot("shared",
+				_, _ = s.GetOrCreate("shared", "system")
+				_, _ = s.AppendAndSnapshot("shared",
 					llm.Message{Role: "user", Content: fmt.Sprintf("msg-%d", j)})
-				s.Get("shared")
+				_, _ = s.Get("shared")
 				s.Len()
 			}
 		}()
