@@ -52,7 +52,14 @@ type Model struct {
 }
 
 // NewModel creates a new chat model connected to the given agent.
-func NewModel(agentURL, agentName, agentDescription, userName string, skills []Skill) Model {
+// SessionID returns the session ID used by this chat model.
+func (m Model) SessionID() string {
+	return m.sessionID
+}
+
+// NewModel creates a new chat model connected to the given agent.
+// If sessionID is empty, a random one is generated.
+func NewModel(agentURL, agentName, agentDescription, userName, sessionID string, skills []Skill) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
 	ti.Prompt = inputPromptStyle.Render("> ")
@@ -72,7 +79,7 @@ func NewModel(agentURL, agentName, agentDescription, userName string, skills []S
 		agentDescription: agentDescription,
 		userName:         userName,
 		skills:           skills,
-		sessionID:        generateSessionID(),
+		sessionID:        pickSessionID(sessionID),
 		client:    bridge.NewA2AClient(
 			&http.Client{Timeout: 120 * time.Second},
 			slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -83,7 +90,10 @@ func NewModel(agentURL, agentName, agentDescription, userName string, skills []S
 	}
 }
 
-func generateSessionID() string {
+func pickSessionID(id string) string {
+	if id != "" {
+		return id
+	}
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])

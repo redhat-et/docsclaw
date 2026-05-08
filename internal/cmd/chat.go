@@ -25,12 +25,14 @@ func init() {
 	rootCmd.AddCommand(chatCmd)
 	chatCmd.Flags().String("agent-url", "", "URL of the A2A agent (required)")
 	chatCmd.Flags().String("name", "", "Override the agent display name")
+	chatCmd.Flags().String("session-id", "", "Resume a previous session by ID")
 	_ = chatCmd.MarkFlagRequired("agent-url")
 }
 
 func runChat(cmd *cobra.Command, _ []string) error {
 	agentURL, _ := cmd.Flags().GetString("agent-url")
 	nameOverride, _ := cmd.Flags().GetString("name")
+	sessionID, _ := cmd.Flags().GetString("session-id")
 
 	agentName := "Agent"
 	agentDescription := ""
@@ -56,10 +58,18 @@ func runChat(cmd *cobra.Command, _ []string) error {
 		agentName = nameOverride
 	}
 
-	m := chat.NewModel(agentURL, agentName, agentDescription, "You", skills)
+	m := chat.NewModel(agentURL, agentName, agentDescription, "You", sessionID, skills)
 	p := tea.NewProgram(m)
-	_, err = p.Run()
-	return err
+	result, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if finalModel, ok := result.(chat.Model); ok {
+		fmt.Fprintf(cmd.ErrOrStderr(),
+			"\nSession ID: %s\nTo resume: docsclaw chat --agent-url %s --session-id %s\n",
+			finalModel.SessionID(), agentURL, finalModel.SessionID())
+	}
+	return nil
 }
 
 // fetchAgentCard retrieves the agent card from the well-known endpoint.
