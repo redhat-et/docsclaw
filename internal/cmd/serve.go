@@ -432,7 +432,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// In phase 2 mode, enable free-form message handling with sessions
 	if toolRegistry != nil {
-		sessions := session.NewStore(30 * time.Minute)
+		var sessions session.SessionStore = session.NewMemoryStore(30 * time.Minute)
 		reaperCtx, reaperCancel := context.WithCancel(context.Background())
 		defer reaperCancel()
 		go sessions.StartReaper(reaperCtx)

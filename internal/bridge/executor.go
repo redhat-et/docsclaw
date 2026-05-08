@@ -34,7 +34,7 @@ type AgentExecutor struct {
 	FetchDocument  DocumentFetcher
 	ProcessLLM     LLMProcessor
 	ProcessMessage MessageProcessor   // optional: handles free-form messages
-	Sessions       *session.Store     // optional: server-side conversation state
+	Sessions       session.SessionStore // optional: server-side conversation state
 	SystemPrompt   string             // system prompt for new sessions
 }
 
@@ -100,9 +100,19 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 
 			var messages []llm.Message
 			if e.Sessions != nil && sessionID != "" {
-				e.Sessions.GetOrCreate(sessionID, e.SystemPrompt)
-				messages = e.Sessions.AppendAndSnapshot(sessionID,
+				if _, err := e.Sessions.GetOrCreate(sessionID, e.SystemPrompt); err != nil {
+					e.Log.Error("Session creation failed", "error", err)
+					yield(e.failedEvent(execCtx, "Session error: "+err.Error()), nil)
+					return
+				}
+				var err error
+				messages, err = e.Sessions.AppendAndSnapshot(sessionID,
 					llm.Message{Role: "user", Content: userText})
+				if err != nil {
+					e.Log.Error("Session append failed", "error", err)
+					yield(e.failedEvent(execCtx, "Session error: "+err.Error()), nil)
+					return
+				}
 				e.Log.Info("Processing free-form message via agentic loop",
 					"session_id", sessionID,
 					"message_count", len(messages))
@@ -123,8 +133,11 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			}
 
 			if e.Sessions != nil && sessionID != "" {
-				e.Sessions.Append(sessionID,
-					llm.Message{Role: "assistant", Content: result})
+				if err := e.Sessions.Append(sessionID,
+					llm.Message{Role: "assistant", Content: result}); err != nil {
+					e.Log.Error("Failed to save assistant response to session",
+						"session_id", sessionID, "error", err)
+				}
 			}
 		} else if docErr != nil {
 			// No document ID and no free-form handler
