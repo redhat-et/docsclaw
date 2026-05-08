@@ -55,9 +55,10 @@ func newManagerFromTransports(ctx context.Context, entries []transportEntry) (*M
 	toolNames := make(map[string]string)
 
 	for _, entry := range entries {
+		// MCP protocol implementation version, not the agent version
 		client := mcp.NewClient(&mcp.Implementation{
 			Name:    "docsclaw",
-			Version: "v1.0.0",
+			Version: "v0.1.0",
 		}, nil)
 
 		session, err := client.Connect(ctx, entry.transport, nil)

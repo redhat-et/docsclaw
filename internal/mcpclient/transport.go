@@ -19,7 +19,7 @@ type MCPServerConfig struct {
 
 func (c *MCPServerConfig) validate() error {
 	if c.Name == "" {
-		return fmt.Errorf("MCP server config: name is required")
+		return fmt.Errorf("MCP server: name is required")
 	}
 	switch c.Transport {
 	case "streamable_http":
