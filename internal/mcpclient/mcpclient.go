@@ -67,15 +67,16 @@ func newManagerFromTransports(ctx context.Context, entries []transportEntry) (*M
 			return nil, fmt.Errorf("MCP server %q: failed to connect: %w", entry.name, err)
 		}
 
+		conn := &serverConn{
+			name:    entry.name,
+			session: session,
+		}
+		mgr.servers = append(mgr.servers, conn)
+
 		result, err := session.ListTools(ctx, nil)
 		if err != nil {
 			_ = mgr.Close()
 			return nil, fmt.Errorf("MCP server %q: failed to list tools: %w", entry.name, err)
-		}
-
-		conn := &serverConn{
-			name:    entry.name,
-			session: session,
 		}
 
 		for _, t := range result.Tools {
@@ -104,7 +105,6 @@ func newManagerFromTransports(ctx context.Context, entries []transportEntry) (*M
 			"name", entry.name,
 			"tools", len(conn.tools),
 		)
-		mgr.servers = append(mgr.servers, conn)
 	}
 
 	return mgr, nil
