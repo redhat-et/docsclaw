@@ -53,6 +53,7 @@ Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 | `internal/webfetch/` | HTTP GET tool |
 | `internal/readfile/` | File reading tool |
 | `internal/writefile/` | File writing tool |
+| `internal/mcpclient/` | MCP client: connect to external MCP tool servers |
 | `internal/fetchdoc/` | Document service fetch tool |
 | `internal/workspace/` | Workspace path validation |
 | `internal/bridge/` | A2A protocol bridge (executor, client, delegation) |

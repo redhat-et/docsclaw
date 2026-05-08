@@ -22,6 +22,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
+	"github.com/redhat-et/docsclaw/internal/mcpclient"
 	_ "github.com/redhat-et/docsclaw/internal/metrics"
 	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/readfile"
@@ -242,6 +243,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
 
 		loopCfg = agentCfg.toLoopConfig()
+
+		if len(agentCfg.Tools.MCP) > 0 {
+			mcpMgr, err := mcpclient.NewManager(context.Background(), agentCfg.Tools.MCP)
+			if err != nil {
+				return fmt.Errorf("failed to connect to MCP servers: %w", err)
+			}
+			defer func() { _ = mcpMgr.Close() }()
+
+			for _, t := range mcpMgr.Tools() {
+				toolRegistry.RegisterAlwaysAllowed(t)
+			}
+		}
 	}
 
 	log := logger.New(logger.ComponentAgent)

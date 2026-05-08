@@ -1,0 +1,16 @@
+tools:
+  allowed:
+    - exec
+  mcp:
+    - name: weather
+      transport: streamable_http
+      url: "http://weather-tool:8000/mcp"
+    - name: localtools
+      transport: stdio
+      command: python
+      args: ["-m", "local_mcp_server"]
+      env:
+        LOG_LEVEL: debug
+
+loop:
+  max_iterations: 10
