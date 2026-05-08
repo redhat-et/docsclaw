@@ -60,16 +60,13 @@ func runChat(cmd *cobra.Command, _ []string) error {
 
 	m := chat.NewModel(agentURL, agentName, agentDescription, "You", sessionID, skills)
 	p := tea.NewProgram(m)
-	result, err := p.Run()
-	if err != nil {
-		return err
-	}
+	result, runErr := p.Run()
 	if finalModel, ok := result.(chat.Model); ok {
 		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
 			"\nSession ID: %s\nTo resume: docsclaw chat --agent-url %s --session-id %s\n",
 			finalModel.SessionID(), agentURL, finalModel.SessionID())
 	}
-	return nil
+	return runErr
 }
 
 // fetchAgentCard retrieves the agent card from the well-known endpoint.

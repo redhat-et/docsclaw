@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -57,6 +58,8 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
 
+	db.SetMaxOpenConns(1)
+
 	return &SQLiteStore{db: db, ttl: ttl}, nil
 }
 
@@ -66,7 +69,9 @@ func (s *SQLiteStore) Close() error {
 
 func (s *SQLiteStore) Len() int {
 	var count int
-	_ = s.db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&count)
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&count); err != nil {
+		slog.Error("SQLiteStore.Len: failed to count sessions", "error", err)
+	}
 	return count
 }
 
@@ -131,7 +136,7 @@ func (s *SQLiteStore) loadSession(id string) (*Session, error) {
 	err := s.db.QueryRow(
 		"SELECT system_prompt, created_at, last_active FROM sessions WHERE id = ?", id,
 	).Scan(&systemPrompt, &createdStr, &activeStr)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -214,39 +219,22 @@ func (s *SQLiteStore) AppendAndSnapshot(id string, msg llm.Message) ([]llm.Messa
 }
 
 func (s *SQLiteStore) appendMessage(id string, msg llm.Message) error {
-	var exists bool
-	err := s.db.QueryRow("SELECT 1 FROM sessions WHERE id = ?", id).Scan(&exists)
-	if err == sql.ErrNoRows {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("check session: %w", err)
-	}
-
-	var seq int
-	err = s.db.QueryRow(
-		"SELECT COALESCE(MAX(seq), -1) + 1 FROM messages WHERE session_id = ?", id,
-	).Scan(&seq)
-	if err != nil {
-		return fmt.Errorf("get next seq: %w", err)
-	}
-
 	var toolCallsJSON, toolResultsJSON *string
 	if len(msg.ToolCalls) > 0 {
 		b, err := json.Marshal(msg.ToolCalls)
 		if err != nil {
 			return fmt.Errorf("marshal tool_calls: %w", err)
 		}
-		s := string(b)
-		toolCallsJSON = &s
+		str := string(b)
+		toolCallsJSON = &str
 	}
 	if len(msg.ToolResults) > 0 {
 		b, err := json.Marshal(msg.ToolResults)
 		if err != nil {
 			return fmt.Errorf("marshal tool_results: %w", err)
 		}
-		s := string(b)
-		toolResultsJSON = &s
+		str := string(b)
+		toolResultsJSON = &str
 	}
 
 	tx, err := s.db.Begin()
@@ -254,6 +242,23 @@ func (s *SQLiteStore) appendMessage(id string, msg llm.Message) error {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	var dummy int
+	err = tx.QueryRow("SELECT 1 FROM sessions WHERE id = ?", id).Scan(&dummy)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("check session: %w", err)
+	}
+
+	var seq int
+	err = tx.QueryRow(
+		"SELECT COALESCE(MAX(seq), -1) + 1 FROM messages WHERE session_id = ?", id,
+	).Scan(&seq)
+	if err != nil {
+		return fmt.Errorf("get next seq: %w", err)
+	}
 
 	_, err = tx.Exec(
 		"INSERT INTO messages (session_id, seq, role, content, tool_calls, tool_results) VALUES (?, ?, ?, ?, ?, ?)",

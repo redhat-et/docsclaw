@@ -462,12 +462,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 			if sessionDB == "" {
 				sessionDB = defaultSessionDBPath()
 			}
-			if err := os.MkdirAll(filepath.Dir(sessionDB), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(sessionDB), 0700); err != nil {
 				return fmt.Errorf("failed to create session db directory: %w", err)
 			}
 			sqliteStore, err := session.NewSQLiteStore(sessionDB, 30*time.Minute)
 			if err != nil {
 				return fmt.Errorf("failed to open session database: %w", err)
+			}
+			if err := os.Chmod(sessionDB, 0600); err != nil {
+				return fmt.Errorf("failed to set session db permissions: %w", err)
 			}
 			defer func() { _ = sqliteStore.Close() }()
 			sessions = sqliteStore
