@@ -34,6 +34,19 @@ import (
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
 
+func defaultSessionDBPath() string {
+	dir := os.Getenv("XDG_DATA_HOME")
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			dir = filepath.Join(os.TempDir(), "docsclaw")
+		} else {
+			dir = filepath.Join(home, ".local", "share")
+		}
+	}
+	return filepath.Join(dir, "docsclaw", "sessions.db")
+}
+
 // loadSystemPrompt reads the system prompt from config-dir/system-prompt.txt.
 // Returns an error if the file does not exist.
 func loadSystemPrompt(configDir string) (string, error) {
@@ -133,6 +146,8 @@ func init() {
 	serveCmd.Flags().String("llm-model", "", "LLM model to use")
 	serveCmd.Flags().Int("llm-max-tokens", 4096, "Max tokens for LLM response")
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
+	serveCmd.Flags().String("session-db", "",
+		"Session database path (default: $XDG_DATA_HOME/docsclaw/sessions.db, use 'memory' for in-memory)")
 
 	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
 	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
@@ -143,6 +158,7 @@ func init() {
 	_ = v.BindPFlag("llm.model", serveCmd.Flags().Lookup("llm-model"))
 	_ = v.BindPFlag("llm.max_tokens", serveCmd.Flags().Lookup("llm-max-tokens"))
 	_ = v.BindPFlag("llm.timeout_seconds", serveCmd.Flags().Lookup("llm-timeout"))
+	_ = v.BindPFlag("session_db", serveCmd.Flags().Lookup("session-db"))
 }
 
 // Config holds docsclaw configuration.
@@ -152,6 +168,7 @@ type Config struct {
 	SkillsDir          string     `mapstructure:"skills_dir"`
 	DocumentServiceURL string     `mapstructure:"document_service_url"`
 	LLM                llm.Config `mapstructure:"llm"`
+	SessionDB          string     `mapstructure:"session_db"`
 }
 
 // startAgent loads config from configDir and validates it.
@@ -432,7 +449,34 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// In phase 2 mode, enable free-form message handling with sessions
 	if toolRegistry != nil {
-		sessions := session.NewStore(30 * time.Minute)
+		sessionDB := cfg.SessionDB
+		if sessionDB == "" {
+			sessionDB = os.Getenv("DOCSCLAW_SESSION_DB")
+		}
+
+		var sessions session.SessionStore
+		if sessionDB == "memory" {
+			sessions = session.NewMemoryStore(30 * time.Minute)
+			log.Info("Session store", "backend", "memory")
+		} else {
+			if sessionDB == "" {
+				sessionDB = defaultSessionDBPath()
+			}
+			if err := os.MkdirAll(filepath.Dir(sessionDB), 0700); err != nil {
+				return fmt.Errorf("failed to create session db directory: %w", err)
+			}
+			sqliteStore, err := session.NewSQLiteStore(sessionDB, 30*time.Minute)
+			if err != nil {
+				return fmt.Errorf("failed to open session database: %w", err)
+			}
+			if err := os.Chmod(sessionDB, 0600); err != nil {
+				return fmt.Errorf("failed to set session db permissions: %w", err)
+			}
+			defer func() { _ = sqliteStore.Close() }()
+			sessions = sqliteStore
+			log.Info("Session store", "backend", "sqlite", "path", sessionDB)
+		}
+
 		reaperCtx, reaperCancel := context.WithCancel(context.Background())
 		defer reaperCancel()
 		go sessions.StartReaper(reaperCtx)
