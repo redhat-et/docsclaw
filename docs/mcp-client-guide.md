@@ -180,4 +180,4 @@ curl -s http://localhost:8888/v1/chat/completions \
 | "unsupported transport" error | Typo in transport field | Use `streamable_http` or `stdio` |
 | "duplicate name" error | Two servers share a name | Use unique names |
 | Tool call returns error to LLM | Server-side failure | Check MCP server logs |
-| Open WebUI can't reach the agent | Docker networking | Use `host.docker.internal` instead of `localhost` |
+| Open WebUI can't reach the agent | Container networking | Use `host.docker.internal` (Docker) or `host.containers.internal` (Podman) instead of `localhost` |
