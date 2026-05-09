@@ -1,0 +1,7 @@
+tools:
+  allowed:
+    - fetch_document
+  workspace: /tmp/agent-workspace
+
+loop:
+  max_iterations: 25
