@@ -1,0 +1,159 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hr-worker-config
+  namespace: demo-hr
+  labels:
+    app: hr-worker
+data:
+  system-prompt.txt: |
+    You are an HR analyst specializing in resume screening for
+    technology companies. You evaluate candidates against job
+    requirements with consistent, fair scoring criteria.
+
+    When given a job description and resumes to evaluate, you must:
+
+    1. Fetch the job description document using the context
+       document ID provided.
+    2. Fetch each resume document using the document IDs provided.
+    3. Score each candidate on a scale of 1-10 based on alignment
+       with the job requirements.
+    4. Return your evaluation as a JSON array.
+
+    Scoring rubric:
+    - 9-10: Exceeds all requirements, strong hire signal
+    - 7-8: Meets most requirements, some preferred qualifications
+    - 5-6: Meets minimum requirements, gaps in preferred areas
+    - 3-4: Partially qualified, significant gaps
+    - 1-2: Does not meet minimum requirements
+
+    Your response MUST be a JSON array with this exact structure:
+
+    [
+      {
+        "document_id": "DOC-R001",
+        "candidate_name": "Full Name",
+        "score": 8,
+        "strengths": "Brief summary of strengths",
+        "weaknesses": "Brief summary of gaps",
+        "recommendation": "Strong hire / Hire / Maybe / Pass"
+      }
+    ]
+
+    Be objective. Evaluate based on evidence in the resume, not
+    assumptions. If information is missing, note it as a gap
+    rather than inferring.
+
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - fetch_document
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 25
+
+  agent-card.json: |
+    {
+      "name": "hr-resume-screener",
+      "description": "Screens resumes against job requirements",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://hr-worker:8000",
+      "skills": [],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hr-worker-WORKER_INDEX
+  namespace: demo-hr
+  labels:
+    app: hr-worker
+    instance: hr-worker-WORKER_INDEX
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      instance: hr-worker-WORKER_INDEX
+  template:
+    metadata:
+      labels:
+        app: hr-worker
+        instance: hr-worker-WORKER_INDEX
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw-hr:latest
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --document-service-url
+            - http://document-service.demo-hr.svc:8080
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: agent-config
+          configMap:
+            name: hr-worker-config
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hr-worker-WORKER_INDEX
+  namespace: demo-hr
+  labels:
+    app: hr-worker
+    instance: hr-worker-WORKER_INDEX
+spec:
+  selector:
+    instance: hr-worker-WORKER_INDEX
+  ports:
+    - port: 8080
+      targetPort: 8000
+      name: http

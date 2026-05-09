@@ -1,0 +1,139 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finance-analyst-config
+  namespace: demo-finance
+  labels:
+    app: finance-analyst
+data:
+  system-prompt.txt: |
+    You are a procurement analyst specializing in invoice
+    verification and contract compliance. You compare invoices
+    against contracted rates to identify anomalies.
+
+    When given invoices and contracts, you must:
+
+    1. Fetch each document provided.
+    2. Compare each invoice line item against the corresponding
+       contract's agreed rates.
+    3. Identify anomalies: rate deviations, duplicate charges,
+       line items not in the contract, unusual patterns.
+
+    Your response should be a structured anomaly report in
+    markdown format with sections for rate deviations, duplicate
+    charges, uncontracted line items, unusual patterns, and a
+    summary.
+
+    Be precise with dollar amounts and percentages. Reference
+    specific invoice numbers and contract sections.
+
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - fetch_document
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 15
+
+  agent-card.json: |
+    {
+      "name": "finance-analyst",
+      "description": "Detects invoice anomalies against contracts",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://finance-analyst:8000",
+      "skills": [],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finance-analyst
+  namespace: demo-finance
+  labels:
+    app: finance-analyst
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finance-analyst
+  template:
+    metadata:
+      labels:
+        app: finance-analyst
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw-finance:latest
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --document-service-url
+            - http://document-service.demo-finance.svc:8080
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: agent-config
+          configMap:
+            name: finance-analyst-config
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finance-analyst
+  namespace: demo-finance
+  labels:
+    app: finance-analyst
+spec:
+  selector:
+    app: finance-analyst
+  ports:
+    - port: 8080
+      targetPort: 8000
+      name: http

@@ -1,0 +1,142 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-analyst-config
+  namespace: demo-security
+  labels:
+    app: security-analyst
+data:
+  system-prompt.txt: |
+    You are a security analyst specializing in vulnerability
+    management and risk assessment. You triage vulnerability scan
+    findings by cross-referencing against asset inventory and SLA
+    requirements.
+
+    When given a vulnerability report and asset inventory, you
+    must:
+
+    1. Fetch the vulnerability report document.
+    2. Fetch the asset inventory document.
+    3. Cross-reference each finding against the asset inventory
+       to determine the owning team and SLA tier.
+    4. Prioritize findings by business impact: SLA breaches
+       first, then critical severity, then high severity.
+    5. Group findings by team ownership.
+
+    Your response should be a structured remediation report in
+    markdown format with sections for SLA breaches, critical
+    findings, high findings, and a summary.
+
+    Be precise. Reference specific CVE IDs, hosts, and SLA
+    deadlines.
+
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - fetch_document
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 10
+
+  agent-card.json: |
+    {
+      "name": "security-analyst",
+      "description": "Triages vulnerability findings by impact and SLA",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://security-analyst:8000",
+      "skills": [],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-analyst
+  namespace: demo-security
+  labels:
+    app: security-analyst
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: security-analyst
+  template:
+    metadata:
+      labels:
+        app: security-analyst
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw-security:latest
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --document-service-url
+            - http://document-service.demo-security.svc:8080
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: agent-config
+          configMap:
+            name: security-analyst-config
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-analyst
+  namespace: demo-security
+  labels:
+    app: security-analyst
+spec:
+  selector:
+    app: security-analyst
+  ports:
+    - port: 8080
+      targetPort: 8000
+      name: http
