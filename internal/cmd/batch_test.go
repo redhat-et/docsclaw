@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -167,5 +171,98 @@ func TestFormatCSV(t *testing.T) {
 	if !strings.Contains(lines[1], "Jane Chen") {
 		t.Fatalf("expected Jane Chen in first row (highest score), got %q",
 			lines[1])
+	}
+}
+
+func TestRunBatch(t *testing.T) {
+	callCount := atomic.Int32{}
+
+	invoker := func(ctx context.Context, agentURL string,
+		contextDoc string, docs []string, prompt string,
+	) (string, error) {
+		callCount.Add(1)
+		var results []candidateResult
+		for i, doc := range docs {
+			results = append(results, candidateResult{
+				DocumentID:     doc,
+				CandidateName:  fmt.Sprintf("Candidate %s", doc),
+				Score:          10 - i,
+				Strengths:      "Good",
+				Weaknesses:     "None",
+				Recommendation: "Hire",
+			})
+		}
+		data, _ := json.Marshal(results)
+		return string(data), nil
+	}
+
+	cfg := batchConfig{
+		agents:     []string{"http://agent-1:8080", "http://agent-2:8080"},
+		documents:  []string{"D1", "D2", "D3", "D4"},
+		contextDoc: "JD1",
+		prompt:     "Score these resumes",
+	}
+
+	var buf strings.Builder
+	stats, err := runBatch(context.Background(), cfg, invoker, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if callCount.Load() != 2 {
+		t.Fatalf("expected 2 agent calls, got %d", callCount.Load())
+	}
+	if stats.processed != 4 {
+		t.Fatalf("expected 4 processed, got %d", stats.processed)
+	}
+	if stats.failed != 0 {
+		t.Fatalf("expected 0 failed, got %d", stats.failed)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 5 {
+		t.Fatalf("expected 5 CSV lines, got %d", len(lines))
+	}
+}
+
+func TestRunBatchWithFailure(t *testing.T) {
+	invoker := func(ctx context.Context, agentURL string,
+		contextDoc string, docs []string, prompt string,
+	) (string, error) {
+		if agentURL == "http://agent-2:8080" {
+			return "", fmt.Errorf("connection refused")
+		}
+		var results []candidateResult
+		for _, doc := range docs {
+			results = append(results, candidateResult{
+				DocumentID:     doc,
+				CandidateName:  "Test",
+				Score:          5,
+				Strengths:      "OK",
+				Weaknesses:     "OK",
+				Recommendation: "Maybe",
+			})
+		}
+		data, _ := json.Marshal(results)
+		return string(data), nil
+	}
+
+	cfg := batchConfig{
+		agents:     []string{"http://agent-1:8080", "http://agent-2:8080"},
+		documents:  []string{"D1", "D2", "D3", "D4"},
+		contextDoc: "JD1",
+		prompt:     "Score these",
+	}
+
+	var buf strings.Builder
+	stats, err := runBatch(context.Background(), cfg, invoker, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stats.processed != 2 {
+		t.Fatalf("expected 2 processed, got %d", stats.processed)
+	}
+	if stats.failed != 2 {
+		t.Fatalf("expected 2 failed, got %d", stats.failed)
 	}
 }
