@@ -112,6 +112,8 @@ spec:
         protocol.kagenti.io/a2a: ""
         a2a-agent.demo/protocol: a2a
         a2a-agent.demo/type: agent
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: docsclaw-agent
       securityContext:
