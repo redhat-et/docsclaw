@@ -1,0 +1,22 @@
+{
+  "name": "finance-analyst",
+  "description": "Compares invoices against contracts to detect anomalies and overcharges",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "url": "http://finance-analyst:8000",
+  "skills": [
+    {
+      "id": "invoice-audit",
+      "name": "Invoice Audit",
+      "description": "Detects rate deviations, duplicates, and uncontracted charges",
+      "tags": ["finance", "procurement", "invoice", "audit"],
+      "examples": [
+        "Review Q1 invoices against vendor contracts",
+        "Flag any charges that deviate from contracted rates"
+      ]
+    }
+  ],
+  "capabilities": {},
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["text/plain"]
+}
