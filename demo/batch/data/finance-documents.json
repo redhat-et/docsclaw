@@ -1,0 +1,142 @@
+[
+  {
+    "id": "DOC-CTR-V001",
+    "title": "Service Agreement - CloudCompute Inc",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# SERVICE AGREEMENT\n\nVendor: CloudCompute Inc\nContract ID: DOC-CTR-V001\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.1/hour\n- Storage: $0.02/GB/month\n- Bandwidth: $0.08/GB\n- Support: $5000/month\n"
+  },
+  {
+    "id": "DOC-CTR-V002",
+    "title": "Service Agreement - StorageMax Solutions",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# SERVICE AGREEMENT\n\nVendor: StorageMax Solutions\nContract ID: DOC-CTR-V002\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.12/hour\n- Storage: $0.015/GB/month\n- Bandwidth: $0.1/GB\n- Support: $4500/month\n"
+  },
+  {
+    "id": "DOC-CTR-V003",
+    "title": "Service Agreement - BandwidthPro",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# SERVICE AGREEMENT\n\nVendor: BandwidthPro\nContract ID: DOC-CTR-V003\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.11/hour\n- Storage: $0.018/GB/month\n- Bandwidth: $0.07/GB\n- Support: $5500/month\n"
+  },
+  {
+    "id": "DOC-CTR-V004",
+    "title": "Service Agreement - SupportFirst",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# SERVICE AGREEMENT\n\nVendor: SupportFirst\nContract ID: DOC-CTR-V004\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.09/hour\n- Storage: $0.022/GB/month\n- Bandwidth: $0.09/GB\n- Support: $4000/month\n"
+  },
+  {
+    "id": "DOC-CTR-V005",
+    "title": "Service Agreement - DataCenter Co",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# SERVICE AGREEMENT\n\nVendor: DataCenter Co\nContract ID: DOC-CTR-V005\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.13/hour\n- Storage: $0.016/GB/month\n- Bandwidth: $0.11/GB\n- Support: $6000/month\n"
+  },
+  {
+    "id": "DOC-INV-V001-2026-01",
+    "title": "Invoice V001-2026-01 - CloudCompute Inc",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: CloudCompute Inc\nInvoice Number: V001-2026-01\nPeriod: 2026-01\n\n## LINE ITEMS\n\n- Compute (8420 hours @ $0.1/hour): $842.00\n- Storage (78597 GB @ $0.02/GB): $1571.94\n- Bandwidth (20401 GB @ $0.08/GB): $1632.08\n- Support: $5000.00\n\n**TOTAL: $9046.02**\n"
+  },
+  {
+    "id": "DOC-INV-V002-2026-01",
+    "title": "Invoice V002-2026-01 - StorageMax Solutions",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: StorageMax Solutions\nInvoice Number: V002-2026-01\nPeriod: 2026-01\n\n## LINE ITEMS\n\n- Compute (10351 hours @ $0.12/hour): $1242.12\n- Storage (59317 GB @ $0.015/GB): $889.75\n- Bandwidth (35381 GB @ $0.1/GB): $3538.10\n- Support: $4500.00\n\n**TOTAL: $10169.98**\n"
+  },
+  {
+    "id": "DOC-INV-V003-2026-01",
+    "title": "Invoice V003-2026-01 - BandwidthPro",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: BandwidthPro\nInvoice Number: V003-2026-01\nPeriod: 2026-01\n\n## LINE ITEMS\n\n- Compute (9960 hours @ $0.11/hour): $1095.60\n- Storage (64433 GB @ $0.018/GB): $1159.79\n- Bandwidth (31164 GB @ $0.07/GB): $2181.48\n- Support: $5500.00\n- Consulting Services: $15000.00\n\n**TOTAL: $24936.87**\n"
+  },
+  {
+    "id": "DOC-INV-V004-2026-01",
+    "title": "Invoice V004-2026-01 - SupportFirst",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: SupportFirst\nInvoice Number: V004-2026-01\nPeriod: 2026-01\n\n## LINE ITEMS\n\n- Compute (8755 hours @ $0.09/hour): $787.95\n- Storage (51683 GB @ $0.022/GB): $1137.03\n- Bandwidth (28273 GB @ $0.09/GB): $2544.57\n- Support: $4000.00\n\n**TOTAL: $8469.55**\n"
+  },
+  {
+    "id": "DOC-INV-V005-2026-01",
+    "title": "Invoice V005-2026-01 - DataCenter Co",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: DataCenter Co\nInvoice Number: V005-2026-01\nPeriod: 2026-01\n\n## LINE ITEMS\n\n- Compute (11854 hours @ $0.13/hour): $1541.02\n- Storage (78236 GB @ $0.016/GB): $1251.78\n- Bandwidth (35654 GB @ $0.11/GB): $3921.94\n- Support: $6000.00\n\n**TOTAL: $12714.74**\n"
+  },
+  {
+    "id": "DOC-INV-V001-2026-02",
+    "title": "Invoice V001-2026-02 - CloudCompute Inc",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: CloudCompute Inc\nInvoice Number: V001-2026-02\nPeriod: 2026-02\n\n## LINE ITEMS\n\n- Compute (8467 hours @ $0.1/hour): $846.70\n- Storage (76939 GB @ $0.02/GB): $1538.78\n- Bandwidth (22141 GB @ $0.08/GB): $1771.28\n- Support: $5000.00\n\n**TOTAL: $9156.76**\n"
+  },
+  {
+    "id": "DOC-INV-V002-2026-02",
+    "title": "Invoice V002-2026-02 - StorageMax Solutions",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: StorageMax Solutions\nInvoice Number: V002-2026-02\nPeriod: 2026-02\n\n## LINE ITEMS\n\n- Compute (9641 hours @ $0.12/hour): $1156.92\n- Storage (66113 GB @ $0.015/GB): $991.69\n- Bandwidth (22427 GB @ $0.1/GB): $2242.70\n- Support: $4500.00\n\n**TOTAL: $8891.32**\n"
+  },
+  {
+    "id": "DOC-INV-V003-2026-02",
+    "title": "Invoice V003-2026-02 - BandwidthPro",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: BandwidthPro\nInvoice Number: V003-2026-02\nPeriod: 2026-02\n\n## LINE ITEMS\n\n- Compute (10363 hours @ $0.11/hour): $1139.93\n- Storage (70625 GB @ $0.018/GB): $1271.25\n- Bandwidth (21756 GB @ $0.07/GB): $1522.92\n- Support: $5500.00\n\n**TOTAL: $9434.10**\n"
+  },
+  {
+    "id": "DOC-INV-V004-2026-02",
+    "title": "Invoice V004-2026-02 - SupportFirst",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: SupportFirst\nInvoice Number: V004-2026-02\nPeriod: 2026-02\n\n## LINE ITEMS\n\n- Compute (8621 hours @ $0.09/hour): $775.89\n- Storage (54888 GB @ $0.022/GB): $1207.54\n- Bandwidth (38443 GB @ $0.09/GB): $3459.87\n- Support: $4000.00\n- Support (additional): $4000.00\n\n**TOTAL: $13443.30**\n"
+  },
+  {
+    "id": "DOC-INV-V005-2026-02",
+    "title": "Invoice V005-2026-02 - DataCenter Co",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: DataCenter Co\nInvoice Number: V005-2026-02\nPeriod: 2026-02\n\n## LINE ITEMS\n\n- Compute (11887 hours @ $0.13/hour): $1545.31\n- Storage (59956 GB @ $0.016/GB): $959.30\n- Bandwidth (22791 GB @ $0.11/GB): $2507.01\n- Support: $6000.00\n\n**TOTAL: $11011.62**\n"
+  },
+  {
+    "id": "DOC-INV-V001-2026-03",
+    "title": "Invoice V001-2026-03 - CloudCompute Inc",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: CloudCompute Inc\nInvoice Number: V001-2026-03\nPeriod: 2026-03\n\n## LINE ITEMS\n\n- Compute (9016 hours @ $0.1/hour): $901.60\n- Storage (53881 GB @ $0.02/GB): $1077.62\n- Bandwidth (38286 GB @ $0.08/GB): $3062.88\n- Support: $5000.00\n\n**TOTAL: $10042.10**\n"
+  },
+  {
+    "id": "DOC-INV-V002-2026-03",
+    "title": "Invoice V002-2026-03 - StorageMax Solutions",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: StorageMax Solutions\nInvoice Number: V002-2026-03\nPeriod: 2026-03\n\n## LINE ITEMS\n\n- Compute (11131 hours @ $0.156/hour): $1736.44\n- Storage (63637 GB @ $0.015/GB): $954.55\n- Bandwidth (39867 GB @ $0.1/GB): $3986.70\n- Support: $4500.00\n\n**TOTAL: $11177.69**\n"
+  },
+  {
+    "id": "DOC-INV-V003-2026-03",
+    "title": "Invoice V003-2026-03 - BandwidthPro",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: BandwidthPro\nInvoice Number: V003-2026-03\nPeriod: 2026-03\n\n## LINE ITEMS\n\n- Compute (10441 hours @ $0.11/hour): $1148.51\n- Storage (75910 GB @ $0.018/GB): $1366.38\n- Bandwidth (27395 GB @ $0.07/GB): $1917.65\n- Support: $5500.00\n\n**TOTAL: $9932.54**\n"
+  },
+  {
+    "id": "DOC-INV-V004-2026-03",
+    "title": "Invoice V004-2026-03 - SupportFirst",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: SupportFirst\nInvoice Number: V004-2026-03\nPeriod: 2026-03\n\n## LINE ITEMS\n\n- Compute (11177 hours @ $0.09/hour): $1005.93\n- Storage (67123 GB @ $0.022/GB): $1476.71\n- Bandwidth (32464 GB @ $0.09/GB): $2921.76\n- Support: $4000.00\n\n**TOTAL: $9404.40**\n"
+  },
+  {
+    "id": "DOC-INV-V005-2026-03",
+    "title": "Invoice V005-2026-03 - DataCenter Co",
+    "sensitivity": "confidential",
+    "required_department": "finance",
+    "content": "# INVOICE\n\nVendor: DataCenter Co\nInvoice Number: V005-2026-03\nPeriod: 2026-03\n\n## LINE ITEMS\n\n- Compute (9845 hours @ $0.13/hour): $1279.85\n- Storage (79769 GB @ $0.016/GB): $1276.30\n- Bandwidth (34507 GB @ $0.11/GB): $3795.77\n- Support: $6000.00\n\n**TOTAL: $12351.92**\n"
+  }
+]
