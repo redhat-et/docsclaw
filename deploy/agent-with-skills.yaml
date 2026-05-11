@@ -6,7 +6,26 @@
 #
 # Prerequisites:
 #   oc new-project docsclaw
-#   oc apply -f secrets/anthropic.yaml   (see secrets/*_example.yaml)
+#
+# Configure LLM provider (pick ONE):
+#
+#   Anthropic:
+#     cp secrets/anthropic_example.yaml secrets/anthropic.yaml
+#     # edit anthropic.yaml — set LLM_API_KEY
+#     oc apply -f secrets/anthropic.yaml
+#
+#   OpenAI:
+#     cp secrets/openai_example.yaml secrets/openai.yaml
+#     # edit openai.yaml — set LLM_API_KEY
+#     oc apply -f secrets/openai.yaml
+#
+#   MaaS (LiteLLM proxy for open-source models on OpenShift AI):
+#     cp secrets/maas_example.yaml secrets/maas.yaml
+#     # edit maas.yaml — set LLM_API_KEY and LLM_BASE_URL
+#     oc apply -f secrets/maas.yaml
+#
+# All three create the same "llm-secret" name, so only apply one.
+# See deploy/README.md for provider details.
 #
 # Deploy:
 #   oc apply -f agent-with-skills.yaml
