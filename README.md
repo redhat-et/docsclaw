@@ -1,9 +1,9 @@
 # DocsClaw
 
-A ConfigMap-driven agentic runtime that turns any LLM into a
+A lightweight, configurable agentic runtime that turns any LLM into a
 tool-using, [A2A](https://a2a-protocol.org/latest/)-compatible agent.
 Deploy with a system prompt, agent card, and tool config — no code
-changes needed. Runs at ~5 MiB per pod on OpenShift.
+changes needed. Runs at ~10 MiB per pod on OpenShift.
 
 ## Quick start
 
