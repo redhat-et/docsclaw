@@ -58,7 +58,7 @@ data:
       "name": "hr-resume-screener",
       "description": "Screens resumes against job requirements",
       "version": "1.0.0",
-      "protocolVersion": "0.3.0",
+      "protocolVersion": "1.0.0",
       "url": "http://hr-worker:8000",
       "skills": [],
       "capabilities": {},

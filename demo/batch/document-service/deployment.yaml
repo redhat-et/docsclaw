@@ -1,0 +1,98 @@
+# Minimal document-service for the batch demo.
+# Serves seed documents from a ConfigMap over GET /documents/{id}.
+#
+# Prerequisites:
+#   oc apply -f configmap.yaml      (seed data)
+#   oc apply -f deployment.yaml     (this file)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-service
+  labels:
+    app: document-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: document-service
+  template:
+    metadata:
+      labels:
+        app: document-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: document-service
+          image: ghcr.io/redhat-et/docsclaw-document-service:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - -data-dir=/data
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          volumeMounts:
+            - name: seed-data
+              mountPath: /data
+              readOnly: true
+      volumes:
+        - name: seed-data
+          configMap:
+            name: document-seed-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: document-service
+  labels:
+    app: document-service
+spec:
+  selector:
+    app: document-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: document-service
+  labels:
+    app: document-service
+spec:
+  to:
+    kind: Service
+    name: document-service
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

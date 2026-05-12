@@ -1,0 +1,16 @@
+# Seed data ConfigMap for the document-service.
+#
+# Generate from the JSON files in demo/batch/data/:
+#
+#   oc create configmap document-seed-data \
+#     --from-file=hr-documents.json=../data/hr-documents.json \
+#     --from-file=finance-documents.json=../data/finance-documents.json \
+#     --from-file=security-documents.json=../data/security-documents.json \
+#     --dry-run=client -o yaml > configmap.yaml
+#
+# Or apply directly:
+#
+#   oc create configmap document-seed-data \
+#     --from-file=../data/
+#
+# The document-service loads all *.json files from the mount path.

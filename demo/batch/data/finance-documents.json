@@ -4,35 +4,35 @@
     "title": "Service Agreement - CloudCompute Inc",
     "sensitivity": "confidential",
     "required_department": "finance",
-    "content": "# SERVICE AGREEMENT\n\nVendor: CloudCompute Inc\nContract ID: DOC-CTR-V001\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.1/hour\n- Storage: $0.02/GB/month\n- Bandwidth: $0.08/GB\n- Support: $5000/month\n"
+    "content": "# SERVICE AGREEMENT\n\nVendor: CloudCompute Inc\nContract ID: DOC-CTR-V001\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.1/hour\n- Storage: $0.02/GB/month\n- Bandwidth: $0.08/GB\n- Support: $5000/month\n\n## RELATED INVOICES\n\n- DOC-INV-V001-2026-01\n- DOC-INV-V001-2026-02\n- DOC-INV-V001-2026-03\n"
   },
   {
     "id": "DOC-CTR-V002",
     "title": "Service Agreement - StorageMax Solutions",
     "sensitivity": "confidential",
     "required_department": "finance",
-    "content": "# SERVICE AGREEMENT\n\nVendor: StorageMax Solutions\nContract ID: DOC-CTR-V002\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.12/hour\n- Storage: $0.015/GB/month\n- Bandwidth: $0.1/GB\n- Support: $4500/month\n"
+    "content": "# SERVICE AGREEMENT\n\nVendor: StorageMax Solutions\nContract ID: DOC-CTR-V002\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.12/hour\n- Storage: $0.015/GB/month\n- Bandwidth: $0.1/GB\n- Support: $4500/month\n\n## RELATED INVOICES\n\n- DOC-INV-V002-2026-01\n- DOC-INV-V002-2026-02\n- DOC-INV-V002-2026-03\n"
   },
   {
     "id": "DOC-CTR-V003",
     "title": "Service Agreement - BandwidthPro",
     "sensitivity": "confidential",
     "required_department": "finance",
-    "content": "# SERVICE AGREEMENT\n\nVendor: BandwidthPro\nContract ID: DOC-CTR-V003\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.11/hour\n- Storage: $0.018/GB/month\n- Bandwidth: $0.07/GB\n- Support: $5500/month\n"
+    "content": "# SERVICE AGREEMENT\n\nVendor: BandwidthPro\nContract ID: DOC-CTR-V003\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.11/hour\n- Storage: $0.018/GB/month\n- Bandwidth: $0.07/GB\n- Support: $5500/month\n\n## RELATED INVOICES\n\n- DOC-INV-V003-2026-01\n- DOC-INV-V003-2026-02\n- DOC-INV-V003-2026-03\n"
   },
   {
     "id": "DOC-CTR-V004",
     "title": "Service Agreement - SupportFirst",
     "sensitivity": "confidential",
     "required_department": "finance",
-    "content": "# SERVICE AGREEMENT\n\nVendor: SupportFirst\nContract ID: DOC-CTR-V004\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.09/hour\n- Storage: $0.022/GB/month\n- Bandwidth: $0.09/GB\n- Support: $4000/month\n"
+    "content": "# SERVICE AGREEMENT\n\nVendor: SupportFirst\nContract ID: DOC-CTR-V004\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.09/hour\n- Storage: $0.022/GB/month\n- Bandwidth: $0.09/GB\n- Support: $4000/month\n\n## RELATED INVOICES\n\n- DOC-INV-V004-2026-01\n- DOC-INV-V004-2026-02\n- DOC-INV-V004-2026-03\n"
   },
   {
     "id": "DOC-CTR-V005",
     "title": "Service Agreement - DataCenter Co",
     "sensitivity": "confidential",
     "required_department": "finance",
-    "content": "# SERVICE AGREEMENT\n\nVendor: DataCenter Co\nContract ID: DOC-CTR-V005\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.13/hour\n- Storage: $0.016/GB/month\n- Bandwidth: $0.11/GB\n- Support: $6000/month\n"
+    "content": "# SERVICE AGREEMENT\n\nVendor: DataCenter Co\nContract ID: DOC-CTR-V005\nEffective Date: 2026-01-01\nTerm: 12 months\n\n## PRICING\n\n- Compute: $0.13/hour\n- Storage: $0.016/GB/month\n- Bandwidth: $0.11/GB\n- Support: $6000/month\n\n## RELATED INVOICES\n\n- DOC-INV-V005-2026-01\n- DOC-INV-V005-2026-02\n- DOC-INV-V005-2026-03\n"
   },
   {
     "id": "DOC-INV-V001-2026-01",
