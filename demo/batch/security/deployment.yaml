@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: security-analyst-config
-  namespace: demo-security
+  namespace: panni-docsclaw
   labels:
     app: security-analyst
 data:
@@ -13,23 +13,50 @@ data:
     findings by cross-referencing against asset inventory and SLA
     requirements.
 
-    When given a vulnerability report and asset inventory, you
-    must:
+    Document IDs:
+    - Vulnerability scan report: DOC-VULN001
+    - Infrastructure asset inventory: DOC-ASSET001
 
-    1. Fetch the vulnerability report document.
-    2. Fetch the asset inventory document.
-    3. Cross-reference each finding against the asset inventory
-       to determine the owning team and SLA tier.
-    4. Prioritize findings by business impact: SLA breaches
-       first, then critical severity, then high severity.
-    5. Group findings by team ownership.
+    When asked to triage or analyze vulnerabilities, you must:
+
+    1. Fetch DOC-VULN001 (the vulnerability scan report).
+    2. Fetch DOC-ASSET001 (the asset inventory with teams and SLA
+       tiers/deadlines).
+    3. Cross-reference each finding against the asset inventory to
+       determine the owning team, SLA tier, and SLA deadline.
+    4. Identify SLA breaches: findings on hosts whose SLA deadline
+       has passed or is imminent.
+    5. Prioritize by business impact: SLA breaches first, then
+       critical severity, then high severity.
+    6. Group findings by team ownership.
 
     Your response should be a structured remediation report in
-    markdown format with sections for SLA breaches, critical
-    findings, high findings, and a summary.
+    markdown format:
+
+    ## SLA Breaches (Immediate Action Required)
+    - CVE-XXXX-XXXX | Host: ... | Severity: ... | Team: ...
+      | SLA deadline: ... | Days overdue: ...
+
+    ## Critical Findings
+    - CVE-XXXX-XXXX | Host: ... | Team: ... | SLA deadline: ...
+
+    ## High Findings
+    - CVE-XXXX-XXXX | Host: ... | Team: ... | SLA deadline: ...
+
+    ## Team Summary
+    - Team A: N findings (N critical, N high, N medium, N low)
+    - Team B: ...
+
+    ## Overall Summary
+    - Total findings: N
+    - SLA breaches: N
+    - Critical: N | High: N | Medium: N | Low: N
+    - Teams requiring immediate action: ...
+    - Recommended next steps: ...
 
     Be precise. Reference specific CVE IDs, hosts, and SLA
-    deadlines.
+    deadlines. Flag any findings where the host is not in the
+    asset inventory.
 
   agent-config.yaml: |
     tools:
@@ -44,7 +71,7 @@ data:
       "name": "security-analyst",
       "description": "Triages vulnerability findings by impact and SLA",
       "version": "1.0.0",
-      "protocolVersion": "0.3.0",
+      "protocolVersion": "1.0.0",
       "url": "http://security-analyst:8000",
       "skills": [],
       "capabilities": {},
@@ -57,7 +84,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: security-analyst
-  namespace: demo-security
+  namespace: panni-docsclaw
   labels:
     app: security-analyst
 spec:
@@ -74,14 +101,18 @@ spec:
         runAsNonRoot: true
       containers:
         - name: docsclaw
-          image: ghcr.io/redhat-et/docsclaw-security:latest
+          image: ghcr.io/redhat-et/docsclaw:latest
           args:
             - serve
             - --config-dir
             - /config/agent
             - --listen-plain-http
             - --document-service-url
-            - http://document-service.demo-security.svc:8080
+            - http://document-service.panni-docsclaw.svc:8080
+            - --session-db
+            - /tmp/agent-workspace/sessions.db
+            - --llm-timeout
+            - "120"
           ports:
             - containerPort: 8000
               name: http
@@ -130,7 +161,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: security-analyst
-  namespace: demo-security
+  namespace: panni-docsclaw
   labels:
     app: security-analyst
 spec:
@@ -140,3 +171,23 @@ spec:
     - port: 8080
       targetPort: 8000
       name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: security-analyst
+  namespace: panni-docsclaw
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: security-analyst
+spec:
+  to:
+    kind: Service
+    name: security-analyst
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
