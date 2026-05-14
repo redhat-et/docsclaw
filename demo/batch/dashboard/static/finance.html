@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finance — DocsClaw Batch Demo</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Invoice Anomaly Detection</h1>
+        <h2>5 parallel agents analyzing vendor contracts and invoices</h2>
+      </div>
+      <div style="text-align: right">
+        <div class="timer" id="timer">0:00</div>
+        <div style="margin-top: 0.5rem">
+          <a href="/" class="btn btn-back">← Back</a>
+          <button id="btn-run" class="btn btn-run" onclick="startScenario('finance')">Run</button>
+          <button id="btn-cleanup" class="btn btn-cleanup" onclick="cleanup('finance')" style="display:none">Cleanup</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-list">
+      <h3>Contracts to analyze</h3>
+      <div class="doc-item"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-CTR-V001'); return false;">DOC-CTR-V001</a><span class="doc-label">CloudCompute Inc (3 invoices)</span></div>
+      <div class="doc-item"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-CTR-V002'); return false;">DOC-CTR-V002</a><span class="doc-label">StorageMax Solutions (3 invoices)</span></div>
+      <div class="doc-item"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-CTR-V003'); return false;">DOC-CTR-V003</a><span class="doc-label">BandwidthPro (3 invoices)</span></div>
+      <div class="doc-item"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-CTR-V004'); return false;">DOC-CTR-V004</a><span class="doc-label">SupportFirst (3 invoices)</span></div>
+      <div class="doc-item"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-CTR-V005'); return false;">DOC-CTR-V005</a><span class="doc-label">DataCenter Co (3 invoices)</span></div>
+    </div>
+
+    <div id="doc-viewer" class="doc-viewer" style="display:none">
+      <div class="doc-viewer-header">
+        <span id="doc-viewer-title"></span>
+        <a href="#" onclick="closeDocument(); return false;" style="color:var(--text-dim)">✕ close</a>
+      </div>
+      <pre id="doc-viewer-content" class="doc-viewer-content"></pre>
+    </div>
+
+    <div class="totals">
+      <div class="metric"><span class="metric-value" id="total-mem">-</span><span class="metric-label">Memory</span></div>
+      <div class="metric"><span class="metric-value" id="total-cpu">-</span><span class="metric-label">CPU</span></div>
+      <div class="metric"><span class="metric-value" id="total-tokens">-</span><span class="metric-label">Tokens</span></div>
+    </div>
+
+    <table class="agent-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Contract</th>
+          <th>Status</th>
+          <th>Time</th>
+          <th>Mem (MiB)</th>
+          <th>CPU (mc)</th>
+          <th>In tok</th>
+          <th>Out tok</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body"></tbody>
+    </table>
+
+    <div id="results"></div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

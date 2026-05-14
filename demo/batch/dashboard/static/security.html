@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security — DocsClaw Batch Demo</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Vulnerability Triage</h1>
+        <h2>Cross-referencing 50 CVEs against asset inventory and SLA deadlines</h2>
+      </div>
+      <div style="text-align: right">
+        <div class="timer" id="timer">0:00</div>
+        <div style="margin-top: 0.5rem">
+          <a href="/" class="btn btn-back">← Back</a>
+          <button id="btn-run" class="btn btn-run" onclick="startScenario('security')">Run</button>
+          <button id="btn-cleanup" class="btn btn-cleanup" onclick="cleanup('security')" style="display:none">Cleanup</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-list">
+      <h3>Documents to analyze</h3>
+      <div class="doc-item"><span class="doc-id">DOC-VULN001</span><span class="doc-label">Q1 2026 Vulnerability Scan Report (50 findings)</span></div>
+      <div class="doc-item"><span class="doc-id">DOC-ASSET001</span><span class="doc-label">Infrastructure Asset Inventory (8 hosts, 3 teams)</span></div>
+    </div>
+
+    <div class="totals">
+      <div class="metric"><span class="metric-value" id="total-mem">-</span><span class="metric-label">Memory</span></div>
+      <div class="metric"><span class="metric-value" id="total-cpu">-</span><span class="metric-label">CPU</span></div>
+      <div class="metric"><span class="metric-value" id="total-tokens">-</span><span class="metric-label">Tokens</span></div>
+    </div>
+
+    <table class="agent-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Task</th>
+          <th>Status</th>
+          <th>Time</th>
+          <th>Mem (MiB)</th>
+          <th>CPU (mc)</th>
+          <th>In tok</th>
+          <th>Out tok</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body"></tbody>
+    </table>
+
+    <div id="results"></div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

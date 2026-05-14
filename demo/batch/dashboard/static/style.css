@@ -1,0 +1,266 @@
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --border: #0f3460;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --accent: #e94560;
+  --green: #4ecca3;
+  --yellow: #f0c040;
+  --blue: #4ea8de;
+  --red: #e94560;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Red Hat Text', 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+
+h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-bottom: 2rem;
+}
+
+/* Landing page cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.card h3 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+.card p { color: var(--text-dim); font-size: 0.9rem; }
+.card .badge {
+  display: inline-block;
+  background: var(--border);
+  color: var(--blue);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+/* Header bar */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.header .timer {
+  font-family: 'Red Hat Mono', monospace;
+  font-size: 1.4rem;
+  color: var(--yellow);
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-run { background: var(--green); color: #111; }
+.btn-cleanup { background: var(--red); color: #fff; }
+.btn-back { background: var(--border); color: var(--text); text-decoration: none; }
+
+/* Documents list */
+.doc-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.doc-list h3 { font-size: 1rem; color: var(--text-dim); margin-bottom: 0.5rem; }
+
+.doc-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  font-family: 'Red Hat Mono', monospace;
+  font-size: 0.85rem;
+}
+
+.doc-item .doc-id { color: var(--blue); }
+.doc-item .doc-label { color: var(--text-dim); }
+
+/* Agent table */
+.agent-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.agent-table th {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agent-table td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid rgba(15, 52, 96, 0.4);
+  font-family: 'Red Hat Mono', monospace;
+  font-size: 0.85rem;
+}
+
+.agent-table tr:last-child td { border-bottom: none; }
+
+.agent-table .total-row {
+  font-weight: 600;
+  border-top: 2px solid var(--border);
+}
+
+.agent-table .total-row td { padding-top: 0.8rem; }
+
+/* Status indicators */
+.status {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.status-pending { color: var(--text-dim); }
+.status-deploying { color: var(--blue); }
+.status-ready { color: var(--blue); }
+.status-working { color: var(--yellow); }
+.status-completed { color: var(--green); }
+.status-failed { color: var(--red); }
+
+/* Totals bar */
+.totals {
+  display: flex;
+  gap: 2rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.totals .metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.totals .metric-value {
+  font-family: 'Red Hat Mono', monospace;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.totals .metric-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Results accordion */
+.result-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.result-header:hover { background: rgba(15, 52, 96, 0.3); }
+.result-header .agent-name { font-weight: 500; }
+.result-header .toggle { color: var(--text-dim); }
+
+.result-body {
+  display: none;
+  padding: 0 1rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  font-family: 'Red Hat Mono', monospace;
+  color: var(--text-dim);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.result-body.open { display: block; }
+
+/* Document viewer */
+.doc-link { cursor: pointer; text-decoration: underline; }
+.doc-link:hover { color: #fff; }
+
+.doc-viewer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.doc-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.doc-viewer-content {
+  display: block;
+  padding: 1rem;
+  font-family: 'Red Hat Mono', monospace;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: scroll;
+}
