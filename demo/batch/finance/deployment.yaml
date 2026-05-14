@@ -3,7 +3,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: finance-analyst-config
-  namespace: panni-docsclaw
   labels:
     app: finance-analyst
 data:
@@ -82,7 +81,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: finance-analyst
-  namespace: panni-docsclaw
   labels:
     app: finance-analyst
     kagenti.io/type: agent
@@ -161,7 +159,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: finance-analyst
-  namespace: panni-docsclaw
   labels:
     app: finance-analyst
 spec:
@@ -177,7 +174,6 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: finance-analyst
-  namespace: panni-docsclaw
   annotations:
     haproxy.router.openshift.io/timeout: 120s
   labels:

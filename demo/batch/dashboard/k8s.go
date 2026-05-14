@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -55,6 +56,7 @@ func newInCluster(namespace string) (*K8sClient, error) {
 		baseURL: "https://kubernetes.default.svc",
 		token:   string(token),
 		httpClient: &http.Client{
+			Timeout:   30 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{RootCAs: pool},
 			},
@@ -167,6 +169,7 @@ func newFromKubeconfig(namespace, path string) (*K8sClient, error) {
 		baseURL: strings.TrimRight(server, "/"),
 		token:   token,
 		httpClient: &http.Client{
+			Timeout:   30 * time.Second,
 			Transport: &http.Transport{TLSClientConfig: tlsConfig},
 		},
 		namespace: namespace,

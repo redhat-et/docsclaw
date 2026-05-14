@@ -120,7 +120,7 @@ function renderState(state) {
     if (!slot) return;
 
     if (a.result) {
-      slot.innerHTML = `<a class="doc-link report-link" href="#" onclick="showReport('${a.name}', '${escapeHtml(a.label)}'); return false;">View Report</a>`;
+      slot.innerHTML = `<a class="doc-link report-link" href="#" onclick="showReport('${escapeJsString(a.name)}', '${escapeJsString(a.label)}'); return false;">View Report</a>`;
     } else if (a.status && a.status !== 'pending' && a.status !== 'deploying' && a.status !== 'ready') {
       slot.innerHTML = '<span class="report-pending">analyzing...</span>';
     }
@@ -193,6 +193,10 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeJsString(str) {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
 }
 
 function showDocument(docId) {

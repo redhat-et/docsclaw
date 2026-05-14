@@ -87,7 +87,7 @@
             const td = document.createElement('td');
             td.className = 'report-cell';
             if (a.result) {
-              td.innerHTML = `<a class="doc-link report-link" href="#" onclick="showHRReport('${a.name}'); return false;">View</a>`;
+              td.innerHTML = `<a class="doc-link report-link" href="#" onclick="showHRReport('${escapeJsString(a.name)}'); return false;">View</a>`;
             }
             rows[i].appendChild(td);
           }

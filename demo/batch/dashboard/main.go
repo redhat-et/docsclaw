@@ -95,7 +95,11 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	staticContent, _ := fs.Sub(staticFS, "static")
+	staticContent, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		slog.Error("failed to create static sub-filesystem", "error", err)
+		os.Exit(1)
+	}
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticContent))))
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
@@ -195,11 +199,12 @@ func (s *server) runScenario(name string, scenario Scenario, rt *scenarioRuntime
 		slog.Info("agent deployed", "name", a.Name)
 	}
 
-	// Phase 2: Wait for all agents to be ready.
+	// Phase 2: Wait for all agents to be ready (in parallel).
 	s.mu.Lock()
 	rt.phase = "waiting"
 	s.mu.Unlock()
 
+	var readyWg sync.WaitGroup
 	for i, a := range scenario.Agents {
 		s.mu.Lock()
 		status := rt.agents[i].status
@@ -208,19 +213,23 @@ func (s *server) runScenario(name string, scenario Scenario, rt *scenarioRuntime
 			continue
 		}
 
-		if err := s.waitForAgent(a.Name, 90*time.Second); err != nil {
-			slog.Error("agent not ready", "name", a.Name, "error", err)
+		readyWg.Add(1)
+		go func(idx int, name string) {
+			defer readyWg.Done()
+			if err := s.waitForAgent(name, 90*time.Second); err != nil {
+				slog.Error("agent not ready", "name", name, "error", err)
+				s.mu.Lock()
+				rt.agents[idx].status = "failed"
+				rt.agents[idx].errMsg = "pod not ready: " + err.Error()
+				s.mu.Unlock()
+				return
+			}
 			s.mu.Lock()
-			rt.agents[i].status = "failed"
-			rt.agents[i].errMsg = "pod not ready: " + err.Error()
+			rt.agents[idx].status = "ready"
 			s.mu.Unlock()
-			continue
-		}
-
-		s.mu.Lock()
-		rt.agents[i].status = "ready"
-		s.mu.Unlock()
+		}(i, a.Name)
 	}
+	readyWg.Wait()
 
 	// Phase 3: Send tasks to all agents in parallel.
 	s.mu.Lock()
@@ -374,7 +383,7 @@ func (s *server) enrichWithMetrics(state *ScenarioState) {
 	metricsByApp := make(map[string]PodMetrics)
 	for _, m := range metrics {
 		for i := range state.Agents {
-			if containsPrefix(m.Name, state.Agents[i].Name) {
+			if strings.HasPrefix(m.Name, state.Agents[i].Name) {
 				metricsByApp[state.Agents[i].Name] = m
 			}
 		}
@@ -399,10 +408,6 @@ func (s *server) enrichWithMetrics(state *ScenarioState) {
 		state.Agents[i].InputTok = tokens.InputTokens
 		state.Agents[i].OutputTok = tokens.OutputTokens
 	}
-}
-
-func containsPrefix(podName, deploymentName string) bool {
-	return strings.HasPrefix(podName, deploymentName)
 }
 
 func (s *server) handleCleanup(w http.ResponseWriter, r *http.Request) {
