@@ -63,14 +63,6 @@
   </div>
   <script src="/static/app.js"></script>
   <script>
-    // Security-specific status updates.
-    const _origRenderState = window.renderState || renderState;
-    const _renderStateOrig = renderState;
-
-    // Override renderState to add security-specific UI updates.
-    const origPollStatus = pollStatus;
-
-    // Use a MutationObserver-free approach: hook into the polling cycle.
     (function() {
       const origRender = window.renderState;
       window.renderState = function(state) {

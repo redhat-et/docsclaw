@@ -9,8 +9,8 @@ through three business scenarios running on OpenShift.
   against a job description via A2A fan-out
 - **Security vulnerability triage:** Single agent cross-references
   findings against asset inventory and SLA tiers
-- **Finance invoice anomaly detection:** Single agent compares
-  invoices against contracts to flag discrepancies
+- **Finance invoice anomaly detection:** 5 parallel agents each
+  analyze one vendor's contract and invoices to flag discrepancies
 
 Same binary, three purpose-built images, three namespaces. Total
 cluster footprint: under 200 MiB.
@@ -57,9 +57,9 @@ docsclaw batch --agents ... --documents ... --output results.csv
 oc apply -f demo/batch/security/deployment.yaml
 a2a send http://security-analyst.demo-security.svc:8080 "..."
 
-# Act 3: Finance (single agent)
+# Act 3: Finance (5-agent fan-out)
 oc apply -f demo/batch/finance/deployment.yaml
-a2a send http://finance-analyst.demo-finance.svc:8080 "..."
+demo/batch/finance/finance-batch.sh
 ```
 
 ## Cleanup

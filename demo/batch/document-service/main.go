@@ -40,6 +40,9 @@ func loadDocuments(dir string) (map[string]Document, error) {
 			return nil, fmt.Errorf("parse %s: %w", f, err)
 		}
 		for _, d := range batch {
+			if _, exists := docs[d.ID]; exists {
+				return nil, fmt.Errorf("duplicate document ID %q in %s", d.ID, f)
+			}
 			docs[d.ID] = d
 		}
 		slog.Info("loaded documents", "file", filepath.Base(f), "count", len(batch))

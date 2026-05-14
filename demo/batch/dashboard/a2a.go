@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -150,6 +151,13 @@ func (c *A2AClient) GetTaskStatus(agentURL, taskID string) (TaskStatus, error) {
 		return TaskStatus{}, err
 	}
 
+	if resp.StatusCode >= 500 {
+		return TaskStatus{}, fmt.Errorf("agent error (HTTP %d): %s", resp.StatusCode, truncate(string(data), 200))
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		return TaskStatus{}, fmt.Errorf("non-JSON response (Content-Type: %s): %s", ct, truncate(string(data), 200))
+	}
+
 	var rpcResp struct {
 		Result json.RawMessage `json:"result"`
 		Error  *struct {
@@ -157,7 +165,7 @@ func (c *A2AClient) GetTaskStatus(agentURL, taskID string) (TaskStatus, error) {
 		} `json:"error"`
 	}
 	if err := json.Unmarshal(data, &rpcResp); err != nil {
-		return TaskStatus{}, err
+		return TaskStatus{}, fmt.Errorf("parse response: %w", err)
 	}
 	if rpcResp.Error != nil {
 		return TaskStatus{}, fmt.Errorf("A2A error: %s", rpcResp.Error.Message)
@@ -210,6 +218,13 @@ func extractNestedField(data json.RawMessage, keys ...string) (string, bool) {
 		current = v
 	}
 	return "", false
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 func extractArtifactText(data json.RawMessage) string {

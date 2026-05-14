@@ -253,8 +253,16 @@ func (s *server) runScenario(name string, scenario Scenario, rt *scenarioRuntime
 	}
 	wg.Wait()
 
+	phase := "done"
+	for _, a := range rt.agents {
+		if a.status == "failed" {
+			phase = "failed"
+			break
+		}
+	}
+
 	s.mu.Lock()
-	rt.phase = "done"
+	rt.phase = phase
 	s.mu.Unlock()
 
 	slog.Info("scenario complete", "name", name,

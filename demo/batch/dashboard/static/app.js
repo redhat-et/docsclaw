@@ -9,7 +9,10 @@ function startScenario(name) {
   startTime = Date.now();
 
   fetch(`/api/run/${name}`, { method: 'POST' })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
     .then(() => {
       startPolling(name);
       startTimer();

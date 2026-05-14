@@ -368,7 +368,13 @@ func (c *K8sClient) ListPods(labelSelector string) ([]PodInfo, error) {
 
 	var pods []PodInfo
 	for _, item := range resp.Items {
-		ready := len(item.Status.ContainerStatuses) > 0 && item.Status.ContainerStatuses[0].Ready
+		ready := len(item.Status.ContainerStatuses) > 0
+		for _, cs := range item.Status.ContainerStatuses {
+			if !cs.Ready {
+				ready = false
+				break
+			}
+		}
 		pods = append(pods, PodInfo{
 			Name:  item.Metadata.Name,
 			Phase: item.Status.Phase,
