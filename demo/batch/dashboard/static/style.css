@@ -107,14 +107,25 @@ h2 {
 
 .doc-item {
   display: flex;
-  justify-content: space-between;
   padding: 0.4rem 0;
   font-family: 'Red Hat Mono', monospace;
   font-size: 0.85rem;
 }
 
-.doc-item .doc-id { color: var(--blue); }
-.doc-item .doc-label { color: var(--text-dim); }
+.doc-item .doc-id { color: var(--blue); width: 180px; flex-shrink: 0; }
+.doc-item .doc-label { color: var(--text-dim); flex: 1; text-align: left; }
+.doc-item .doc-result { width: 140px; flex-shrink: 0; text-align: right; }
+
+.doc-header {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.4rem;
+}
+.doc-header .doc-id { color: var(--text-dim); }
 
 /* Agent table */
 .agent-table {
@@ -234,6 +245,9 @@ h2 {
 /* Document viewer */
 .doc-link { cursor: pointer; text-decoration: underline; }
 .doc-link:hover { color: #fff; }
+
+.report-link { color: var(--green); margin-left: 1rem; }
+.report-pending { color: var(--yellow); margin-left: 1rem; font-size: 0.8rem; }
 
 .doc-viewer {
   background: var(--surface);

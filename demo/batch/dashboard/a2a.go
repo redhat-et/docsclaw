@@ -216,7 +216,6 @@ func extractArtifactText(data json.RawMessage) string {
 	var task struct {
 		Artifacts []struct {
 			Parts []struct {
-				Kind string `json:"kind"`
 				Text string `json:"text"`
 			} `json:"parts"`
 		} `json:"artifacts"`
@@ -226,7 +225,7 @@ func extractArtifactText(data json.RawMessage) string {
 	}
 	for _, a := range task.Artifacts {
 		for _, p := range a.Parts {
-			if p.Kind == "text" && p.Text != "" {
+			if p.Text != "" {
 				return p.Text
 			}
 		}

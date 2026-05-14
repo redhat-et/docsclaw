@@ -111,23 +111,25 @@ function renderState(state) {
   setMetric('total-cpu', totalCpu.toFixed(0) + ' mcpu');
   setMetric('total-tokens', (totalIn + totalOut).toLocaleString());
 
-  // Render results
-  const resultsEl = document.getElementById('results');
-  if (!resultsEl) return;
-
-  resultsEl.innerHTML = '';
+  // Update doc-list with report links when agents complete.
   state.agents.forEach(a => {
-    if (!a.result) return;
-    const panel = document.createElement('div');
-    panel.className = 'result-panel';
-    panel.innerHTML = `
-      <div class="result-header" onclick="this.nextElementSibling.classList.toggle('open')">
-        <span class="agent-name">${a.name} — ${a.label}</span>
-        <span class="toggle">▼</span>
-      </div>
-      <div class="result-body">${escapeHtml(a.result)}</div>
-    `;
-    resultsEl.appendChild(panel);
+    if (!a.documentId) return;
+    const row = document.getElementById('doc-' + a.documentId);
+    if (!row) return;
+    const slot = row.querySelector('.doc-result');
+    if (!slot) return;
+
+    if (a.result) {
+      slot.innerHTML = `<a class="doc-link report-link" href="#" onclick="showReport('${a.name}', '${escapeHtml(a.label)}'); return false;">View Report</a>`;
+    } else if (a.status && a.status !== 'pending' && a.status !== 'deploying' && a.status !== 'ready') {
+      slot.innerHTML = '<span class="report-pending">analyzing...</span>';
+    }
+  });
+
+  // Store results for report viewing.
+  window._agentResults = {};
+  state.agents.forEach(a => {
+    if (a.result) window._agentResults[a.name] = { label: a.label, result: a.result };
   });
 }
 
@@ -217,4 +219,17 @@ function showDocument(docId) {
 
 function closeDocument() {
   document.getElementById('doc-viewer').style.display = 'none';
+}
+
+function showReport(agentName, label) {
+  const data = window._agentResults && window._agentResults[agentName];
+  if (!data) return;
+
+  const viewer = document.getElementById('doc-viewer');
+  const title = document.getElementById('doc-viewer-title');
+  const content = document.getElementById('doc-viewer-content');
+
+  title.textContent = 'Report — ' + data.label;
+  content.textContent = data.result;
+  viewer.style.display = 'block';
 }
