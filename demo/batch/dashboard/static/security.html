@@ -97,7 +97,7 @@
       const title = document.getElementById('doc-viewer-title');
       const content = document.getElementById('doc-viewer-content');
       title.textContent = 'Remediation Plan — Vulnerability Triage';
-      content.textContent = window._securityResult;
+      content.innerHTML = renderMarkdown(window._securityResult);
       viewer.style.display = 'block';
     }
   </script>

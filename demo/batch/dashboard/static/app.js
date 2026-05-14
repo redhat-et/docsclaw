@@ -237,6 +237,57 @@ function showReport(agentName, label) {
   const content = document.getElementById('doc-viewer-content');
 
   title.textContent = 'Report — ' + data.label;
-  content.textContent = data.result;
+  content.innerHTML = renderMarkdown(data.result);
   viewer.style.display = 'block';
+}
+
+function renderMarkdown(text) {
+  const lines = text.split('\n');
+  let html = '';
+  let inTable = false;
+  let headerDone = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
+
+      if (cells.every(c => /^[-:]+$/.test(c))) {
+        headerDone = true;
+        continue;
+      }
+
+      if (!inTable) {
+        html += '<table class="md-table">';
+        inTable = true;
+        headerDone = false;
+      }
+
+      const tag = !headerDone ? 'th' : 'td';
+      html += '<tr>' + cells.map(c =>
+        `<${tag}>${escapeHtml(c.replace(/\*\*/g, ''))}</${tag}>`
+      ).join('') + '</tr>';
+
+      if (!headerDone) headerDone = false;
+    } else {
+      if (inTable) {
+        html += '</table>';
+        inTable = false;
+        headerDone = false;
+      }
+      if (trimmed.startsWith('### ')) {
+        html += '<h4>' + escapeHtml(trimmed.slice(4)) + '</h4>';
+      } else if (trimmed.startsWith('## ')) {
+        html += '<h3>' + escapeHtml(trimmed.slice(3)) + '</h3>';
+      } else if (trimmed.startsWith('# ')) {
+        html += '<h3>' + escapeHtml(trimmed.slice(2)) + '</h3>';
+      } else if (trimmed === '') {
+        html += '<br>';
+      } else {
+        html += '<p>' + escapeHtml(trimmed).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '</p>';
+      }
+    }
+  }
+  if (inTable) html += '</table>';
+  return html;
 }
