@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,7 +74,10 @@ func newFromKubeconfig(namespace, path string) (*K8sClient, error) {
 		Clusters       []struct {
 			Name    string `yaml:"name"`
 			Cluster struct {
-				Server string `yaml:"server"`
+				Server                string `yaml:"server"`
+				CertificateAuthority  string `yaml:"certificate-authority"`
+				CertificateAuthorityData string `yaml:"certificate-authority-data"`
+				InsecureSkipVerify    bool   `yaml:"insecure-skip-tls-verify"`
 			} `yaml:"cluster"`
 		} `yaml:"clusters"`
 		Contexts []struct {
@@ -109,10 +113,14 @@ func newFromKubeconfig(namespace, path string) (*K8sClient, error) {
 		}
 	}
 
-	var server string
+	var server, caData, caFile string
+	var insecure bool
 	for _, c := range kc.Clusters {
 		if c.Name == clusterName {
 			server = c.Cluster.Server
+			caData = c.Cluster.CertificateAuthorityData
+			caFile = c.Cluster.CertificateAuthority
+			insecure = c.Cluster.InsecureSkipVerify
 			break
 		}
 	}
@@ -128,16 +136,38 @@ func newFromKubeconfig(namespace, path string) (*K8sClient, error) {
 		}
 	}
 
+	tlsConfig := &tls.Config{}
+	switch {
+	case caData != "":
+		caPEM, err := base64.StdEncoding.DecodeString(caData)
+		if err != nil {
+			return nil, fmt.Errorf("decode certificate-authority-data: %w", err)
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(caPEM)
+		tlsConfig.RootCAs = pool
+	case caFile != "":
+		caPEM, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("read certificate-authority: %w", err)
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(caPEM)
+		tlsConfig.RootCAs = pool
+	case insecure:
+		tlsConfig.InsecureSkipVerify = true
+	default:
+		slog.Warn("no CA certificate in kubeconfig, using system roots")
+	}
+
 	slog.Info("kubeconfig loaded", "context", kc.CurrentContext, "server", server,
-		"user", userName, "hasToken", token != "")
+		"user", userName, "hasToken", token != "", "tlsVerify", !tlsConfig.InsecureSkipVerify)
 
 	return &K8sClient{
 		baseURL: strings.TrimRight(server, "/"),
 		token:   token,
 		httpClient: &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			},
+			Transport: &http.Transport{TLSClientConfig: tlsConfig},
 		},
 		namespace: namespace,
 	}, nil
@@ -538,6 +568,7 @@ func buildDeploymentJSON(name, namespace, configMap, docServiceURL string, llmTi
 							"allowPrivilegeEscalation": false,
 							"capabilities":             map[string]any{"drop": []string{"ALL"}},
 							"readOnlyRootFilesystem":   true,
+							"seccompProfile":           map[string]string{"type": "RuntimeDefault"},
 						},
 					}},
 					"volumes": []map[string]any{

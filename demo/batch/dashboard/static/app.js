@@ -82,8 +82,8 @@ function renderState(state) {
 
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${a.name}</td>
-      <td>${a.label}</td>
+      <td>${escapeHtml(a.name)}</td>
+      <td>${escapeHtml(a.label)}</td>
       <td><span class="status status-${statusClass(a.status)}">${statusText(a.status)}</span></td>
       <td>${elapsed}</td>
       <td>${a.memoryMiB ? a.memoryMiB.toFixed(1) : '-'}</td>

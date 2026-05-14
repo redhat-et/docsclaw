@@ -18,7 +18,7 @@ type A2AClient struct {
 }
 
 func NewA2AClient() *A2AClient {
-	return &A2AClient{httpClient: &http.Client{}}
+	return &A2AClient{httpClient: &http.Client{Timeout: 5 * time.Minute}}
 }
 
 type TaskStatus struct {

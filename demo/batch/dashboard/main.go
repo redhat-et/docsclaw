@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -116,7 +118,7 @@ func main() {
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(list)
+		writeJSON(w, list)
 	})
 
 	mux.HandleFunc("POST /api/run/{scenario}", srv.handleRun)
@@ -164,7 +166,7 @@ func (s *server) handleRun(w http.ResponseWriter, r *http.Request) {
 	go s.runScenario(name, scenario, rt)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "started"})
+	writeJSON(w, map[string]string{"status": "started"})
 }
 
 func (s *server) runScenario(name string, scenario Scenario, rt *scenarioRuntime) {
@@ -322,7 +324,7 @@ func (s *server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		s.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ScenarioState{Phase: "idle"})
+		writeJSON(w, ScenarioState{Phase: "idle"})
 		return
 	}
 
@@ -360,7 +362,7 @@ func (s *server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	s.enrichWithMetrics(&state)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(state)
+	writeJSON(w, state)
 }
 
 func (s *server) enrichWithMetrics(state *ScenarioState) {
@@ -400,7 +402,7 @@ func (s *server) enrichWithMetrics(state *ScenarioState) {
 }
 
 func containsPrefix(podName, deploymentName string) bool {
-	return len(podName) > len(deploymentName) && podName[:len(deploymentName)] == deploymentName
+	return strings.HasPrefix(podName, deploymentName)
 }
 
 func (s *server) handleCleanup(w http.ResponseWriter, r *http.Request) {
@@ -424,11 +426,25 @@ func (s *server) handleCleanup(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "cleaned"})
+	writeJSON(w, map[string]string{"status": "cleaned"})
 }
+
+func writeJSON(w http.ResponseWriter, v any) {
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("failed to write JSON response", "error", err)
+	}
+}
+
+var validDocID = regexp.MustCompile(`^[A-Za-z0-9][-A-Za-z0-9]*$`)
+
+var docHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 func (s *server) handleDocument(w http.ResponseWriter, r *http.Request) {
 	docID := r.PathValue("id")
+	if !validDocID.MatchString(docID) {
+		http.Error(w, "invalid document ID", http.StatusBadRequest)
+		return
+	}
 
 	var docURL string
 	if s.inCluster {
@@ -442,7 +458,7 @@ func (s *server) handleDocument(w http.ResponseWriter, r *http.Request) {
 		docURL = fmt.Sprintf("https://%s/documents/%s", host, docID)
 	}
 
-	resp, err := http.Get(docURL)
+	resp, err := docHTTPClient.Get(docURL)
 	if err != nil {
 		http.Error(w, "failed to reach document-service", http.StatusBadGateway)
 		return
