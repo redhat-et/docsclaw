@@ -66,7 +66,7 @@ data:
       "name": "hr-analyst",
       "description": "Reviews HR documents — resumes, policies, and onboarding checklists",
       "version": "1.0.0",
-      "protocolVersion": "0.3.0",
+      "protocolVersion": "1.0.0",
       "url": "http://hr-analyst:8000",
       "skills": [
         {
@@ -119,13 +119,15 @@ spec:
         protocol.kagenti.io/a2a: ""
         a2a-agent.demo/protocol: a2a
         a2a-agent.demo/type: agent
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       serviceAccountName: docsclaw-agent
       securityContext:
         runAsNonRoot: true
       containers:
         - name: docsclaw
-          image: ghcr.io/redhat-et/docsclaw:602ac9a
+          image: ghcr.io/redhat-et/docsclaw:0.7.0
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -140,6 +142,8 @@ spec:
             - --config-dir
             - /config/agent
             - --listen-plain-http
+            - --session-db
+            - /tmp/agent-workspace/sessions.db
           ports:
             - containerPort: 8000
               name: http

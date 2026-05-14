@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security — DocsClaw Batch Demo</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Vulnerability Triage</h1>
+        <h2>Cross-referencing 50 CVEs against asset inventory and SLA deadlines</h2>
+      </div>
+      <div style="text-align: right">
+        <div class="timer" id="timer">0:00</div>
+        <div style="margin-top: 0.5rem">
+          <a href="/" class="btn btn-back">← Back</a>
+          <button id="btn-run" class="btn btn-run" onclick="startScenario('security')">Run</button>
+          <button id="btn-cleanup" class="btn btn-cleanup" onclick="cleanup('security')" style="display:none">Cleanup</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="doc-list">
+      <div class="doc-item doc-header"><span class="doc-id">Document</span><span class="doc-label">Description</span><span class="doc-result">Status</span></div>
+      <div class="doc-item" id="doc-DOC-VULN001"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-VULN001'); return false;">DOC-VULN001</a><span class="doc-label">Vulnerability Scan Report (50 findings)</span><span class="doc-result" id="sec-status-vuln"></span></div>
+      <div class="doc-item" id="doc-DOC-ASSET001"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-ASSET001'); return false;">DOC-ASSET001</a><span class="doc-label">Asset Inventory (8 hosts, 3 teams)</span><span class="doc-result" id="sec-status-asset"></span></div>
+      <div class="doc-item doc-header" style="margin-top: 0.8rem"><span class="doc-id">Output</span><span class="doc-label"></span><span class="doc-result"></span></div>
+      <div class="doc-item" id="sec-report-row"><span class="doc-id" style="color: var(--text-dim)">Remediation Plan</span><span class="doc-label">Prioritized by SLA breach, severity, and team</span><span class="doc-result" id="sec-report-link"></span></div>
+    </div>
+
+    <div id="doc-viewer" class="doc-viewer" style="display:none">
+      <div class="doc-viewer-header">
+        <span id="doc-viewer-title"></span>
+        <a href="#" onclick="closeDocument(); return false;" style="color:var(--text-dim)">✕ close</a>
+      </div>
+      <pre id="doc-viewer-content" class="doc-viewer-content"></pre>
+    </div>
+
+    <div class="totals">
+      <div class="metric"><span class="metric-value" id="total-mem">-</span><span class="metric-label">Memory</span></div>
+      <div class="metric"><span class="metric-value" id="total-cpu">-</span><span class="metric-label">CPU</span></div>
+      <div class="metric"><span class="metric-value" id="total-tokens">-</span><span class="metric-label">Tokens</span></div>
+    </div>
+
+    <table class="agent-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Task</th>
+          <th>Status</th>
+          <th>Time</th>
+          <th>Mem (MiB)</th>
+          <th>CPU (mc)</th>
+          <th>In tok</th>
+          <th>Out tok</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body"></tbody>
+    </table>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    (function() {
+      const origRender = window.renderState;
+      window.renderState = function(state) {
+        origRender(state);
+        updateSecurityStatus(state);
+      };
+    })();
+
+    function updateSecurityStatus(state) {
+      const vuln = document.getElementById('sec-status-vuln');
+      const asset = document.getElementById('sec-status-asset');
+      const reportLink = document.getElementById('sec-report-link');
+
+      if (!state.agents || state.agents.length === 0) return;
+      const a = state.agents[0];
+
+      if (a.result) {
+        if (vuln) vuln.innerHTML = '<span style="color:var(--green)">fetched</span>';
+        if (asset) asset.innerHTML = '<span style="color:var(--green)">fetched</span>';
+        if (reportLink) reportLink.innerHTML = '<a class="doc-link report-link" href="#" onclick="showSecurityReport(); return false;">View Report</a>';
+        window._securityResult = a.result;
+      } else if (a.status === 'working') {
+        if (vuln) vuln.innerHTML = '<span class="report-pending">reading...</span>';
+        if (asset) asset.innerHTML = '<span class="report-pending">reading...</span>';
+        if (reportLink) reportLink.innerHTML = '<span class="report-pending">analyzing...</span>';
+      }
+    }
+
+    function showSecurityReport() {
+      if (!window._securityResult) return;
+      const viewer = document.getElementById('doc-viewer');
+      const title = document.getElementById('doc-viewer-title');
+      const content = document.getElementById('doc-viewer-content');
+      title.textContent = 'Remediation Plan — Vulnerability Triage';
+      content.innerHTML = renderMarkdown(window._securityResult);
+      viewer.style.display = 'block';
+    }
+  </script>
+</body>
+</html>

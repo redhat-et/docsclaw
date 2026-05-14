@@ -1,0 +1,189 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-analyst-config
+  labels:
+    app: security-analyst
+data:
+  system-prompt.txt: |
+    You are a security analyst specializing in vulnerability
+    management and risk assessment. You triage vulnerability scan
+    findings by cross-referencing against asset inventory and SLA
+    requirements.
+
+    Document IDs:
+    - Vulnerability scan report: DOC-VULN001
+    - Infrastructure asset inventory: DOC-ASSET001
+
+    When asked to triage or analyze vulnerabilities, you must:
+
+    1. Fetch DOC-VULN001 (the vulnerability scan report).
+    2. Fetch DOC-ASSET001 (the asset inventory with teams and SLA
+       tiers/deadlines).
+    3. Cross-reference each finding against the asset inventory to
+       determine the owning team, SLA tier, and SLA deadline.
+    4. Identify SLA breaches: findings on hosts whose SLA deadline
+       has passed or is imminent.
+    5. Prioritize by business impact: SLA breaches first, then
+       critical severity, then high severity.
+    6. Group findings by team ownership.
+
+    Your response should be a structured remediation report in
+    markdown format:
+
+    ## SLA Breaches (Immediate Action Required)
+    - CVE-XXXX-XXXX | Host: ... | Severity: ... | Team: ...
+      | SLA deadline: ... | Days overdue: ...
+
+    ## Critical Findings
+    - CVE-XXXX-XXXX | Host: ... | Team: ... | SLA deadline: ...
+
+    ## High Findings
+    - CVE-XXXX-XXXX | Host: ... | Team: ... | SLA deadline: ...
+
+    ## Team Summary
+    - Team A: N findings (N critical, N high, N medium, N low)
+    - Team B: ...
+
+    ## Overall Summary
+    - Total findings: N
+    - SLA breaches: N
+    - Critical: N | High: N | Medium: N | Low: N
+    - Teams requiring immediate action: ...
+    - Recommended next steps: ...
+
+    Be precise. Reference specific CVE IDs, hosts, and SLA
+    deadlines. Flag any findings where the host is not in the
+    asset inventory.
+
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - fetch_document
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 10
+
+  agent-card.json: |
+    {
+      "name": "security-analyst",
+      "description": "Triages vulnerability findings by impact and SLA",
+      "version": "1.0.0",
+      "protocolVersion": "1.0.0",
+      "url": "http://security-analyst:8000",
+      "skills": [],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-analyst
+  labels:
+    app: security-analyst
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: security-analyst
+  template:
+    metadata:
+      labels:
+        app: security-analyst
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:latest
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --document-service-url
+            - http://document-service.panni-docsclaw.svc:8080
+            - --session-db
+            - /tmp/agent-workspace/sessions.db
+            - --llm-timeout
+            - "120"
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: agent-config
+          configMap:
+            name: security-analyst-config
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-analyst
+  labels:
+    app: security-analyst
+spec:
+  selector:
+    app: security-analyst
+  ports:
+    - port: 8080
+      targetPort: 8000
+      name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: security-analyst
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: security-analyst
+spec:
+  to:
+    kind: Service
+    name: security-analyst
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -1,0 +1,116 @@
+# Template for finance analyst batch instances.
+# Replace INSTANCE_NAME and NAMESPACE before applying.
+#
+# Usage: see finance-batch.sh which handles substitution.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: INSTANCE_NAME
+  namespace: NAMESPACE
+  labels:
+    app: INSTANCE_NAME
+    batch-role: finance-analyst
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: INSTANCE_NAME
+  template:
+    metadata:
+      labels:
+        app: INSTANCE_NAME
+        batch-role: finance-analyst
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:latest
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --document-service-url
+            - http://document-service.NAMESPACE.svc:8080
+            - --session-db
+            - /tmp/agent-workspace/sessions.db
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: agent-config
+          configMap:
+            name: finance-analyst-config
+        - name: workspace
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: INSTANCE_NAME
+  namespace: NAMESPACE
+  labels:
+    app: INSTANCE_NAME
+    batch-role: finance-analyst
+spec:
+  selector:
+    app: INSTANCE_NAME
+  ports:
+    - port: 8080
+      targetPort: 8000
+      name: http
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: INSTANCE_NAME
+  namespace: NAMESPACE
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: INSTANCE_NAME
+    batch-role: finance-analyst
+spec:
+  to:
+    kind: Service
+    name: INSTANCE_NAME
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

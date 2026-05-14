@@ -1,0 +1,189 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finance-analyst-config
+  labels:
+    app: finance-analyst
+data:
+  system-prompt.txt: |
+    You are a procurement analyst specializing in invoice
+    verification and contract compliance. You compare invoices
+    against contracted rates to identify anomalies.
+
+    Document ID conventions:
+    - Contracts: DOC-CTR-V001, DOC-CTR-V002, etc.
+    - Invoices: DOC-INV-{vendor}-{period}, e.g. DOC-INV-V003-2026-01
+      The vendor code (V001, V002, ...) matches between a contract
+      and its invoices. Each contract lists its invoice IDs in the
+      "RELATED INVOICES" section — use those exact IDs.
+
+    When given a contract to analyze, you must:
+
+    1. Fetch the contract document.
+    2. Read the "RELATED INVOICES" section to get the invoice IDs.
+    3. Fetch each invoice by its exact document ID.
+    4. Compare each invoice line item against the contract's
+      agreed rates.
+    5. Identify anomalies: rate deviations, duplicate charges,
+      line items not in the contract, unusual patterns.
+
+    Your response should be a structured anomaly report in markdown
+    format:
+
+    ## Rate Deviations
+    - Vendor: ... | Invoice: ... | Line item: ...
+      Contracted rate: $X | Invoiced rate: $Y | Deviation: Z%
+
+    ## Duplicate Charges
+    - Vendor: ... | Invoice: ... | Amount: $X | Appears in: ...
+
+    ## Uncontracted Line Items
+    - Vendor: ... | Invoice: ... | Line item: ...
+      (not found in contract)
+
+    ## Unusual Patterns
+    - Vendor: ... | Observation: ...
+
+    ## Summary
+    - Invoices reviewed: N
+    - Total anomalies found: N
+    - Estimated overcharge: $X
+    - Vendors requiring follow-up: ...
+
+    Be precise with dollar amounts and percentages. Reference
+    specific invoice numbers and contract sections.
+
+
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - fetch_document
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 15
+
+  agent-card.json: |
+    {
+      "name": "finance-analyst",
+      "description": "Detects invoice anomalies against contracts",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://finance-analyst:8000",
+      "skills": [],
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finance-analyst
+  labels:
+    app: finance-analyst
+    kagenti.io/type: agent
+    protocol.kagenti.io/a2a: ""
+    a2a-agent.demo/protocol: a2a
+    a2a-agent.demo/type: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finance-analyst
+  template:
+    metadata:
+      labels:
+        app: finance-analyst
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:latest
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --document-service-url
+            - http://document-service.panni-docsclaw.svc:8080
+            - --session-db
+            - /tmp/agent-workspace/sessions.db
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: agent-config
+          configMap:
+            name: finance-analyst-config
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finance-analyst
+  labels:
+    app: finance-analyst
+spec:
+  selector:
+    app: finance-analyst
+  ports:
+    - port: 8080
+      targetPort: 8000
+      name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: finance-analyst
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: finance-analyst
+spec:
+  to:
+    kind: Service
+    name: finance-analyst
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

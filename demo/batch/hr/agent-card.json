@@ -1,0 +1,22 @@
+{
+  "name": "hr-resume-screener",
+  "description": "Screens resumes against job requirements and produces scored rankings",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "url": "http://hr-worker:8000",
+  "skills": [
+    {
+      "id": "resume-screening",
+      "name": "Resume Screening",
+      "description": "Evaluates resumes against job requirements with consistent scoring",
+      "tags": ["hr", "resume", "screening", "scoring"],
+      "examples": [
+        "Score these resumes against the job description",
+        "Evaluate candidates for the Senior PM role"
+      ]
+    }
+  ],
+  "capabilities": {},
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["text/plain"]
+}

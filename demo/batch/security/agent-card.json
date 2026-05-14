@@ -1,0 +1,22 @@
+{
+  "name": "security-analyst",
+  "description": "Triages vulnerability scan findings against asset inventory and SLA requirements",
+  "version": "1.0.0",
+  "protocolVersion": "0.3.0",
+  "url": "http://security-analyst:8000",
+  "skills": [
+    {
+      "id": "vuln-triage",
+      "name": "Vulnerability Triage",
+      "description": "Prioritizes vulnerability findings by business impact and SLA compliance",
+      "tags": ["security", "vulnerability", "triage", "compliance"],
+      "examples": [
+        "Triage the weekly vulnerability scan report",
+        "Prioritize findings by SLA breach status"
+      ]
+    }
+  ],
+  "capabilities": {},
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["text/plain"]
+}
