@@ -278,3 +278,30 @@ h2 {
   max-height: 300px;
   overflow-y: scroll;
 }
+
+.doc-viewer-content .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  white-space: normal;
+}
+
+.doc-viewer-content .md-table th,
+.doc-viewer-content .md-table td {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  text-align: left;
+  font-size: 0.8rem;
+}
+
+.doc-viewer-content .md-table th {
+  background: rgba(15, 52, 96, 0.4);
+  color: var(--text);
+}
+
+.doc-viewer-content h3, .doc-viewer-content h4 {
+  color: var(--text);
+  margin: 0.8rem 0 0.3rem;
+}
+
+.doc-viewer-content p { margin: 0.2rem 0; }

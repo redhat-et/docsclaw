@@ -2,10 +2,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hr-worker-config
-  namespace: demo-hr
+  name: hr-screener-config
+  namespace: panni-docsclaw
   labels:
-    app: hr-worker
+    app: hr-screener
 data:
   system-prompt.txt: |
     You are an HR analyst specializing in resume screening for

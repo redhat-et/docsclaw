@@ -11,20 +11,176 @@
     <div class="header">
       <div>
         <h1>Resume Screening</h1>
-        <h2>Coming soon — 10 parallel agents scoring 100 resumes</h2>
+        <h2>10 parallel agents scoring 100 resumes against a job description</h2>
       </div>
       <div style="text-align: right">
-        <a href="/" class="btn btn-back">← Back</a>
+        <div class="timer" id="timer">0:00</div>
+        <div style="margin-top: 0.5rem">
+          <a href="/" class="btn btn-back">← Back</a>
+          <button id="btn-run" class="btn btn-run" onclick="startScenario('hr')">Run</button>
+          <button id="btn-cleanup" class="btn btn-cleanup" onclick="cleanup('hr')" style="display:none">Cleanup</button>
+        </div>
       </div>
     </div>
 
     <div class="doc-list">
-      <h3>This scenario is under development</h3>
-      <p style="color: var(--text-dim); padding: 1rem 0;">
-        The HR batch demo will deploy 10 parallel resume-screening agents,
-        each processing 10 resumes against a job description. Check back soon.
-      </p>
+      <div class="doc-item doc-header"><span class="doc-id">Document</span><span class="doc-label">Description</span><span class="doc-result">Status</span></div>
+      <div class="doc-item" id="doc-DOC-JD001"><a class="doc-id doc-link" href="#" onclick="showDocument('DOC-JD001'); return false;">DOC-JD001</a><span class="doc-label">Job Description — Senior Product Manager, API Platform</span><span class="doc-result"></span></div>
+      <div class="doc-item"><span class="doc-id" style="color: var(--text-dim)">DOC-R001–R100</span><span class="doc-label">100 candidate resumes (10 per agent)</span><span class="doc-result"></span></div>
     </div>
+
+    <div id="doc-viewer" class="doc-viewer" style="display:none">
+      <div class="doc-viewer-header">
+        <span id="doc-viewer-title"></span>
+        <a href="#" onclick="closeDocument(); return false;" style="color:var(--text-dim)">✕ close</a>
+      </div>
+      <pre id="doc-viewer-content" class="doc-viewer-content"></pre>
+    </div>
+
+    <div class="totals">
+      <div class="metric"><span class="metric-value" id="total-mem">-</span><span class="metric-label">Memory</span></div>
+      <div class="metric"><span class="metric-value" id="total-cpu">-</span><span class="metric-label">CPU</span></div>
+      <div class="metric"><span class="metric-value" id="total-tokens">-</span><span class="metric-label">Tokens</span></div>
+    </div>
+
+    <table class="agent-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Batch</th>
+          <th>Status</th>
+          <th>Time</th>
+          <th>Mem (MiB)</th>
+          <th>CPU (mc)</th>
+          <th>In tok</th>
+          <th>Out tok</th>
+          <th>Report</th>
+        </tr>
+      </thead>
+      <tbody id="agent-body"></tbody>
+    </table>
   </div>
+  <script src="/static/app.js"></script>
+  <script>
+    // Override renderState to add HR-specific report links in the table.
+    (function() {
+      const origRender = window.renderState;
+      window.renderState = function(state) {
+        origRender(state);
+        addHRReportLinks(state);
+      };
+    })();
+
+    function addHRReportLinks(state) {
+      if (!state.agents) return;
+      window._hrResults = {};
+      const tbody = document.getElementById('agent-body');
+      const rows = tbody.querySelectorAll('tr:not(.total-row)');
+
+      state.agents.forEach((a, i) => {
+        if (a.result) {
+          window._hrResults[a.name] = { label: a.label, result: a.result };
+        }
+        if (rows[i]) {
+          const existing = rows[i].querySelector('.report-cell');
+          if (!existing) {
+            const td = document.createElement('td');
+            td.className = 'report-cell';
+            if (a.result) {
+              td.innerHTML = `<a class="doc-link report-link" href="#" onclick="showHRReport('${a.name}'); return false;">View</a>`;
+            }
+            rows[i].appendChild(td);
+          }
+        }
+      });
+
+      // Add empty cell to total row too.
+      const totalRow = tbody.querySelector('.total-row');
+      if (totalRow && !totalRow.querySelector('.report-cell')) {
+        const td = document.createElement('td');
+        td.className = 'report-cell';
+        totalRow.appendChild(td);
+      }
+    }
+
+    function showHRReport(agentName) {
+      const data = window._hrResults && window._hrResults[agentName];
+      if (!data) return;
+      const viewer = document.getElementById('doc-viewer');
+      const title = document.getElementById('doc-viewer-title');
+      const content = document.getElementById('doc-viewer-content');
+      title.textContent = 'Screening Report — ' + data.label;
+
+      const cleaned = cleanHRReport(data.result);
+      content.innerHTML = renderMarkdown(cleaned);
+      viewer.style.display = 'block';
+    }
+
+    function cleanHRReport(text) {
+      // Remove JSON code blocks (resume data), keep summary tables.
+      return text.replace(/```json\s*\[[\s\S]*?\]\s*```/g, function(match) {
+        // Extract document_id values from the JSON.
+        const ids = [];
+        const re = /"document_id"\s*:\s*"([^"]+)"/g;
+        let m;
+        while ((m = re.exec(match)) !== null) ids.push(m[1]);
+        if (ids.length > 0) {
+          return 'Documents reviewed: ' + ids.join(', ');
+        }
+        return '';
+      }).replace(/\n{3,}/g, '\n\n');
+    }
+
+    function renderMarkdown(text) {
+      // Convert markdown tables to HTML tables, escape everything else.
+      const lines = text.split('\n');
+      let html = '';
+      let inTable = false;
+      let headerDone = false;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+          const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
+
+          if (cells.every(c => /^[-:]+$/.test(c))) {
+            headerDone = true;
+            continue;
+          }
+
+          if (!inTable) {
+            html += '<table class="md-table">';
+            inTable = true;
+            headerDone = false;
+          }
+
+          const tag = !headerDone ? 'th' : 'td';
+          html += '<tr>' + cells.map(c =>
+            `<${tag}>${escapeHtml(c.replace(/\*\*/g, ''))}</${tag}>`
+          ).join('') + '</tr>';
+
+          if (!headerDone) headerDone = false;
+        } else {
+          if (inTable) {
+            html += '</table>';
+            inTable = false;
+            headerDone = false;
+          }
+          // Render headings.
+          if (trimmed.startsWith('### ')) {
+            html += '<h4>' + escapeHtml(trimmed.slice(4)) + '</h4>';
+          } else if (trimmed.startsWith('## ')) {
+            html += '<h3>' + escapeHtml(trimmed.slice(3)) + '</h3>';
+          } else if (trimmed === '') {
+            html += '<br>';
+          } else {
+            html += '<p>' + escapeHtml(trimmed).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '</p>';
+          }
+        }
+      }
+      if (inTable) html += '</table>';
+      return html;
+    }
+  </script>
 </body>
 </html>

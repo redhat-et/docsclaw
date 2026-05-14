@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand/v2"
+	"strings"
+)
 
 type AgentAssignment struct {
 	Name       string
@@ -69,14 +73,42 @@ func SecurityScenario(namespace string) Scenario {
 }
 
 func HRScenario(namespace string) Scenario {
+	allResumes := make([]string, 100)
+	for i := range 100 {
+		allResumes[i] = fmt.Sprintf("DOC-R%03d", i+1)
+	}
+	rand.Shuffle(len(allResumes), func(i, j int) {
+		allResumes[i], allResumes[j] = allResumes[j], allResumes[i]
+	})
+
+	agents := make([]AgentAssignment, 10)
+	for i := range 10 {
+		num := fmt.Sprintf("%03d", i+1)
+		resumeIDs := allResumes[i*10 : (i+1)*10]
+
+		agents[i] = AgentAssignment{
+			Name:       "hr-screener-" + num,
+			Label:      fmt.Sprintf("Batch %s (10 resumes)", num),
+			DocumentID: resumeIDs[0],
+			Prompt: fmt.Sprintf(
+				"Evaluate resumes %s against job description DOC-JD001. Fetch the job description first, then fetch and score each resume.",
+				joinIDs(resumeIDs),
+			),
+		}
+	}
+
 	return Scenario{
 		Name:       "hr",
 		Title:      "Resume Screening",
-		ConfigMap:  "hr-analyst-config",
+		ConfigMap:  "hr-screener-config",
 		DocService: fmt.Sprintf("http://document-service.%s.svc:8080", namespace),
-		LLMTimeout: 90,
-		Agents:     nil, // placeholder
+		LLMTimeout: 120,
+		Agents:     agents,
 	}
+}
+
+func joinIDs(ids []string) string {
+	return strings.Join(ids, ", ")
 }
 
 func AllScenarios(namespace string) map[string]Scenario {
