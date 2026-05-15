@@ -36,13 +36,24 @@ cd testdata/rag
 ./seed.sh
 ```
 
+The script uses HTTP APIs only — no `docker compose exec` — so it
+works with Docker, Podman, or any setup where the services are
+reachable. Override the defaults with environment variables:
+
+```bash
+WEAVIATE_URL=http://localhost:8080 OLLAMA_URL=http://localhost:11434 ./seed.sh
+```
+
 Expected output:
 
 ```
-==> Pulling embedding model (first run only)...
+==> Pulling embedding model (first run only, ~274 MB)...
+   pulling manifest... pulling sha256:... success
 ==> Creating Docs collection...
- OK
+   Collection created.
 ==> Ingesting sample documents...
+   [1/8] ingested
+   ...
 ==> Ingested 8 documents into Docs collection
 ==> Verifying search...
 {
