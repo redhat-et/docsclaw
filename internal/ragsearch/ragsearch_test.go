@@ -10,11 +10,13 @@ import (
 )
 
 type mockRAGClient struct {
-	chunks []rag.Chunk
-	err    error
+	chunks    []rag.Chunk
+	err       error
+	lastLimit int
 }
 
-func (m *mockRAGClient) Search(_ context.Context, query string, limit int) ([]rag.Chunk, error) {
+func (m *mockRAGClient) Search(_ context.Context, _ string, limit int) ([]rag.Chunk, error) {
+	m.lastLimit = limit
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -92,6 +94,9 @@ func TestRAGSearchToolMaxLimit(t *testing.T) {
 	})
 	if result.Error {
 		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if client.lastLimit != 10 {
+		t.Errorf("limit passed to client = %d, want 10 (capped from 50)", client.lastLimit)
 	}
 }
 

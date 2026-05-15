@@ -155,6 +155,8 @@ func TestQuoteGraphQL(t *testing.T) {
 		{"simple query", `"simple query"`},
 		{`query with "quotes"`, `"query with \"quotes\""`},
 		{`back\slash`, `"back\\slash"`},
+		{"newline\nin query", `"newline\nin query"`},
+		{"tab\there", `"tab\there"`},
 	}
 	for _, tt := range tests {
 		got := quoteGraphQL(tt.input)

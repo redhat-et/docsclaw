@@ -26,9 +26,6 @@ func NewWeaviateClient(baseURL, collection, textField string) (*WeaviateClient, 
 	if collection == "" {
 		return nil, fmt.Errorf("weaviate: collection is required")
 	}
-	if textField == "" {
-		textField = "content"
-	}
 	return &WeaviateClient{
 		baseURL:    baseURL,
 		collection: collection,
@@ -132,7 +129,6 @@ type graphQLError struct {
 }
 
 func quoteGraphQL(s string) string {
-	escaped := strings.ReplaceAll(s, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	return `"` + escaped + `"`
+	b, _ := json.Marshal(s)
+	return string(b)
 }
