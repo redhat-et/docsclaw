@@ -2,9 +2,19 @@
 set -euo pipefail
 
 WEAVIATE_URL="${WEAVIATE_URL:-http://localhost:8080}"
+OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 
 echo "==> Pulling embedding model (first run only, ~274 MB)..."
-docker compose exec ollama ollama pull nomic-embed-text
+curl -s -X POST "${OLLAMA_URL}/api/pull" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "nomic-embed-text"}' \
+  | while IFS= read -r line; do
+    status=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+    if [ -n "$status" ]; then
+      printf "\r   %s" "$status"
+    fi
+  done
+echo ""
 
 echo "==> Creating Docs collection..."
 status=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${WEAVIATE_URL}/v1/schema" \
