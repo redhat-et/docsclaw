@@ -1,5 +1,7 @@
 package rag
 
+import "fmt"
+
 type Config struct {
 	Backend      string `yaml:"backend"`
 	URL          string `yaml:"url"`
@@ -18,5 +20,15 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.MaxLimit <= 0 {
 		c.MaxLimit = 20
+	}
+}
+
+func NewClient(cfg *Config) (Client, error) {
+	cfg.ApplyDefaults()
+	switch cfg.Backend {
+	case "weaviate":
+		return NewWeaviateClient(cfg.URL, cfg.Collection, cfg.TextField)
+	default:
+		return nil, fmt.Errorf("unsupported RAG backend: %q", cfg.Backend)
 	}
 }
