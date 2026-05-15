@@ -1,0 +1,25 @@
+services:
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.37.2
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    environment:
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      ENABLE_MODULES: text2vec-ollama
+      CLUSTER_HOSTNAME: node1
+      OLLAMA_API_ENDPOINT: http://ollama:11434
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  weaviate_data:
+  ollama_data:
