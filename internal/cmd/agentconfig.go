@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/redhat-et/docsclaw/internal/mcpclient"
+	"github.com/redhat-et/docsclaw/pkg/rag"
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
 
@@ -15,6 +16,7 @@ import (
 type AgentConfig struct {
 	Tools ToolsConfig `yaml:"tools"`
 	Loop  LoopCfg     `yaml:"loop"`
+	RAG   *rag.Config `yaml:"rag"`
 }
 
 // ToolsConfig configures tool availability and behavior.

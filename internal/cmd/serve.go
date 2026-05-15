@@ -21,9 +21,11 @@ import (
 	"github.com/redhat-et/docsclaw/internal/config"
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
+	"github.com/redhat-et/docsclaw/internal/ragsearch"
 	"github.com/redhat-et/docsclaw/internal/logger"
 	"github.com/redhat-et/docsclaw/internal/mcpclient"
 	_ "github.com/redhat-et/docsclaw/internal/metrics"
+	"github.com/redhat-et/docsclaw/pkg/rag"
 	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/readfile"
 	"github.com/redhat-et/docsclaw/internal/session"
@@ -351,6 +353,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Register additional tools and skills when in phase 2 mode
 	if toolRegistry != nil {
+		if agentCfg.RAG != nil {
+			ragClient, err := rag.NewClient(agentCfg.RAG)
+			if err != nil {
+				return fmt.Errorf("rag: %w", err)
+			}
+			toolRegistry.RegisterAlwaysAllowed(ragsearch.NewRAGSearchTool(
+				ragClient, agentCfg.RAG))
+			log.Info("RAG search enabled",
+				"backend", agentCfg.RAG.Backend,
+				"collection", agentCfg.RAG.Collection)
+		}
+
 		// Register fetch_document tool (uses delegation transport)
 		toolRegistry.Register(fetchdoc.NewFetchDocTool(
 			func(ctx context.Context, docID, token string) (map[string]any, error) {
