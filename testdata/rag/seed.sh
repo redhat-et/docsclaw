@@ -3,11 +3,11 @@ set -euo pipefail
 
 WEAVIATE_URL="${WEAVIATE_URL:-http://localhost:8080}"
 
-echo "==> Pulling embedding model (first run only)..."
-docker compose exec ollama ollama pull nomic-embed-text 2>/dev/null || true
+echo "==> Pulling embedding model (first run only, ~274 MB)..."
+docker compose exec ollama ollama pull nomic-embed-text
 
 echo "==> Creating Docs collection..."
-curl -sf -X POST "${WEAVIATE_URL}/v1/schema" \
+status=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${WEAVIATE_URL}/v1/schema" \
   -H "Content-Type: application/json" \
   -d '{
     "class": "Docs",
@@ -21,7 +21,15 @@ curl -sf -X POST "${WEAVIATE_URL}/v1/schema" \
     "properties": [
       {"name": "content", "dataType": ["text"]}
     ]
-  }' && echo " OK" || echo " (may already exist)"
+  }')
+if [ "$status" = "200" ]; then
+  echo "   Collection created."
+elif [ "$status" = "422" ]; then
+  echo "   Collection already exists, continuing."
+else
+  echo "   ERROR: unexpected status $status"
+  exit 1
+fi
 
 echo "==> Ingesting sample documents..."
 docs=(
@@ -35,15 +43,25 @@ docs=(
   "The rag_search tool sends a plain text query and receives ranked document chunks."
 )
 
+count=0
 for doc in "${docs[@]}"; do
-  curl -sf -X POST "${WEAVIATE_URL}/v1/objects" \
+  response=$(curl -s -w "\n%{http_code}" -X POST "${WEAVIATE_URL}/v1/objects" \
     -H "Content-Type: application/json" \
-    -d "{\"class\": \"Docs\", \"properties\": {\"content\": \"${doc}\"}}" > /dev/null
+    -d "{\"class\": \"Docs\", \"properties\": {\"content\": \"${doc}\"}}")
+  http_code=$(echo "$response" | tail -1)
+  if [ "$http_code" != "200" ]; then
+    body=$(echo "$response" | sed '$d')
+    echo "   FAILED (HTTP ${http_code}): ${doc:0:60}..."
+    echo "   Response: ${body}"
+    exit 1
+  fi
+  count=$((count + 1))
+  echo "   [$count/${#docs[@]}] ingested"
 done
-echo "==> Ingested ${#docs[@]} documents into Docs collection"
+echo "==> Ingested ${count} documents into Docs collection"
 
 echo "==> Verifying search..."
-curl -sf -X POST "${WEAVIATE_URL}/v1/graphql" \
+curl -s -X POST "${WEAVIATE_URL}/v1/graphql" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ Get { Docs(nearText: {concepts: [\"agent identity\"]}, limit: 2) { content _additional { distance } } } }"}' \
   | python3 -m json.tool 2>/dev/null || jq . 2>/dev/null || cat
