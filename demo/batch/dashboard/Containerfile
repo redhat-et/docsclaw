@@ -1,0 +1,15 @@
+FROM registry.access.redhat.com/hi/go:latest AS builder
+
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o dashboard .
+
+FROM registry.access.redhat.com/hi/core-runtime:latest
+
+COPY --from=builder /build/dashboard /dashboard
+
+EXPOSE 8090
+
+ENTRYPOINT ["/dashboard"]
