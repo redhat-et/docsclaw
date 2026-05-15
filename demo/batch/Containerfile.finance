@@ -1,0 +1,16 @@
+FROM registry.access.redhat.com/hi/go:latest AS builder
+
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -o docsclaw ./cmd/docsclaw
+
+FROM registry.access.redhat.com/hi/core-runtime:latest
+
+COPY --from=builder /build/docsclaw /usr/local/bin/docsclaw
+
+EXPOSE 8000 8100
+
+ENTRYPOINT ["docsclaw"]
+CMD ["serve", "--config-dir", "/config/agent", "--listen-plain-http"]

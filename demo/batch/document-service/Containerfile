@@ -1,0 +1,14 @@
+FROM registry.access.redhat.com/hi/go:latest AS builder
+
+WORKDIR /build
+COPY main.go .
+RUN CGO_ENABLED=0 go build -o document-service main.go
+
+FROM registry.access.redhat.com/hi/core-runtime:latest
+
+COPY --from=builder /build/document-service /document-service
+
+EXPOSE 8080
+
+ENTRYPOINT ["/document-service"]
+CMD ["-data-dir", "/data"]
