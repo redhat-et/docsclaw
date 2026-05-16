@@ -80,6 +80,9 @@ func TestRAGSearchToolDefaultLimit(t *testing.T) {
 	if result.Error {
 		t.Fatalf("unexpected error: %s", result.Output)
 	}
+	if client.lastLimit != 3 {
+		t.Errorf("limit passed to client = %d, want 3 (default)", client.lastLimit)
+	}
 }
 
 func TestRAGSearchToolMaxLimit(t *testing.T) {

@@ -9,6 +9,6 @@ type Client interface {
 type Chunk struct {
 	ID       string
 	Text     string
-	Score    float64
+	Score    float64         // similarity score (1 - distance); assumes cosine distance metric
 	Metadata map[string]any
 }

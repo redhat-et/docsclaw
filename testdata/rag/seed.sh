@@ -4,12 +4,16 @@ set -euo pipefail
 WEAVIATE_URL="${WEAVIATE_URL:-http://localhost:8080}"
 OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
 
+prettyjson() {
+  jq . 2>/dev/null || python3 -m json.tool 2>/dev/null || cat
+}
+
 echo "==> Pulling embedding model (first run only, ~274 MB)..."
 curl -s -X POST "${OLLAMA_URL}/api/pull" \
   -H "Content-Type: application/json" \
   -d '{"name": "nomic-embed-text"}' \
   | while IFS= read -r line; do
-    status=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+    status=$(echo "$line" | jq -r '.status // empty' 2>/dev/null || echo "")
     if [ -n "$status" ]; then
       printf "\r   %s" "$status"
     fi
@@ -55,9 +59,10 @@ docs=(
 
 count=0
 for doc in "${docs[@]}"; do
+  payload=$(jq -n --arg content "$doc" '{class: "Docs", properties: {content: $content}}')
   response=$(curl -s -w "\n%{http_code}" -X POST "${WEAVIATE_URL}/v1/objects" \
     -H "Content-Type: application/json" \
-    -d "{\"class\": \"Docs\", \"properties\": {\"content\": \"${doc}\"}}")
+    -d "$payload")
   http_code=$(echo "$response" | tail -1)
   if [ "$http_code" != "200" ]; then
     body=$(echo "$response" | sed '$d')
@@ -74,6 +79,6 @@ echo "==> Verifying search..."
 curl -s -X POST "${WEAVIATE_URL}/v1/graphql" \
   -H "Content-Type: application/json" \
   -d '{"query": "{ Get { Docs(nearText: {concepts: [\"agent identity\"]}, limit: 2) { content _additional { distance } } } }"}' \
-  | python3 -m json.tool 2>/dev/null || jq . 2>/dev/null || cat
+  | prettyjson
 echo ""
 echo "==> Done. Weaviate is ready for DocsClaw."

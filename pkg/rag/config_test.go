@@ -62,3 +62,11 @@ func TestNewClientUnsupported(t *testing.T) {
 		t.Fatal("expected error for unsupported backend")
 	}
 }
+
+func TestNewClientEmptyBackend(t *testing.T) {
+	cfg := &Config{URL: "http://localhost:8080", Collection: "Docs"}
+	_, err := NewClient(cfg)
+	if err == nil {
+		t.Fatal("expected error for empty backend")
+	}
+}

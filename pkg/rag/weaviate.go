@@ -89,11 +89,11 @@ func (w *WeaviateClient) Search(ctx context.Context, query string, limit int) ([
 func (w *WeaviateClient) parseChunks(data map[string]any) ([]Chunk, error) {
 	getMap, ok := data["Get"].(map[string]any)
 	if !ok {
-		return nil, nil
+		return nil, fmt.Errorf("weaviate: unexpected response: missing 'Get' key")
 	}
 	items, ok := getMap[w.collection].([]any)
 	if !ok {
-		return nil, nil
+		return nil, nil // collection returned no results
 	}
 
 	chunks := make([]Chunk, 0, len(items))
