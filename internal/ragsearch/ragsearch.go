@@ -44,8 +44,9 @@ func (t *ragSearchTool) Parameters() map[string]any {
 }
 
 func (t *ragSearchTool) Execute(ctx context.Context, args map[string]any) *tools.ToolResult {
-	query, ok := args["query"].(string)
-	if !ok || query == "" {
+	query, _ := args["query"].(string)
+	query = strings.TrimSpace(query)
+	if query == "" {
 		return tools.Errorf("query is required")
 	}
 

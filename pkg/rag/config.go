@@ -24,6 +24,9 @@ func (c *Config) ApplyDefaults() {
 }
 
 func NewClient(cfg *Config) (Client, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("rag: config is required")
+	}
 	if cfg.Backend == "" {
 		return nil, fmt.Errorf("rag: backend is required (e.g. \"weaviate\")")
 	}

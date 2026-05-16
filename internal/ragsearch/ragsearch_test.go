@@ -66,6 +66,11 @@ func TestRAGSearchToolMissingQuery(t *testing.T) {
 	if !result.Error {
 		t.Fatal("expected error for missing query")
 	}
+
+	result = tool.Execute(context.Background(), map[string]any{"query": "   "})
+	if !result.Error {
+		t.Fatal("expected error for whitespace-only query")
+	}
 }
 
 func TestRAGSearchToolDefaultLimit(t *testing.T) {

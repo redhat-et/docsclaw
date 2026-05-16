@@ -105,7 +105,10 @@ func (w *WeaviateClient) parseChunks(data map[string]any) ([]Chunk, error) {
 		text, _ := obj[w.textField].(string)
 		additional, _ := obj["_additional"].(map[string]any)
 		id, _ := additional["id"].(string)
-		distance, _ := additional["distance"].(float64)
+		distance, ok := additional["distance"].(float64)
+		if !ok {
+			continue
+		}
 
 		chunks = append(chunks, Chunk{
 			ID:    id,

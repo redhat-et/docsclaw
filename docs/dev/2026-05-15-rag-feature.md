@@ -64,109 +64,17 @@ type Chunk struct {
 
 ### Step 2: Implement the Weaviate client
 
-Add the dependency:
+> **Implementation note:** The shipped code uses raw HTTP/GraphQL
+> (`net/http` + `encoding/json`) instead of the Weaviate Go SDK. This
+> keeps the binary lean (zero new dependencies) and the approach
+> generalizes to any GraphQL-speaking vector database.
 
-```bash
-go get github.com/weaviate/weaviate-go-client/v5
-```
+See `pkg/rag/weaviate.go` for the implementation. `WeaviateClient`
+sends a GraphQL `nearText` query to Weaviate's `/v1/graphql` endpoint,
+parses the response, and converts distance to similarity score
+(`Score = 1 - distance`, assumes cosine distance metric).
 
-Create `pkg/rag/weaviate.go`:
-
-```go
-package rag
-
-import (
-    "context"
-    "fmt"
-
-    "github.com/weaviate/weaviate-go-client/v5/weaviate"
-    "github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
-)
-
-type WeaviateClient struct {
-    client     *weaviate.Client
-    collection string
-    textField  string
-}
-
-func NewWeaviateClient(host, collection, textField string) (*WeaviateClient, error) {
-    // host must be without scheme, e.g. "weaviate:8080"
-    cfg := weaviate.Config{
-        Host:   host,
-        Scheme: "http",
-    }
-    c, err := weaviate.NewClient(cfg)
-    if err != nil {
-        return nil, fmt.Errorf("weaviate client: %w", err)
-    }
-    return &WeaviateClient{
-        client:     c,
-        collection: collection,
-        textField:  textField,
-    }, nil
-}
-
-func (w *WeaviateClient) Search(ctx context.Context, query string, limit int) ([]Chunk, error) {
-    fields := []graphql.Field{
-        {Name: w.textField},
-        {Name: "_additional", Fields: []graphql.Field{
-            {Name: "id"},
-            {Name: "distance"},
-        }},
-    }
-
-    nearText := w.client.GraphQL().NearTextArgBuilder().
-        WithConcepts([]string{query})
-
-    result, err := w.client.GraphQL().Get().
-        WithClassName(w.collection).
-        WithFields(fields...).
-        WithNearText(nearText).
-        WithLimit(limit).
-        Do(ctx)
-    if err != nil {
-        return nil, fmt.Errorf("weaviate search: %w", err)
-    }
-
-    if result.Errors != nil {
-        return nil, fmt.Errorf("graphql error: %v", result.Errors[0].Message)
-    }
-
-    getMap, ok := result.Data["Get"].(map[string]any)
-    if !ok {
-        return nil, fmt.Errorf("unexpected response shape")
-    }
-    items, ok := getMap[w.collection].([]any)
-    if !ok {
-        return nil, nil // empty result set
-    }
-
-    chunks := make([]Chunk, 0, len(items))
-    for _, item := range items {
-        obj, ok := item.(map[string]any)
-        if !ok {
-            continue
-        }
-        text, _ := obj[w.textField].(string)
-        additional, _ := obj["_additional"].(map[string]any)
-        id, _ := additional["id"].(string)
-        distance, _ := additional["distance"].(float64)
-
-        chunks = append(chunks, Chunk{
-            ID:    id,
-            Text:  text,
-            Score: 1 - distance, // convert distance to similarity score
-            Metadata: map[string]any{
-                "distance": distance,
-            },
-        })
-    }
-    return chunks, nil
-}
-```
-
-Note: `weaviate.Config.Host` must not include the scheme. Strip it in the
-factory before passing to `NewWeaviateClient`.
+The tool implementation is in `internal/ragsearch/ragsearch.go`.
 
 ### Step 3: Config struct and factory
 
@@ -221,7 +129,7 @@ Create `pkg/tools/rag_search.go`. Tool name: `rag_search`.
 
 Tool description for the LLM:
 
-```
+```text
 Search the document store for chunks semantically related to the query.
 Use this when the user's question requires information from indexed documents.
 Returns the top-k most relevant text chunks.
@@ -246,7 +154,7 @@ Handler logic:
 1. Cap at `cfg.MaxLimit` before calling the client.
 1. Format returned chunks as numbered blocks for the LLM:
 
-```
+```text
 [1] (score: 0.91)
 DocsClaw is a lightweight A2A-compatible agent runtime written in Go.
 

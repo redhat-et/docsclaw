@@ -46,7 +46,7 @@ WEAVIATE_URL=http://localhost:8080 OLLAMA_URL=http://localhost:11434 ./seed.sh
 
 Expected output:
 
-```
+```text
 ==> Pulling embedding model (first run only, ~274 MB)...
    pulling manifest... pulling sha256:... success
 ==> Creating Docs collection...

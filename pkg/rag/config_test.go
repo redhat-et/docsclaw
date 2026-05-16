@@ -70,3 +70,10 @@ func TestNewClientEmptyBackend(t *testing.T) {
 		t.Fatal("expected error for empty backend")
 	}
 }
+
+func TestNewClientNilConfig(t *testing.T) {
+	_, err := NewClient(nil)
+	if err == nil {
+		t.Fatal("expected error for nil config")
+	}
+}
