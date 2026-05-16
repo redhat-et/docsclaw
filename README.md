@@ -173,7 +173,27 @@ loop:
 | `web_fetch`  | HTTP GET with SSRF protection                        |
 | `read_file`  | Read files (workspace-restricted)                    |
 | `write_file` | Write files (workspace-restricted)                   |
+| `rag_search` | Semantic search over a vector database (see below)   |
 | `load_skill` | Load a SKILL.md (always available when skills exist) |
+
+### RAG search
+
+Add an optional `rag:` block to `agent-config.yaml` to let the
+agent retrieve context from a vector database before answering:
+
+```yaml
+rag:
+  backend: weaviate
+  url: http://weaviate:8080
+  collection: Docs
+```
+
+The `rag_search` tool auto-registers when `rag:` is present (no
+`tools.allowed` entry needed). Uses raw HTTP/GraphQL — zero new
+dependencies. The `rag.Client` interface supports adding more
+backends (Milvus, pgvector) as drop-in connectors. See
+[`testdata/rag/README.md`](testdata/rag/README.md) for local
+testing with Weaviate and Ollama.
 
 ### LLM providers
 
