@@ -11,3 +11,12 @@ tools:
 
 loop:
   max_iterations: 10
+
+# Uncomment to enable RAG search (requires a running Weaviate instance):
+# rag:
+#   backend: weaviate
+#   url: http://localhost:8080
+#   collection: Docs
+#   text_field: content
+#   default_limit: 5
+#   max_limit: 20
