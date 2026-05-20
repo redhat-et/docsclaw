@@ -68,7 +68,7 @@ type containerfileData struct {
 }
 
 func GenerateContainerfile(m *AgentManifest, cat *catalog.ToolCatalog) (string, error) {
-	allTools := mergeWithCore(m.Spec.Tools, cat)
+	allTools := MergeWithCore(m.Spec.Tools, cat)
 	sort.Strings(allTools)
 
 	pkgs := cat.PackageNames(allTools, "dnf")
@@ -98,7 +98,7 @@ func GenerateContainerfile(m *AgentManifest, cat *catalog.ToolCatalog) (string, 
 	return buf.String(), nil
 }
 
-func mergeWithCore(tools []string, cat *catalog.ToolCatalog) []string {
+func MergeWithCore(tools []string, cat *catalog.ToolCatalog) []string {
 	seen := make(map[string]bool)
 	var merged []string
 	for _, name := range cat.CoreTools() {

@@ -265,6 +265,24 @@ inventory with versions and risk scores. The agent reads this at
 startup and injects the tool list into the system prompt so the
 LLM knows exactly which OS tools are available.
 
+## Cluster requirements
+
+### Skill image volumes
+
+Skills listed in `spec.skills` are mounted as OCI image volumes
+using the Kubernetes `image:` volume source (KEP-4639). This
+requires:
+
+- **OpenShift 4.20+** with the `ImageVolumeSource` feature gate
+  enabled, or
+- **Kubernetes 1.31+** with the `ImageVolume` feature gate
+  enabled (alpha)
+
+If your cluster does not support image volumes, deploy skills
+via ConfigMaps or init containers instead. See the
+[OCI skills guide](oci-skills-guide.md) for alternative
+deployment methods.
+
 ## Skill compatibility
 
 Skills that include a `skill.yaml` with tool requirements are

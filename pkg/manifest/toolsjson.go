@@ -31,7 +31,7 @@ type ToolJSONRisk struct {
 }
 
 func GenerateToolsJSON(m *AgentManifest, cat *catalog.ToolCatalog) ([]byte, error) {
-	allTools := mergeWithCore(m.Spec.Tools, cat)
+	allTools := MergeWithCore(m.Spec.Tools, cat)
 	sort.Strings(allTools)
 
 	tj := ToolsJSON{
@@ -63,5 +63,5 @@ func GenerateToolsJSON(m *AgentManifest, cat *catalog.ToolCatalog) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("marshal tools.json: %w", err)
 	}
-	return data, nil
+	return append(data, '\n'), nil
 }

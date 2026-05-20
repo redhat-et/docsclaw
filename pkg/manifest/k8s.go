@@ -19,11 +19,7 @@ type K8sOutput struct {
 func GenerateK8s(m *AgentManifest, secrets map[string]string) (*K8sOutput, error) {
 	output := &K8sOutput{}
 
-	// Generate agent-config.yaml content
-	agentConfigYAML, err := buildAgentConfigYAML(m)
-	if err != nil {
-		return nil, fmt.Errorf("build agent-config.yaml: %w", err)
-	}
+	agentConfigYAML := BuildAgentConfigYAML(m)
 
 	// ConfigMap
 	cmData := struct {
@@ -119,34 +115,6 @@ func GenerateK8s(m *AgentManifest, secrets map[string]string) (*K8sOutput, error
 	return output, nil
 }
 
-func buildAgentConfigYAML(m *AgentManifest) (string, error) {
-	var buf strings.Builder
-
-	rt := m.Spec.Runtime
-
-	buf.WriteString("tools:\n")
-	buf.WriteString("  allowed:\n")
-	for _, t := range rt.Tools.Allowed {
-		fmt.Fprintf(&buf, "    - %s\n", t)
-	}
-
-	if rt.Tools.Exec.Timeout > 0 || rt.Tools.Exec.MaxOutput > 0 {
-		buf.WriteString("  exec:\n")
-		if rt.Tools.Exec.Timeout > 0 {
-			fmt.Fprintf(&buf, "    timeout: %d\n", rt.Tools.Exec.Timeout)
-		}
-		if rt.Tools.Exec.MaxOutput > 0 {
-			fmt.Fprintf(&buf, "    maxOutput: %d\n", rt.Tools.Exec.MaxOutput)
-		}
-	}
-
-	if rt.Loop.MaxIterations > 0 {
-		buf.WriteString("loop:\n")
-		fmt.Fprintf(&buf, "  maxIterations: %d\n", rt.Loop.MaxIterations)
-	}
-
-	return buf.String(), nil
-}
 
 func encodeSecrets(secrets map[string]string) map[string]string {
 	encoded := make(map[string]string, len(secrets))

@@ -81,7 +81,7 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// 4. Merge core tools and compute risk score + tier
-	allTools := mergeToolsWithCore(m.Spec.Tools, cat)
+	allTools := manifest.MergeWithCore(m.Spec.Tools, cat)
 	sort.Strings(allTools)
 	tier := cat.HighestTier(allTools)
 	riskScore := cat.MaxRiskScore(allTools)
@@ -131,6 +131,13 @@ func runBuild(cmd *cobra.Command, args []string) error {
 			if err := writeK8sOutputs(outputDir, k8sOutput); err != nil {
 				return err
 			}
+		} else if onlyMode == "k8s" {
+			parts := []string{k8sOutput.ServiceAccount, k8sOutput.ConfigMap}
+			if k8sOutput.Secret != "" {
+				parts = append(parts, k8sOutput.Secret)
+			}
+			parts = append(parts, k8sOutput.Service, k8sOutput.Deployment)
+			fmt.Print(strings.Join(parts, "---\n"))
 		}
 	}
 
@@ -142,28 +149,6 @@ func runBuild(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func mergeToolsWithCore(tools []string, cat *catalog.ToolCatalog) []string {
-	seen := make(map[string]bool)
-	var result []string
-
-	// Add core tools first
-	for _, name := range cat.CoreTools() {
-		if !seen[name] {
-			seen[name] = true
-			result = append(result, name)
-		}
-	}
-
-	// Add manifest tools
-	for _, name := range tools {
-		if !seen[name] {
-			seen[name] = true
-			result = append(result, name)
-		}
-	}
-
-	return result
-}
 
 func printReport(w *os.File, m *manifest.AgentManifest, tools []string, tier string, riskScore int) {
 	_, _ = fmt.Fprintf(w, "\n=== Agent Build Report ===\n\n")
@@ -204,9 +189,8 @@ func writeContainerfileOutputs(dir, containerfile string, toolsJSON []byte, m *m
 		return fmt.Errorf("write system-prompt.txt: %w", err)
 	}
 
-	// Write agent-config.yaml if runtime config exists
-	if m.Spec.Runtime.Tools.Allowed != nil || m.Spec.Runtime.Loop.MaxIterations > 0 {
-		agentConfig := buildAgentConfigYAML(m)
+	if manifest.HasRuntimeConfig(m) {
+		agentConfig := manifest.BuildAgentConfigYAML(m)
 		agentConfigPath := filepath.Join(dir, "agent-config.yaml")
 		if err := os.WriteFile(agentConfigPath, []byte(agentConfig), 0644); err != nil {
 			return fmt.Errorf("write agent-config.yaml: %w", err)
@@ -243,39 +227,3 @@ func writeK8sOutputs(dir string, k8s *manifest.K8sOutput) error {
 	return nil
 }
 
-func buildAgentConfigYAML(m *manifest.AgentManifest) string {
-	var b strings.Builder
-
-	b.WriteString("tools:\n")
-	if len(m.Spec.Runtime.Tools.Allowed) > 0 {
-		b.WriteString("  allowed:\n")
-		for _, tool := range m.Spec.Runtime.Tools.Allowed {
-			fmt.Fprintf(&b, "    - %s\n", tool)
-		}
-	}
-
-	if m.Spec.Runtime.Tools.Exec.Timeout > 0 || m.Spec.Runtime.Tools.Exec.MaxOutput > 0 {
-		b.WriteString("  exec:\n")
-		if m.Spec.Runtime.Tools.Exec.Timeout > 0 {
-			fmt.Fprintf(&b, "    timeout: %d\n", m.Spec.Runtime.Tools.Exec.Timeout)
-		}
-		if m.Spec.Runtime.Tools.Exec.MaxOutput > 0 {
-			fmt.Fprintf(&b, "    maxOutput: %d\n", m.Spec.Runtime.Tools.Exec.MaxOutput)
-		}
-	}
-
-	if len(m.Spec.Runtime.Tools.WebFetch.AllowedHosts) > 0 {
-		b.WriteString("  webFetch:\n")
-		b.WriteString("    allowedHosts:\n")
-		for _, host := range m.Spec.Runtime.Tools.WebFetch.AllowedHosts {
-			fmt.Fprintf(&b, "      - %s\n", host)
-		}
-	}
-
-	if m.Spec.Runtime.Loop.MaxIterations > 0 {
-		b.WriteString("loop:\n")
-		fmt.Fprintf(&b, "  maxIterations: %d\n", m.Spec.Runtime.Loop.MaxIterations)
-	}
-
-	return b.String()
-}
