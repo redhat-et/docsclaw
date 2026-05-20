@@ -18,7 +18,7 @@ OUTDIR ?= deploy/generated/$(NAME)
 NAMESPACE ?=
 KUBECTL ?= oc
 
-.PHONY: build test lint fmt clean image image-push configmap-gen configmap-apply
+.PHONY: build test lint fmt clean image image-push agent-build agent-image agent-push configmap-gen configmap-apply
 
 build:
 	go build -o $(BINDIR)/$(BINARY) ./cmd/docsclaw
@@ -43,6 +43,40 @@ image:
 
 image-push: image
 	$(CONTAINER_ENGINE) push $(REGISTRY):$(DEV_TAG)
+
+# --- Agent image from manifest ---
+# Build a custom agent image from an agent manifest.
+# The manifest declares which OS tools to install (curl, jq, git, etc.).
+#
+# Usage:
+#   make agent-build MANIFEST=testdata/manifest/nps-agent.yaml
+#   make agent-image MANIFEST=testdata/manifest/nps-agent.yaml TAG=ghcr.io/org/nps-agent:1.0.0
+#   make agent-push  MANIFEST=testdata/manifest/nps-agent.yaml TAG=ghcr.io/org/nps-agent:1.0.0
+
+MANIFEST ?=
+AGENT_BUILDDIR ?= $(shell mktemp -d)
+TAG ?= $(REGISTRY):$(DEV_TAG)
+
+agent-build: build
+ifndef MANIFEST
+	$(error MANIFEST is required. Usage: make agent-build MANIFEST=path/to/agent-manifest.yaml)
+endif
+	@echo "==> Generating build artifacts from $(MANIFEST)..."
+	$(BINDIR)/$(BINARY) build --manifest $(MANIFEST) --output $(AGENT_BUILDDIR)
+	@echo "==> Cross-compiling binary for linux/amd64..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(AGENT_BUILDDIR)/docsclaw ./cmd/docsclaw
+	@echo "==> Build context ready at $(AGENT_BUILDDIR)"
+
+agent-image: agent-build
+	@echo "==> Building container image $(TAG)..."
+	$(CONTAINER_ENGINE) build \
+		--platform linux/amd64 \
+		-t $(TAG) \
+		-f $(AGENT_BUILDDIR)/Containerfile $(AGENT_BUILDDIR)
+	@echo "==> Image built: $(TAG)"
+
+agent-push: agent-image
+	$(CONTAINER_ENGINE) push $(TAG)
 
 # --- ConfigMap generation ---
 

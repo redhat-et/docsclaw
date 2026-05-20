@@ -34,6 +34,8 @@ func TestGenerateContainerfile_HardenedImage(t *testing.T) {
 		"curl git jq",
 		"USER 65532",
 		"COPY docsclaw /app/docsclaw",
+		"COPY tools.json /etc/docsclaw/tools.json",
+		"mkdir -p /etc/docsclaw",
 	}
 	for _, want := range checks {
 		if !strings.Contains(out, want) {
@@ -87,5 +89,11 @@ func TestGenerateContainerfile_CoreOnlyNoBuilder(t *testing.T) {
 
 	if !strings.Contains(out, "FROM registry.access.redhat.com/hi/core-runtime:latest") {
 		t.Error("missing FROM line")
+	}
+	if !strings.Contains(out, "COPY tools.json /etc/docsclaw/tools.json") {
+		t.Error("missing tools.json COPY even without builder")
+	}
+	if !strings.Contains(out, "mkdir -p /etc/docsclaw") {
+		t.Error("missing /etc/docsclaw mkdir even without builder")
 	}
 }

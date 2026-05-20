@@ -16,11 +16,12 @@ LABEL io.docsclaw.tools/installed="{{ .InstalledCSV }}"
 LABEL io.docsclaw.tools/tier="{{ .HighestTier }}"
 LABEL io.docsclaw.tools/risk-score="{{ .RiskScore }}"
 LABEL io.docsclaw.tools/agent-name="{{ .AgentName }}"
-{{ if .HasBuilder }}
+
+USER root
+{{ if .HasBuilder -}}
 # Adding tools to the minimal hardened image expands its attack surface.
 # Only add what is strictly necessary for runtime operation.
 # Review each addition with your security team.
-USER root
 RUN --mount=type=bind,from={{ .BuilderImage }},target=/builder \
     LD_LIBRARY_PATH=/builder/lib64:/builder/usr/lib64 \
     RPM_CONFIGDIR=/builder/usr/lib/rpm \
@@ -30,10 +31,13 @@ RUN --mount=type=bind,from={{ .BuilderImage }},target=/builder \
     --setopt=install_weak_deps=False \
     --setopt=tsflags=nodocs \
     {{ .PackageList }}
+{{ end -}}
+RUN mkdir -p /etc/docsclaw
 USER 65532
-{{ end }}
+
 WORKDIR /app
 COPY docsclaw /app/docsclaw
+COPY tools.json /etc/docsclaw/tools.json
 
 EXPOSE 8000
 
