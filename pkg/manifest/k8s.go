@@ -43,19 +43,24 @@ func GenerateK8s(m *AgentManifest, secrets map[string]string) (*K8sOutput, error
 	output.ConfigMap = cmBuf.String()
 
 	// Deployment
+	agentImage := m.Spec.Deploy.Image
+	if agentImage == "" {
+		agentImage = m.Spec.Base.Image
+	}
+
 	deployData := struct {
-		Name      string
-		BaseImage string
-		Skills    []SkillRef
-		Replicas  int
-		Resources ResourceConfig
+		Name       string
+		AgentImage string
+		Skills     []SkillRef
+		Replicas   int
+		Resources  ResourceConfig
 		HasSecrets bool
 	}{
-		Name:      m.Metadata.Name,
-		BaseImage: m.Spec.Base.Image,
-		Skills:    m.Spec.Skills,
-		Replicas:  m.Spec.Deploy.Replicas,
-		Resources: m.Spec.Deploy.Resources,
+		Name:       m.Metadata.Name,
+		AgentImage: agentImage,
+		Skills:     m.Spec.Skills,
+		Replicas:   m.Spec.Deploy.Replicas,
+		Resources:  m.Spec.Deploy.Resources,
 		HasSecrets: len(secrets) > 0,
 	}
 	if deployData.Replicas == 0 {
@@ -206,7 +211,7 @@ spec:
         runAsNonRoot: true
       containers:
       - name: agent
-        image: {{.BaseImage}}
+        image: {{.AgentImage}}
         args:
         - serve
         - --config-dir

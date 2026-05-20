@@ -42,6 +42,9 @@ func TestGenerateK8s_Deployment(t *testing.T) {
 	if !strings.Contains(k8s.Deployment, "skill-nps-api") {
 		t.Error("missing skill volume")
 	}
+	if !strings.Contains(k8s.Deployment, "ghcr.io/redhat-et/nps-agent:1.0.0") {
+		t.Error("missing deploy image in Deployment")
+	}
 }
 
 func TestGenerateK8s_Secret(t *testing.T) {
@@ -116,6 +119,7 @@ func testManifest() *AgentManifest {
 				{Name: "LLM_API_KEY", Required: true},
 			},
 			Deploy: DeployConfig{
+				Image:    "ghcr.io/redhat-et/nps-agent:1.0.0",
 				Replicas: 1,
 				Resources: ResourceConfig{
 					Requests: ResourceValues{CPU: "100m", Memory: "64Mi"},

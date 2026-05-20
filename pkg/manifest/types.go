@@ -75,6 +75,7 @@ type SecretDecl struct {
 }
 
 type DeployConfig struct {
+	Image     string         `yaml:"image,omitempty"`
 	Replicas  int            `yaml:"replicas,omitempty"`
 	Resources ResourceConfig `yaml:"resources,omitempty"`
 }

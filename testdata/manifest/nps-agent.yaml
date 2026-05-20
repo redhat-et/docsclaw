@@ -38,6 +38,7 @@ spec:
       description: "LLM provider API key"
       required: true
   deploy:
+    image: ghcr.io/redhat-et/nps-agent:1.0.0
     replicas: 1
     resources:
       requests:
