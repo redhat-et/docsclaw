@@ -23,8 +23,9 @@ type ManifestSpec struct {
 }
 
 type BaseImage struct {
-	Image   string `yaml:"image"`
-	Builder string `yaml:"builder"`
+	Image       string `yaml:"image"`
+	GoBuilder   string `yaml:"goBuilder,omitempty"`
+	ToolBuilder string `yaml:"toolBuilder"`
 }
 
 type PromptConfig struct {

@@ -13,7 +13,7 @@ func TestGenerateContainerfile_HardenedImage(t *testing.T) {
 		Spec: ManifestSpec{
 			Base: BaseImage{
 				Image:   "registry.access.redhat.com/hi/core-runtime:latest",
-				Builder: "registry.access.redhat.com/hi/core-runtime:latest-builder",
+				ToolBuilder: "registry.access.redhat.com/hi/core-runtime:latest-builder",
 			},
 			Tools: []string{"curl", "jq", "git"},
 		},
@@ -26,6 +26,8 @@ func TestGenerateContainerfile_HardenedImage(t *testing.T) {
 	}
 
 	checks := []string{
+		"FROM registry.access.redhat.com/hi/go:latest AS builder",
+		"go build -o /docsclaw ./cmd/docsclaw",
 		"FROM registry.access.redhat.com/hi/core-runtime:latest",
 		"io.docsclaw.tools/installed",
 		"curl,git,jq",
@@ -33,7 +35,7 @@ func TestGenerateContainerfile_HardenedImage(t *testing.T) {
 		"/builder/usr/bin/dnf install -y",
 		"curl git jq",
 		"USER 65532",
-		"COPY docsclaw /app/docsclaw",
+		"COPY --from=builder /docsclaw /app/docsclaw",
 		"COPY tools.json /etc/docsclaw/tools.json",
 		"mkdir -p /etc/docsclaw",
 	}
@@ -50,7 +52,7 @@ func TestGenerateContainerfile_Labels(t *testing.T) {
 		Spec: ManifestSpec{
 			Base: BaseImage{
 				Image:   "registry.access.redhat.com/hi/core-runtime:latest",
-				Builder: "registry.access.redhat.com/hi/core-runtime:latest-builder",
+				ToolBuilder: "registry.access.redhat.com/hi/core-runtime:latest-builder",
 			},
 			Tools: []string{"curl", "jq", "python3"},
 		},

@@ -64,16 +64,17 @@ endif
 	@mkdir -p $(AGENT_BUILDDIR)
 	@echo "==> Generating build artifacts from $(MANIFEST)..."
 	$(BINDIR)/$(BINARY) build --manifest $(MANIFEST) --output $(AGENT_BUILDDIR)
-	@echo "==> Cross-compiling binary for linux/amd64..."
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(AGENT_BUILDDIR)/docsclaw ./cmd/docsclaw
-	@echo "==> Build context ready at $(AGENT_BUILDDIR)"
+	@cp $(AGENT_BUILDDIR)/Containerfile Containerfile.agent
+	@cp $(AGENT_BUILDDIR)/tools.json tools.json
+	@echo "==> Build context ready (Containerfile.agent + tools.json)"
 
 agent-image: agent-build
 	@echo "==> Building container image $(TAG)..."
 	$(CONTAINER_ENGINE) build \
 		--platform linux/amd64 \
 		-t $(TAG) \
-		-f $(AGENT_BUILDDIR)/Containerfile $(AGENT_BUILDDIR)
+		-f Containerfile.agent .
+	@rm -f Containerfile.agent tools.json
 	@echo "==> Image built: $(TAG)"
 
 agent-push: agent-image

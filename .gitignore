@@ -2,6 +2,8 @@
 bin/
 build/
 tmp/
+Containerfile.agent
+tools.json
 *.exe
 *.test
 *.out

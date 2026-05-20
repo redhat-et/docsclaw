@@ -6,7 +6,7 @@ metadata:
 spec:
   base:
     image: registry.access.redhat.com/hi/core-runtime:latest
-    builder: registry.access.redhat.com/hi/core-runtime:latest-builder
+    toolBuilder: registry.access.redhat.com/hi/core-runtime:latest-builder
   tools:
     - curl
     - jq
@@ -16,7 +16,8 @@ spec:
       You are a national parks assistant.
   skills:
     - name: nps-api
-      image: quay.io/docsclaw/skill-nps-api:1.0.0-image
+      #image: quay.io/docsclaw/skill-nps-api:1.0.0-image
+      image: quay.io/skillimage/business/document-summarizer:1.2.0
   runtime:
     tools:
       allowed:
