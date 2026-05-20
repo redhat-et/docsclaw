@@ -272,15 +272,15 @@ spec:
 {{- end}}
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /health
             port: health
-          initialDelaySeconds: 10
+          initialDelaySeconds: 5
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /healthz
+            path: /ready
             port: health
-          initialDelaySeconds: 5
+          initialDelaySeconds: 3
           periodSeconds: 5
       volumes:
       - name: agent-config
