@@ -33,7 +33,7 @@ fmt:
 	gofmt -w .
 
 clean:
-	rm -rf $(BINDIR)
+	rm -rf $(BINDIR) build/
 
 image:
 	$(CONTAINER_ENGINE) build \
@@ -54,13 +54,14 @@ image-push: image
 #   make agent-push  MANIFEST=testdata/manifest/nps-agent.yaml TAG=ghcr.io/org/nps-agent:1.0.0
 
 MANIFEST ?=
-AGENT_BUILDDIR ?= $(shell mktemp -d)
+AGENT_BUILDDIR ?= build/agent
 TAG ?= $(REGISTRY):$(DEV_TAG)
 
 agent-build: build
 ifndef MANIFEST
 	$(error MANIFEST is required. Usage: make agent-build MANIFEST=path/to/agent-manifest.yaml)
 endif
+	@mkdir -p $(AGENT_BUILDDIR)
 	@echo "==> Generating build artifacts from $(MANIFEST)..."
 	$(BINDIR)/$(BINARY) build --manifest $(MANIFEST) --output $(AGENT_BUILDDIR)
 	@echo "==> Cross-compiling binary for linux/amd64..."
