@@ -31,6 +31,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/webfetch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
 	"github.com/redhat-et/docsclaw/pkg/llm"
+	"github.com/redhat-et/docsclaw/pkg/manifest"
 	"github.com/redhat-et/docsclaw/pkg/rag"
 	"github.com/redhat-et/docsclaw/pkg/skills"
 	"github.com/redhat-et/docsclaw/pkg/tools"
@@ -108,6 +109,23 @@ func loadPromptVariants(configDir string) (map[string]string, error) {
 		return nil, fmt.Errorf("failed to parse prompt variants: %w", err)
 	}
 	return variants, nil
+}
+
+// loadToolsJSON reads the OS tool inventory from /etc/docsclaw/tools.json.
+// Returns nil if the file does not exist (backward compatible).
+func loadToolsJSON(path string) (*manifest.ToolsJSON, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read tools.json: %w", err)
+	}
+	var tj manifest.ToolsJSON
+	if err := json.Unmarshal(data, &tj); err != nil {
+		return nil, fmt.Errorf("parse tools.json: %w", err)
+	}
+	return &tj, nil
 }
 
 // selectPrompt picks the appropriate prompt based on message content.
@@ -277,6 +295,24 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	log := logger.New(logger.ComponentAgent)
+
+	// Load OS tool inventory and inject into system prompt
+	const toolsJSONPath = "/etc/docsclaw/tools.json"
+	tj, err := loadToolsJSON(toolsJSONPath)
+	if err != nil {
+		log.Warn("failed to load tools.json", "error", err)
+	}
+	if tj != nil {
+		var names []string
+		for _, t := range tj.Tools {
+			names = append(names, t.Name)
+		}
+		systemPrompt += fmt.Sprintf(
+			"\n\nAvailable OS tools: %s\nDo NOT attempt to use tools not in this list.",
+			strings.Join(names, ", "),
+		)
+		log.Info("loaded OS tool inventory", "tools", names, "risk_score", tj.RiskScore)
+	}
 
 	// HTTP client with delegation transport
 	httpClient := &http.Client{
