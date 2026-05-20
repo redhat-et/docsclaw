@@ -49,6 +49,7 @@ func TestLoadToolsJSON(t *testing.T) {
 		}
 		if tj == nil {
 			t.Fatal("expected ToolsJSON, got nil")
+			return
 		}
 		if tj.AgentName != "test-agent" {
 			t.Errorf("expected agent name 'test-agent', got %q", tj.AgentName)

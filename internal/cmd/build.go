@@ -166,20 +166,19 @@ func mergeToolsWithCore(tools []string, cat *catalog.ToolCatalog) []string {
 }
 
 func printReport(w *os.File, m *manifest.AgentManifest, tools []string, tier string, riskScore int) {
-	fmt.Fprintf(w, "\n=== Agent Build Report ===\n\n")
-	fmt.Fprintf(w, "Agent:       %s\n", m.Metadata.Name)
-	fmt.Fprintf(w, "Version:     %s\n", m.Metadata.Version)
-	fmt.Fprintf(w, "Base:        %s\n", m.Spec.Base.Image)
-	fmt.Fprintf(w, "Tier:        %s\n", tier)
-	fmt.Fprintf(w, "Risk Score:  %d\n", riskScore)
-	fmt.Fprintf(w, "Tools:       %d total\n\n", len(tools))
+	_, _ = fmt.Fprintf(w, "\n=== Agent Build Report ===\n\n")
+	_, _ = fmt.Fprintf(w, "Agent:       %s\n", m.Metadata.Name)
+	_, _ = fmt.Fprintf(w, "Version:     %s\n", m.Metadata.Version)
+	_, _ = fmt.Fprintf(w, "Base:        %s\n", m.Spec.Base.Image)
+	_, _ = fmt.Fprintf(w, "Tier:        %s\n", tier)
+	_, _ = fmt.Fprintf(w, "Risk Score:  %d\n", riskScore)
+	_, _ = fmt.Fprintf(w, "Tools:       %d total\n\n", len(tools))
 
-	// Group by tier
-	fmt.Fprintf(w, "Tool Inventory:\n")
+	_, _ = fmt.Fprintf(w, "Tool Inventory:\n")
 	for _, name := range tools {
-		fmt.Fprintf(w, "  - %s\n", name)
+		_, _ = fmt.Fprintf(w, "  - %s\n", name)
 	}
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "\n")
 }
 
 func writeContainerfileOutputs(dir, containerfile string, toolsJSON []byte, m *manifest.AgentManifest) error {
