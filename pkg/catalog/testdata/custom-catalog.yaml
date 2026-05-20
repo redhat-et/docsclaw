@@ -1,0 +1,25 @@
+apiVersion: docsclaw.io/v1alpha1
+kind: ToolCatalog
+metadata:
+  name: test-catalog
+  version: 1.0.0
+tiers:
+  core:
+    description: "Always included"
+    autoInclude: true
+tools:
+  curl:
+    tier: core
+    package:
+      dnf: curl
+      apk: curl
+    size: ~1MB
+    description: "HTTP client"
+    risk:
+      score: 2
+      factors:
+        codeExecution: false
+        networkCapable: true
+        dependencies: 2
+        cveHistory: low
+      rationale: "Network-capable but single-purpose"
