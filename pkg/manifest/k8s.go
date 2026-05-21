@@ -44,20 +44,27 @@ func GenerateK8s(m *AgentManifest, secrets map[string]string) (*K8sOutput, error
 		agentImage = m.Spec.Base.Image
 	}
 
+	saName := m.Spec.Deploy.ServiceAccount
+	if saName == "" {
+		saName = "docsclaw-agent"
+	}
+
 	deployData := struct {
-		Name       string
-		AgentImage string
-		Skills     []SkillRef
-		Replicas   int
-		Resources  ResourceConfig
-		HasSecrets bool
+		Name           string
+		AgentImage     string
+		ServiceAccount string
+		Skills         []SkillRef
+		Replicas       int
+		Resources      ResourceConfig
+		HasSecrets     bool
 	}{
-		Name:       m.Metadata.Name,
-		AgentImage: agentImage,
-		Skills:     m.Spec.Skills,
-		Replicas:   m.Spec.Deploy.Replicas,
-		Resources:  m.Spec.Deploy.Resources,
-		HasSecrets: len(secrets) > 0,
+		Name:           m.Metadata.Name,
+		AgentImage:     agentImage,
+		ServiceAccount: saName,
+		Skills:         m.Spec.Skills,
+		Replicas:       m.Spec.Deploy.Replicas,
+		Resources:      m.Spec.Deploy.Resources,
+		HasSecrets:     len(secrets) > 0,
 	}
 	if deployData.Replicas == 0 {
 		deployData.Replicas = 1
@@ -86,7 +93,7 @@ func GenerateK8s(m *AgentManifest, secrets map[string]string) (*K8sOutput, error
 	saData := struct {
 		Name string
 	}{
-		Name: "docsclaw-agent",
+		Name: saName,
 	}
 
 	var saBuf bytes.Buffer
@@ -174,7 +181,7 @@ spec:
       labels:
         app: {{.Name}}
     spec:
-      serviceAccountName: docsclaw-agent
+      serviceAccountName: {{.ServiceAccount}}
       securityContext:
         runAsNonRoot: true
       containers:
