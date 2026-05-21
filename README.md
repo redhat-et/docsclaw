@@ -228,6 +228,26 @@ Set via environment variables:
 └─────────────────────────────────────────────────┘
 ```
 
+## Custom agent images
+
+Build purpose-built agent images with a declarative manifest that
+specifies OS tools, system prompt, skills, and secrets:
+
+```bash
+# Validate
+docsclaw build --manifest agent-manifest.yaml --dry-run
+
+# Build and push
+make agent-push MANIFEST=agent-manifest.yaml TAG=ghcr.io/org/my-agent:1.0.0
+
+# Deploy
+export LLM_API_KEY=sk-...
+docsclaw deploy --manifest agent-manifest.yaml | oc apply -f -
+```
+
+See the [agent manifest guide](docs/agent-manifest-guide.md) for
+the full workflow, tool catalog, and security tiers.
+
 ## Build
 
 ```bash

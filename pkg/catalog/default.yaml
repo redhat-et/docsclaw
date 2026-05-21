@@ -1,0 +1,153 @@
+apiVersion: docsclaw.io/v1alpha1
+kind: ToolCatalog
+metadata:
+  name: docsclaw-default
+  version: 1.0.0
+tiers:
+  core:
+    description: "Always included"
+    autoInclude: true
+  standard:
+    description: "Low risk, small footprint"
+  extended:
+    description: "Medium risk, larger footprint"
+    warning: "These tools expand the image attack surface."
+  runtime:
+    description: "High risk, full language runtimes"
+    warning: "Adds a full scripting runtime (~40-100 MB)."
+tools:
+  curl:
+    tier: core
+    package:
+      dnf: curl
+      apk: curl
+    size: ~1MB
+    description: "HTTP client for API requests"
+    risk:
+      score: 2
+      factors:
+        codeExecution: false
+        networkCapable: true
+        dependencies: 2
+        cveHistory: low
+      rationale: "Network-capable but single-purpose"
+  jq:
+    tier: core
+    package:
+      dnf: jq
+      apk: jq
+    size: ~1MB
+    description: "JSON processor for parsing API responses"
+    risk:
+      score: 1
+      factors:
+        codeExecution: false
+        networkCapable: false
+        dependencies: 1
+        cveHistory: low
+      rationale: "Single-purpose binary, minimal surface"
+  git:
+    tier: standard
+    package:
+      dnf: git
+      apk: git
+    size: ~15MB
+    description: "Version control for code-related workflows"
+    risk:
+      score: 4
+      factors:
+        codeExecution: false
+        networkCapable: true
+        dependencies: 8
+        cveHistory: medium
+      rationale: "Network-capable, moderate dependency tree"
+  openssh-client:
+    tier: standard
+    package:
+      dnf: openssh-clients
+      apk: openssh-client
+    size: ~5MB
+    description: "SSH client for remote operations"
+    risk:
+      score: 4
+      factors:
+        codeExecution: false
+        networkCapable: true
+        dependencies: 5
+        cveHistory: medium
+      rationale: "Network-capable, handles credentials"
+  pandoc:
+    tier: extended
+    package:
+      dnf: pandoc
+      apk: pandoc
+    size: ~25MB
+    description: "Universal document converter"
+    risk:
+      score: 3
+      factors:
+        codeExecution: false
+        networkCapable: false
+        dependencies: 6
+        cveHistory: low
+      rationale: "Parses complex formats, moderate deps"
+  poppler-utils:
+    tier: extended
+    package:
+      dnf: poppler-utils
+      apk: poppler-utils
+    size: ~10MB
+    description: "PDF text extraction"
+    risk:
+      score: 3
+      factors:
+        codeExecution: false
+        networkCapable: false
+        dependencies: 8
+        cveHistory: medium
+      rationale: "Parses untrusted PDF input"
+  imagemagick:
+    tier: extended
+    package:
+      dnf: ImageMagick
+      apk: imagemagick
+    size: ~20MB
+    description: "Image conversion and manipulation"
+    risk:
+      score: 5
+      factors:
+        codeExecution: false
+        networkCapable: false
+        dependencies: 15
+        cveHistory: high
+      rationale: "Large dependency tree, extensive CVE history"
+  python3:
+    tier: runtime
+    package:
+      dnf: python3
+      apk: python3
+    size: ~45MB
+    description: "Python interpreter for scripting"
+    risk:
+      score: 8
+      factors:
+        codeExecution: true
+        networkCapable: false
+        dependencies: 12
+        cveHistory: high
+      rationale: "Full interpreter enables arbitrary code execution"
+  nodejs:
+    tier: runtime
+    package:
+      dnf: nodejs
+      apk: nodejs
+    size: ~60MB
+    description: "Node.js runtime for JavaScript tools"
+    risk:
+      score: 8
+      factors:
+        codeExecution: true
+        networkCapable: false
+        dependencies: 10
+        cveHistory: high
+      rationale: "Full interpreter enables arbitrary code execution"

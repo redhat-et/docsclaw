@@ -1,0 +1,49 @@
+apiVersion: docsclaw.io/v1alpha1
+kind: AgentManifest
+metadata:
+  name: nps-assistant
+  version: 1.0.0
+spec:
+  base:
+    image: registry.access.redhat.com/hi/core-runtime:latest
+    toolBuilder: registry.access.redhat.com/hi/core-runtime:latest-builder
+  tools:
+    - curl
+    - jq
+    - git
+  prompt:
+    text: |
+      You are a national parks assistant.
+  skills:
+    - name: nps-api
+      #image: quay.io/docsclaw/skill-nps-api:1.0.0-image
+      image: quay.io/skillimage/business/document-summarizer:1.2.0
+  runtime:
+    tools:
+      allowed:
+        - exec
+        - read_file
+        - web_fetch
+        - load_skill
+      exec:
+        timeout: 30
+        maxOutput: 50000
+    loop:
+      maxIterations: 15
+  secrets:
+    - name: NPS_API_KEY
+      description: "API key for developer.nps.gov"
+      required: true
+    - name: LLM_API_KEY
+      description: "LLM provider API key"
+      required: true
+  deploy:
+    image: ghcr.io/redhat-et/nps-agent:1.0.0
+    replicas: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi

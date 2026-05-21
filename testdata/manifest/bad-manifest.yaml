@@ -1,0 +1,9 @@
+apiVersion: docsclaw.io/v1alpha1
+kind: AgentManifest
+metadata:
+  name: ""
+spec:
+  base:
+    image: ""
+  tools: []
+  prompt: {}
