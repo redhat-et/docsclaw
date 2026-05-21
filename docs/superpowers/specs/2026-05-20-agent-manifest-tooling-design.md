@@ -85,9 +85,9 @@ spec:
         - load_skill
       exec:
         timeout: 30
-        max_output: 50000
+        maxOutput: 50000
     loop:
-      max_iterations: 15
+      maxIterations: 15
 
   secrets:
     - name: NPS_API_KEY
@@ -462,9 +462,9 @@ docsclaw build --manifest agent-manifest.yaml --output ./build/ \
 # Dry run — compatibility report and risk score only
 docsclaw build --manifest agent-manifest.yaml --dry-run
 
-# Build and push
-docsclaw build --manifest agent-manifest.yaml --push \
-  --tag ghcr.io/org/nps-agent:1.0.0
+# Build and push (future work — use make agent-push for now)
+# docsclaw build --manifest agent-manifest.yaml --push \
+#   --tag ghcr.io/org/nps-agent:1.0.0
 
 # Enforce risk policy
 docsclaw build --manifest agent-manifest.yaml --max-risk 6

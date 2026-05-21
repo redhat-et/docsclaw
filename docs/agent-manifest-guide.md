@@ -288,7 +288,7 @@ deployment methods.
 Skills that include a `skill.yaml` with tool requirements are
 checked at build time:
 
-```
+```text
 Checking skill compatibility...
 
   ✔ nps-api

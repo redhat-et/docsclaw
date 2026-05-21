@@ -151,7 +151,7 @@ metadata:
     app: {{.Name}}
 data:
   system-prompt.txt: |
-    {{.SystemPrompt}}
+{{.SystemPrompt | nindent 4}}
   agent-config.yaml: |
 {{.AgentConfigYAML | nindent 4}}
 `))

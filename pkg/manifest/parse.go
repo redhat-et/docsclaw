@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -17,7 +18,9 @@ func ParseFile(path string) (*AgentManifest, error) {
 
 func Parse(data []byte) (*AgentManifest, error) {
 	var m AgentManifest
-	if err := yaml.Unmarshal(data, &m); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&m); err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
 	if err := Validate(m); err != nil {

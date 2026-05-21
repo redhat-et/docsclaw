@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"os"
@@ -37,7 +38,9 @@ func LoadFromFile(path string) (*ToolCatalog, error) {
 
 func parse(data []byte) (*ToolCatalog, error) {
 	var cat ToolCatalog
-	if err := yaml.Unmarshal(data, &cat); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&cat); err != nil {
 		return nil, fmt.Errorf("parse catalog: %w", err)
 	}
 	return &cat, nil
@@ -66,7 +69,11 @@ func (c *ToolCatalog) HighestTier(tools []string) string {
 		if !ok {
 			continue
 		}
-		if tierOrder[entry.Tier] > tierOrder[highest] {
+		order, known := tierOrder[entry.Tier]
+		if !known {
+			continue
+		}
+		if order > tierOrder[highest] {
 			highest = entry.Tier
 		}
 	}

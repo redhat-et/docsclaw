@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -126,6 +127,12 @@ func loadToolsJSON(path string) (*manifest.ToolsJSON, error) {
 		return nil, fmt.Errorf("parse tools.json: %w", err)
 	}
 	return &tj, nil
+}
+
+var toolNameAllowed = regexp.MustCompile(`[^a-zA-Z0-9 _-]`)
+
+func sanitizeToolName(name string) string {
+	return toolNameAllowed.ReplaceAllString(name, "")
 }
 
 // selectPrompt picks the appropriate prompt based on message content.
@@ -305,7 +312,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if tj != nil {
 		var names []string
 		for _, t := range tj.Tools {
-			names = append(names, t.Name)
+			clean := sanitizeToolName(t.Name)
+			if clean != "" {
+				names = append(names, clean)
+			}
 		}
 		systemPrompt += fmt.Sprintf(
 			"\n\nAvailable OS tools: %s\nDo NOT attempt to use tools not in this list.",

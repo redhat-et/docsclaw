@@ -12,7 +12,10 @@ func TestCheckCompatibility_AllSatisfied(t *testing.T) {
 	skills := []SkillCheck{
 		{Name: "nps-api", Required: []string{"curl", "jq"}, HasSkillYAML: true},
 	}
-	cat, _ := catalog.LoadDefault()
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault() error: %v", err)
+	}
 
 	results := CheckCompatibility(tools, skills, cat)
 	if len(results) != 1 {
@@ -31,7 +34,10 @@ func TestCheckCompatibility_MissingRequired(t *testing.T) {
 	skills := []SkillCheck{
 		{Name: "doc-converter", Required: []string{"curl", "pandoc"}, HasSkillYAML: true},
 	}
-	cat, _ := catalog.LoadDefault()
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault() error: %v", err)
+	}
 
 	results := CheckCompatibility(tools, skills, cat)
 	if results[0].Satisfied {
@@ -52,7 +58,10 @@ func TestCheckCompatibility_OptionalMissing(t *testing.T) {
 			HasSkillYAML: true,
 		},
 	}
-	cat, _ := catalog.LoadDefault()
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault() error: %v", err)
+	}
 
 	results := CheckCompatibility(tools, skills, cat)
 	if !results[0].Satisfied {
@@ -68,7 +77,10 @@ func TestCheckCompatibility_NoSkillYAML(t *testing.T) {
 	skills := []SkillCheck{
 		{Name: "unknown-skill", HasSkillYAML: false},
 	}
-	cat, _ := catalog.LoadDefault()
+	cat, err := catalog.LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault() error: %v", err)
+	}
 
 	results := CheckCompatibility(tools, skills, cat)
 	if !results[0].Satisfied {
