@@ -1,0 +1,52 @@
+# Draft Skill — ConfigMap
+#
+# A placeholder skill for the playground. Replace the SKILL.md content
+# with your own skill instructions, then use redeploy.sh to push the
+# update to the running agent.
+#
+# The skill name and description in the YAML frontmatter stay fixed
+# so that content-only changes can propagate via ConfigMap auto-sync
+# without a pod restart. See README.md for details.
+#
+# Apply before the Deployment:
+#   kubectl apply -f skill-configmap.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skill-playground-draft-skill
+  labels:
+    app: skill-playground
+data:
+  SKILL.md: |
+    ---
+    name: draft-skill
+    description: A draft skill for testing — edit the content below
+    ---
+
+    # Draft skill
+
+    Replace this content with your skill instructions.
+
+    A good skill tells the agent:
+    - What domain or API it covers
+    - How to authenticate (API keys, tokens)
+    - What endpoints or commands are available
+    - What parameters each endpoint accepts
+    - How to format responses for the user
+
+    ## Example structure
+
+    ```
+    ## API Configuration
+    Base URL: https://api.example.com/v1
+    Authentication: Bearer token from $MY_API_KEY
+
+    ## Endpoints
+    ### GET /items
+    Returns a list of items.
+    Parameters: limit (int), offset (int), q (string)
+
+    ### GET /items/{id}
+    Returns a single item by ID.
+    ```

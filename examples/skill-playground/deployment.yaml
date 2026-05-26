@@ -1,0 +1,133 @@
+# Skill Playground — Deployment, Service, and Route
+#
+# Deploys a generic DocsClaw agent with a single draft skill that
+# can be updated without redeploying the entire stack. See README.md
+# for the two update paths (auto-sync vs rollout restart).
+#
+# Prerequisites — apply these first:
+#   kubectl apply -f configmap.yaml
+#   kubectl apply -f skill-configmap.yaml
+#   kubectl apply -f llm-secret.yaml
+#
+# Then deploy:
+#   kubectl apply -f deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skill-playground
+  labels:
+    app: skill-playground
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: skill-playground
+  template:
+    metadata:
+      labels:
+        app: skill-playground
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          # Pin to a specific version for production (e.g., :v0.9.4)
+          image: ghcr.io/redhat-et/docsclaw:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            - --session-db
+            - memory
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: skill-draft
+              mountPath: /config/agent/skills/draft-skill
+              readOnly: true
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+      volumes:
+        - name: agent-config
+          configMap:
+            name: skill-playground
+        - name: skill-draft
+          configMap:
+            name: skill-playground-draft-skill
+        - name: workspace
+          emptyDir: {}
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: skill-playground
+  labels:
+    app: skill-playground
+spec:
+  selector:
+    app: skill-playground
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+
+---
+# Route (OpenShift) — on plain Kubernetes, replace with an Ingress.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: skill-playground
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: skill-playground
+spec:
+  to:
+    kind: Service
+    name: skill-playground
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

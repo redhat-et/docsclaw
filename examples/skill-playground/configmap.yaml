@@ -1,0 +1,65 @@
+# Skill Playground Agent — ConfigMap
+#
+# A generic agent personality for testing skills. The agent has no
+# built-in domain knowledge — it relies entirely on mounted skills
+# for its capabilities.
+#
+# Apply before the Deployment:
+#   kubectl apply -f configmap.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skill-playground
+  labels:
+    app: skill-playground
+data:
+  # --- System prompt ---------------------------------------------------
+  # Generic personality that defers to skills for domain knowledge.
+  system-prompt.txt: |
+    You are a helpful assistant for testing skills. You have access to
+    tools and skills that give you domain-specific capabilities.
+
+    When a skill is available, always try to apply it to answer the
+    user's question. Use the exec tool to run commands when the skill
+    instructs you to. Use read_file and write_file for file operations.
+
+    If no skill matches the user's question, say so and suggest what
+    kind of skill would help.
+
+  # --- A2A agent card ---------------------------------------------------
+  agent-card.json: |
+    {
+      "name": "skill-playground",
+      "description": "Skill testing agent — capabilities come from mounted skills",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://skill-playground:8000",
+      "skills": [
+        {
+          "id": "draft-skill",
+          "name": "Draft Skill",
+          "description": "A user-defined skill under development",
+          "tags": ["draft", "testing"],
+          "examples": ["Test my skill"]
+        }
+      ],
+      "capabilities": {},
+      "defaultInputModes": ["text/plain"],
+      "defaultOutputModes": ["text/markdown"]
+    }
+
+  # --- Agent config -----------------------------------------------------
+  # Enables the agentic loop with exec, read_file, and write_file tools.
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - exec
+        - read_file
+        - write_file
+      exec:
+        timeout: 30
+        max_output: 50000
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 10
