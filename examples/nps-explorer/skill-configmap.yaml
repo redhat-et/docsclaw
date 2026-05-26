@@ -1,0 +1,148 @@
+# NPS API Skill — ConfigMap
+#
+# A skill teaches the agent *how* to use a specific API or tool.
+# This one describes the NPS REST API endpoints, authentication,
+# and request patterns so the LLM can construct correct curl commands.
+#
+# Mounted as a separate ConfigMap at /config/agent/skills/nps-api
+# so the agent discovers it via --config-dir skill scanning.
+#
+# Apply before the Deployment:
+#   kubectl apply -f skill-configmap.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nps-explorer-nps-api
+  labels:
+    app: nps-explorer
+data:
+  SKILL.md: |
+    ---
+    name: nps-api
+    description: >-
+      Query the National Park Service REST API for information about
+      parks, activities, alerts, campgrounds, events, and visitor
+      centers. Use this skill whenever the user asks about national
+      parks, visiting parks, park activities, alerts, campgrounds,
+      or any NPS-related data.
+    ---
+
+    # NPS API Skill
+
+    Query the National Park Service REST API to retrieve information
+    about parks, activities, alerts, campgrounds, events, and other
+    NPS resources.
+
+    ## API Configuration
+
+    **Base URL**: `https://developer.nps.gov/api/v1/`
+
+    **Authentication**: All requests require an API key header:
+    ```
+    X-Api-Key: $NPS_API_KEY
+    ```
+
+    ## Available Endpoints
+
+    ### Parks (`/parks`)
+    National parks, monuments, and other NPS sites.
+
+    | Parameter   | Description                              |
+    | ----------- | ---------------------------------------- |
+    | `stateCode` | Two-letter state code (e.g., CA, WY, AZ) |
+    | `parkCode`  | Park code (e.g., yose, grca, yell)       |
+    | `q`         | Search query for names or keywords       |
+    | `limit`     | Number of results (default: 50)          |
+
+    ### Activities (`/activities`)
+    Recreational activities across NPS sites.
+
+    | Parameter | Description                |
+    | --------- | -------------------------- |
+    | `q`       | Search for activities      |
+    | `id`      | Activity ID                |
+
+    ### Alerts (`/alerts`)
+    Current alerts, warnings, and notices.
+
+    | Parameter   | Description            |
+    | ----------- | ---------------------- |
+    | `stateCode` | Filter by state        |
+    | `parkCode`  | Filter by park         |
+    | `limit`     | Number of alerts       |
+
+    ### Campgrounds (`/campgrounds`)
+    Campground and camping facility information.
+
+    | Parameter   | Description            |
+    | ----------- | ---------------------- |
+    | `stateCode` | Filter by state        |
+    | `parkCode`  | Filter by park         |
+    | `q`         | Search campground names|
+
+    ### Events (`/events`)
+    Park events, ranger programs, and activities.
+
+    | Parameter   | Description            |
+    | ----------- | ---------------------- |
+    | `parkCode`  | Filter by park         |
+    | `dateStart` | Filter by start date   |
+    | `dateEnd`   | Filter by end date     |
+    | `limit`     | Number of events       |
+
+    ### Visitor Centers (`/visitorcenters`)
+    Visitor centers and contact stations.
+
+    | Parameter   | Description            |
+    | ----------- | ---------------------- |
+    | `stateCode` | Filter by state        |
+    | `parkCode`  | Filter by park         |
+
+    ## Making Requests
+
+    Use curl with the API key header. Always verify the key is set:
+
+    ```bash
+    if [ -z "$NPS_API_KEY" ]; then
+      echo "Error: NPS_API_KEY not set"
+      exit 1
+    fi
+
+    curl -s "https://developer.nps.gov/api/v1/parks?stateCode=CA&limit=5" \
+      -H "X-Api-Key: $NPS_API_KEY"
+    ```
+
+    ## Response Format
+
+    All endpoints return JSON:
+    ```json
+    {
+      "total": "count",
+      "data": [ { "id": "...", "name": "...", ... } ],
+      "limit": "per page",
+      "start": "offset"
+    }
+    ```
+
+    ## Tips
+
+    - Use `-s` with curl for clean JSON output
+    - Use `jq` to format responses when available
+    - Park codes are typically 4 lowercase letters (yose, grca, yell)
+    - State codes are 2 uppercase letters (CA, WY, AZ)
+    - Add `&limit=5` for faster responses
+
+    ## Example Interactions
+
+    **User**: "What parks are in Wyoming?"
+    - Endpoint: `/parks?stateCode=WY`
+    - `curl -s "https://developer.nps.gov/api/v1/parks?stateCode=WY" -H "X-Api-Key: $NPS_API_KEY"`
+
+    **User**: "Are there any alerts for Yellowstone?"
+    - Endpoint: `/alerts?parkCode=yell`
+    - `curl -s "https://developer.nps.gov/api/v1/alerts?parkCode=yell" -H "X-Api-Key: $NPS_API_KEY"`
+
+    **User**: "What can I do at Yosemite?"
+    - Endpoint: `/parks?parkCode=yose`
+    - `curl -s "https://developer.nps.gov/api/v1/parks?parkCode=yose" -H "X-Api-Key: $NPS_API_KEY"`
