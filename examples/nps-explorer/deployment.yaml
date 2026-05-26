@@ -37,6 +37,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: docsclaw
+          # Pin to a specific version for production (e.g., :v0.9.4)
           image: ghcr.io/redhat-et/docsclaw:latest
           # Container-level security: full hardened profile
           securityContext:

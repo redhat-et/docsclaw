@@ -78,6 +78,6 @@ data:
       exec:
         timeout: 30
         max_output: 50000
-    workspace: /tmp/agent-workspace
+      workspace: /tmp/agent-workspace
     loop:
       max_iterations: 10
