@@ -510,10 +510,7 @@ func parseCPU(s string) float64 {
 func buildDeploymentJSON(name, namespace, configMap, docServiceURL string, llmTimeout int) map[string]any {
 	args := []any{
 		"serve",
-		"--config-dir", "/config/agent",
-		"--listen-plain-http",
 		"--document-service-url", docServiceURL,
-		"--session-db", "/tmp/agent-workspace/sessions.db",
 	}
 	if llmTimeout > 0 {
 		args = append(args, "--llm-timeout", fmt.Sprintf("%d", llmTimeout))

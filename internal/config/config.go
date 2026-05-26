@@ -99,7 +99,7 @@ func setDefaults(v *viper.Viper, serviceName string) {
 	// Service defaults
 	v.SetDefault("service.host", "0.0.0.0")
 	v.SetDefault("service.mock_spiffe", true)
-	v.SetDefault("service.listen_plain_http", false)
+	v.SetDefault("service.listen_plain_http", true)
 	v.SetDefault("service.log_level", "info")
 
 	// Port defaults: AI agent services use Kagenti convention (8000/8100),
@@ -166,7 +166,7 @@ func BindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.PersistentFlags().IntP("port", "p", 0, "Port to listen on")
 	cmd.PersistentFlags().String("host", "", "Host to bind to")
 	cmd.PersistentFlags().Bool("mock-spiffe", true, "Use mock SPIFFE mode (no SPIRE required)")
-	cmd.PersistentFlags().Bool("listen-plain-http", false, "Listen on plain HTTP instead of mTLS (for use behind Envoy proxy)")
+	cmd.PersistentFlags().Bool("listen-plain-http", true, "Listen on plain HTTP (default; set to false when TLS is configured)")
 	cmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	cmd.PersistentFlags().String("opa-host", "", "OPA service host")
 	cmd.PersistentFlags().Int("opa-port", 0, "OPA service port")

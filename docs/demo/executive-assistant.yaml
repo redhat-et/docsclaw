@@ -132,11 +132,6 @@ spec:
               type: RuntimeDefault
           args:
             - serve
-            - --config-dir
-            - /config/agent
-            - --listen-plain-http
-            - --session-db
-            - /tmp/agent-workspace/sessions.db
           ports:
             - containerPort: 8000
               name: http

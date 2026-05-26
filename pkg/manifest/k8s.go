@@ -189,9 +189,6 @@ spec:
         image: {{.AgentImage}}
         args:
         - serve
-        - --config-dir
-        - /config/agent
-        - --listen-plain-http
         ports:
         - name: http
           containerPort: 8000
