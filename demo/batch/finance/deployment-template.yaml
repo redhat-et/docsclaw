@@ -29,13 +29,8 @@ spec:
           image: ghcr.io/redhat-et/docsclaw:latest
           args:
             - serve
-            - --config-dir
-            - /config/agent
-            - --listen-plain-http
             - --document-service-url
             - http://document-service.NAMESPACE.svc:8080
-            - --session-db
-            - /tmp/agent-workspace/sessions.db
           ports:
             - containerPort: 8000
               name: http

@@ -44,7 +44,7 @@ cp environments/anthropic_example.env environments/anthropic.env
 # Edit anthropic.env with your API key
 source environments/anthropic.env
 
-./bin/docsclaw serve --config-dir testdata/standalone --listen-plain-http
+./bin/docsclaw serve --config-dir testdata/standalone
 ```
 
 ## OpenShift / Kubernetes

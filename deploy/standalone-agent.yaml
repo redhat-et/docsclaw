@@ -118,9 +118,6 @@ spec:
               type: RuntimeDefault
           args:
             - serve
-            - --config-dir
-            - /config/agent
-            - --listen-plain-http
           ports:
             - containerPort: 8000
               name: http

@@ -102,13 +102,8 @@ spec:
           image: ghcr.io/redhat-et/docsclaw:latest
           args:
             - serve
-            - --config-dir
-            - /config/agent
-            - --listen-plain-http
             - --document-service-url
             - http://document-service.panni-docsclaw.svc:8080
-            - --session-db
-            - /tmp/agent-workspace/sessions.db
             - --llm-timeout
             - "120"
           ports:

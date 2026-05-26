@@ -92,9 +92,6 @@ spec:
           image: ghcr.io/redhat-et/docsclaw-hr:latest
           args:
             - serve
-            - --config-dir
-            - /config/agent
-            - --listen-plain-http
             - --document-service-url
             - http://document-service.demo-hr.svc:8080
           ports:

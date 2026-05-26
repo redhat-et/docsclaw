@@ -161,7 +161,7 @@ func init() {
 	serveCmd.Flags().Int("llm-max-tokens", 4096, "Max tokens for LLM response")
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
 	serveCmd.Flags().String("session-db", "",
-		"Session database path (default: memory; set a file path for SQLite persistence)")
+		"Session database backend ('memory' for in-memory, or a file path for SQLite; default: memory)")
 
 	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
 	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
@@ -500,15 +500,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 		if sessionDB == "" {
 			sessionDB = os.Getenv("DOCSCLAW_SESSION_DB")
 		}
+		if sessionDB == "" {
+			sessionDB = "memory"
+		}
 
 		var sessions session.SessionStore
 		if sessionDB == "memory" {
 			sessions = session.NewMemoryStore(30 * time.Minute)
 			log.Info("Session store", "backend", "memory")
 		} else {
-			if sessionDB == "" {
-				sessionDB = "memory"
-			}
 			if err := os.MkdirAll(filepath.Dir(sessionDB), 0700); err != nil {
 				return fmt.Errorf("failed to create session db directory: %w", err)
 			}
