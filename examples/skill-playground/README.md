@@ -65,12 +65,14 @@ in the YAML frontmatter), the update propagates automatically:
    ./redeploy.sh my-skill.md
    ```
 
-1. Wait ~30-60 seconds for the kubelet to sync the ConfigMap volume
+1. Wait for the kubelet to sync the ConfigMap volume (typically a few
+   seconds on modern clusters using the Watch strategy)
 1. Send a test message — the agent reads skill content from disk on
    each request, so it picks up the new version
 
-**How it works**: Kubernetes periodically syncs ConfigMap data to
-mounted volumes (default kubelet sync period is ~60 seconds). The
+**How it works**: Kubernetes propagates ConfigMap changes to mounted
+volumes automatically. With the default Watch-based change detection
+(Kubernetes 1.18+), updates typically arrive within seconds. The
 DocsClaw `load_skill` tool reads the SKILL.md file from disk on
 every invocation, so once the kubelet syncs, the next request gets
 the updated content.
@@ -96,18 +98,24 @@ loaded once at startup:
 | Operation | Delay |
 | --------- | ----- |
 | ConfigMap update (`kubectl apply`) | Instant |
-| Kubelet volume sync (auto-sync path) | ~30-60s |
+| Kubelet volume sync (auto-sync path) | Typically a few seconds |
 | Rollout restart + readiness (restart path) | ~10-15s |
-| Full restart cycle (update + restart + ready) | ~15-20s |
 
-The rollout restart is faster than waiting for the kubelet sync.
-For rapid iteration during development, use `--restart` even for
-content-only changes.
+Use the auto-sync path (no `--restart`) for content-only changes —
+it is the fastest option. Use `--restart` when you change the skill's
+`name:` or `description:` in the YAML frontmatter, since skill
+metadata is loaded once at startup.
 
 ## Frontend integration
 
-For a web frontend that wraps this workflow, the backend needs to
-make these Kubernetes API calls:
+For a web frontend that wraps this workflow, the backend needs a
+ServiceAccount with RBAC permissions to:
+
+- `get`, `update` on ConfigMaps (to push skill content)
+- `get`, `patch` on Deployments (to trigger rollout restart and
+  poll readiness)
+
+The backend makes these Kubernetes API calls:
 
 1. **Update the skill ConfigMap**
 
@@ -156,7 +164,7 @@ make these Kubernetes API calls:
               │                         │
      ┌────────▼────────┐     ┌──────────▼──────────┐
      │  Auto-sync      │     │  Rollout restart     │
-     │  (~30-60s)      │     │  (~10-15s)           │
+     │  (seconds)      │     │  (~10-15s)           │
      │                 │     │                      │
      │  kubelet syncs  │     │  new pod reads       │
      │  volume, agent  │     │  ConfigMap on        │
