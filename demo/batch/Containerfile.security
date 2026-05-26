@@ -13,4 +13,4 @@ COPY --from=builder /build/docsclaw /usr/local/bin/docsclaw
 EXPOSE 8000 8100
 
 ENTRYPOINT ["docsclaw"]
-CMD ["serve", "--config-dir", "/config/agent", "--listen-plain-http"]
+CMD ["serve"]

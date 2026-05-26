@@ -38,19 +38,6 @@ import (
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
 
-func defaultSessionDBPath() string {
-	dir := os.Getenv("XDG_DATA_HOME")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			dir = filepath.Join(os.TempDir(), "docsclaw")
-		} else {
-			dir = filepath.Join(home, ".local", "share")
-		}
-	}
-	return filepath.Join(dir, "docsclaw", "sessions.db")
-}
-
 // loadSystemPrompt reads the system prompt from config-dir/system-prompt.txt.
 // Returns an error if the file does not exist.
 func loadSystemPrompt(configDir string) (string, error) {
@@ -174,7 +161,7 @@ func init() {
 	serveCmd.Flags().Int("llm-max-tokens", 4096, "Max tokens for LLM response")
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
 	serveCmd.Flags().String("session-db", "",
-		"Session database path (default: $XDG_DATA_HOME/docsclaw/sessions.db, use 'memory' for in-memory)")
+		"Session database backend ('memory' for in-memory, or a file path for SQLite; default: memory)")
 
 	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
 	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
@@ -513,15 +500,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 		if sessionDB == "" {
 			sessionDB = os.Getenv("DOCSCLAW_SESSION_DB")
 		}
+		if sessionDB == "" {
+			sessionDB = "memory"
+		}
 
 		var sessions session.SessionStore
 		if sessionDB == "memory" {
 			sessions = session.NewMemoryStore(30 * time.Minute)
 			log.Info("Session store", "backend", "memory")
 		} else {
-			if sessionDB == "" {
-				sessionDB = defaultSessionDBPath()
-			}
 			if err := os.MkdirAll(filepath.Dir(sessionDB), 0700); err != nil {
 				return fmt.Errorf("failed to create session db directory: %w", err)
 			}
