@@ -40,7 +40,7 @@ tools:
   web_fetch:
     allowed_hosts:
       - "api.example.com"
-      - ".svc.cluster.local"
+      - "svc.cluster.local"
   workspace: /tmp/agent-workspace
   mcp:
     - name: db
@@ -97,8 +97,8 @@ Controls the `exec` tool (shell command execution).
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `timeout` | `int` | `0` (no limit) | Max seconds per command. |
-| `max_output` | `int` | `0` (no limit) | Truncate stdout/stderr after this many characters. |
+| `timeout` | `int` | `30` | Max seconds per command. |
+| `max_output` | `int` | `50000` | Truncate stdout/stderr after this many characters. |
 
 ### `tools.web_fetch`
 
@@ -106,7 +106,7 @@ Controls the `web_fetch` tool (HTTP GET requests).
 
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
-| `allowed_hosts` | `[]string` | `[]` (all allowed) | Restrict HTTP requests to these hosts. Supports prefix matching with a leading dot (e.g., `.svc.cluster.local` matches any subdomain). Empty list allows all hosts. |
+| `allowed_hosts` | `[]string` | `[]` (all allowed) | Restrict HTTP requests to these hosts. Entries match exactly or as a suffix (e.g., `svc.cluster.local` matches itself and any subdomain like `foo.svc.cluster.local`). Empty list allows all hosts. |
 
 ### `tools.mcp[]`
 
@@ -150,7 +150,7 @@ These are the built-in tool names you can list in `tools.allowed`:
 
 | Tool | Description |
 | ---- | ----------- |
-| `exec` | Run shell commands (requires `tools.exec` config) |
+| `exec` | Run shell commands (optional: configure `tools.exec` to customize timeout/max_output) |
 | `web_fetch` | HTTP GET requests (respects `tools.web_fetch.allowed_hosts`) |
 | `read_file` | Read files from the workspace directory |
 | `write_file` | Write files to the workspace directory |
