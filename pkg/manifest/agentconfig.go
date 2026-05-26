@@ -39,6 +39,10 @@ func BuildAgentConfigYAML(m *AgentManifest) string {
 		fmt.Fprintf(&b, "  maxIterations: %d\n", m.Spec.Runtime.Loop.MaxIterations)
 	}
 
+	if m.Spec.Runtime.SkillsDir != "" {
+		fmt.Fprintf(&b, "skills_dir: %s\n", m.Spec.Runtime.SkillsDir)
+	}
+
 	return b.String()
 }
 
@@ -48,5 +52,6 @@ func HasRuntimeConfig(m *AgentManifest) bool {
 		r.Tools.Exec.Timeout > 0 ||
 		r.Tools.Exec.MaxOutput > 0 ||
 		len(r.Tools.WebFetch.AllowedHosts) > 0 ||
-		r.Loop.MaxIterations > 0
+		r.Loop.MaxIterations > 0 ||
+		r.SkillsDir != ""
 }

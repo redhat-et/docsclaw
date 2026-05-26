@@ -26,6 +26,8 @@ loop:
 ## Full example
 
 ```yaml
+skills_dir: /skills
+
 tools:
   allowed:
     - exec
@@ -67,10 +69,12 @@ rag:
 
 ## Structure
 
-The file has three top-level sections: `tools`, `loop`, and `rag`.
+The file has four top-level sections: `skills_dir`, `tools`, `loop`,
+and `rag`.
 
 ```text
 agent-config.yaml
+├── skills_dir           # where to find skill subdirectories
 ├── tools
 │   ├── allowed          # which tools the LLM can call
 │   ├── exec             # shell execution settings
@@ -83,6 +87,12 @@ agent-config.yaml
 ```
 
 ## Field reference
+
+### `skills_dir`
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `skills_dir` | `string` | `<config-dir>/skills` | Directory containing skill subdirectories. Each subdirectory must have a `SKILL.md` file. The CLI flag `--skills-dir` overrides this value. |
 
 ### `tools`
 

@@ -61,6 +61,7 @@ data:
       "defaultOutputModes": ["text/plain"]
     }
   agent-config.yaml: |
+    skills_dir: /skills
     tools:
       allowed:
         - read_file
@@ -139,8 +140,6 @@ spec:
               type: RuntimeDefault
           args:
             - serve
-            - --skills-dir
-            - /skills
           ports:
             - containerPort: 8000
               name: http
