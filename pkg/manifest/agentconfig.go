@@ -8,6 +8,10 @@ import (
 func BuildAgentConfigYAML(m *AgentManifest) string {
 	var b strings.Builder
 
+	if m.Spec.Runtime.SkillsDir != "" {
+		fmt.Fprintf(&b, "skills_dir: %s\n", m.Spec.Runtime.SkillsDir)
+	}
+
 	b.WriteString("tools:\n")
 	if len(m.Spec.Runtime.Tools.Allowed) > 0 {
 		b.WriteString("  allowed:\n")
@@ -37,10 +41,6 @@ func BuildAgentConfigYAML(m *AgentManifest) string {
 	if m.Spec.Runtime.Loop.MaxIterations > 0 {
 		b.WriteString("loop:\n")
 		fmt.Fprintf(&b, "  maxIterations: %d\n", m.Spec.Runtime.Loop.MaxIterations)
-	}
-
-	if m.Spec.Runtime.SkillsDir != "" {
-		fmt.Fprintf(&b, "skills_dir: %s\n", m.Spec.Runtime.SkillsDir)
 	}
 
 	return b.String()
