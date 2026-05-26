@@ -1,0 +1,83 @@
+# NPS Explorer Agent — ConfigMap
+#
+# Defines the agent's personality, A2A protocol metadata, and tool
+# configuration. DocsClaw reads three files from --config-dir:
+#
+#   system-prompt.txt  — LLM system prompt (personality + instructions)
+#   agent-card.json    — A2A agent card served at /.well-known/agent.json
+#   agent-config.yaml  — tool allowlist, workspace path, loop limits
+#
+# Apply before the Deployment:
+#   kubectl apply -f configmap.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nps-explorer
+  labels:
+    app: nps-explorer
+data:
+  # --- System prompt ---------------------------------------------------
+  # Tells the LLM what role to play and how to behave.
+  system-prompt.txt: |
+    You are a helpful National Park Service (NPS) information assistant
+    with access to the NPS REST API.
+
+    You can help users discover and learn about:
+      - National parks, monuments, and other NPS sites across the
+        United States
+      - Activities available at parks (hiking, camping, rock climbing)
+      - Current alerts, warnings, and park closures
+      - Campgrounds and camping facilities
+      - Park events and ranger programs
+      - Visitor centers and their hours
+
+    When given a task, use the exec tool to query the NPS API with
+    curl, parse the JSON response, and present park information in
+    clean markdown format. Always verify the NPS_API_KEY environment
+    variable is set before making requests.
+
+  # --- A2A agent card ---------------------------------------------------
+  # Protocol metadata — other agents and clients discover capabilities
+  # by fetching /.well-known/agent.json from this agent's URL.
+  agent-card.json: |
+    {
+      "name": "nps-explorer",
+      "description": "National Park Service information assistant",
+      "version": "1.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://nps-explorer:8000",
+      "skills": [
+        {
+          "id": "nps-api",
+          "name": "NPS API",
+          "description": "Query the National Park Service REST API",
+          "tags": ["parks", "outdoors", "government-api"],
+          "examples": [
+            "What national parks are in California?",
+            "Are there any alerts for Yellowstone?",
+            "Find campgrounds in Colorado"
+          ]
+        }
+      ],
+      "capabilities": {},
+      "defaultInputModes": ["text/plain"],
+      "defaultOutputModes": ["text/markdown"]
+    }
+
+  # --- Agent config -----------------------------------------------------
+  # Controls which tools the agent can use and how the agentic loop
+  # behaves. The "exec" tool lets the agent run shell commands (curl)
+  # to call the NPS API.
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - exec
+        - read_file
+        - write_file
+      exec:
+        timeout: 30
+        max_output: 50000
+      workspace: /tmp/agent-workspace
+    loop:
+      max_iterations: 10

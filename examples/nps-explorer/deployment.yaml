@@ -1,0 +1,148 @@
+# NPS Explorer Agent — Deployment, Service, and Route
+#
+# Deploys the DocsClaw agent with:
+#   - Agent config from ConfigMap (system prompt, agent card, tool config)
+#   - NPS API skill from a separate ConfigMap
+#   - LLM and NPS API keys from Secrets
+#   - Hardened security context (non-root, read-only root, drop all caps)
+#   - Health and readiness probes
+#
+# Prerequisites — apply these first:
+#   kubectl apply -f configmap.yaml
+#   kubectl apply -f skill-configmap.yaml
+#   kubectl apply -f llm-secret.yaml
+#   kubectl apply -f nps-secret.yaml
+#
+# Then deploy:
+#   kubectl apply -f deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nps-explorer
+  labels:
+    app: nps-explorer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nps-explorer
+  template:
+    metadata:
+      labels:
+        app: nps-explorer
+    spec:
+      # Pod-level security: no containers may run as root
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: docsclaw
+          # Pin to a specific version for production (e.g., :v0.9.4)
+          image: ghcr.io/redhat-et/docsclaw:latest
+          # Container-level security: full hardened profile
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - serve
+            - --config-dir
+            - /config/agent
+            - --listen-plain-http
+            # In-memory session store — no writable filesystem needed
+            - --session-db
+            - memory
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          # Inject API keys from Secrets
+          envFrom:
+            - secretRef:
+                name: llm-secret
+            - secretRef:
+                name: nps-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            # Agent configuration (system prompt, agent card, tool config)
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            # NPS API skill — mounted into the skills subdirectory
+            - name: skill-nps-api
+              mountPath: /config/agent/skills/nps-api
+              readOnly: true
+            # Writable workspace for agent file operations
+            - name: workspace
+              mountPath: /tmp/agent-workspace
+      volumes:
+        - name: agent-config
+          configMap:
+            name: nps-explorer
+        - name: skill-nps-api
+          configMap:
+            name: nps-explorer-nps-api
+        - name: workspace
+          emptyDir: {}
+
+---
+# Service — exposes the agent inside the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: nps-explorer
+  labels:
+    app: nps-explorer
+spec:
+  selector:
+    app: nps-explorer
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+
+---
+# Route (OpenShift) — exposes the agent externally with TLS
+# On plain Kubernetes, replace with an Ingress resource.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nps-explorer
+  annotations:
+    # LLM calls can take a while; allow up to 2 minutes
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: nps-explorer
+spec:
+  to:
+    kind: Service
+    name: nps-explorer
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
