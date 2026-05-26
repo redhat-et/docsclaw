@@ -367,7 +367,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Discover skills (runs in both phase 1 and phase 2)
+	// Priority: CLI flag → agent-config.yaml → default (<config-dir>/skills)
 	skillsDir := cfg.SkillsDir
+	if skillsDir == "" && agentCfg != nil {
+		skillsDir = agentCfg.SkillsDir
+	}
 	if skillsDir == "" {
 		skillsDir = filepath.Join(cfg.ConfigDir, "skills")
 	}

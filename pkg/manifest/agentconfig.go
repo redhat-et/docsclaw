@@ -8,6 +8,10 @@ import (
 func BuildAgentConfigYAML(m *AgentManifest) string {
 	var b strings.Builder
 
+	if m.Spec.Runtime.SkillsDir != "" {
+		fmt.Fprintf(&b, "skills_dir: %s\n", m.Spec.Runtime.SkillsDir)
+	}
+
 	b.WriteString("tools:\n")
 	if len(m.Spec.Runtime.Tools.Allowed) > 0 {
 		b.WriteString("  allowed:\n")
@@ -48,5 +52,6 @@ func HasRuntimeConfig(m *AgentManifest) bool {
 		r.Tools.Exec.Timeout > 0 ||
 		r.Tools.Exec.MaxOutput > 0 ||
 		len(r.Tools.WebFetch.AllowedHosts) > 0 ||
-		r.Loop.MaxIterations > 0
+		r.Loop.MaxIterations > 0 ||
+		r.SkillsDir != ""
 }

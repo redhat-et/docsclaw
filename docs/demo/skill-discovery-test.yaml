@@ -8,10 +8,10 @@
 #   1. OCI image volume (document-summarizer from quay.io)
 #   2. ConfigMap (code-review, inline)
 #
-# Skills are mounted at /skills (separate from /config/agent) using
-# the --skills-dir flag. This avoids a Kubernetes limitation where
-# image volumes mounted as subdirectories of a ConfigMap volume
-# appear empty.
+# Skills are mounted at /skills (separate from /config/agent).
+# The skills_dir setting in agent-config.yaml points to /skills.
+# This avoids a Kubernetes limitation where image volumes mounted
+# as subdirectories of a ConfigMap volume appear empty.
 #
 # Prerequisites:
 #   oc project panni-docsclaw
@@ -61,6 +61,7 @@ data:
       "defaultOutputModes": ["text/plain"]
     }
   agent-config.yaml: |
+    skills_dir: /skills
     tools:
       allowed:
         - read_file
@@ -139,8 +140,6 @@ spec:
               type: RuntimeDefault
           args:
             - serve
-            - --skills-dir
-            - /skills
           ports:
             - containerPort: 8000
               name: http

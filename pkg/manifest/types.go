@@ -45,8 +45,9 @@ type SkillRef struct {
 }
 
 type RuntimeConfig struct {
-	Tools RuntimeToolsConfig `yaml:"tools"`
-	Loop  RuntimeLoopConfig  `yaml:"loop"`
+	Tools     RuntimeToolsConfig `yaml:"tools"`
+	Loop      RuntimeLoopConfig  `yaml:"loop"`
+	SkillsDir string             `yaml:"skillsDir,omitempty"`
 }
 
 type RuntimeToolsConfig struct {

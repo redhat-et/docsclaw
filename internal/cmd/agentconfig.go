@@ -14,9 +14,10 @@ import (
 
 // AgentConfig holds the agent-config.yaml configuration.
 type AgentConfig struct {
-	Tools ToolsConfig `yaml:"tools"`
-	Loop  LoopCfg     `yaml:"loop"`
-	RAG   *rag.Config `yaml:"rag"`
+	Tools     ToolsConfig `yaml:"tools"`
+	Loop      LoopCfg     `yaml:"loop"`
+	RAG       *rag.Config `yaml:"rag"`
+	SkillsDir string      `yaml:"skills_dir"`
 }
 
 // ToolsConfig configures tool availability and behavior.

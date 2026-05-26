@@ -243,9 +243,10 @@ volumeMounts:
     mountPath: /skills/x               # works
 ```
 
-For DocsClaw, use `--skills-dir /skills` to point to the separate
-mount path. Other agent frameworks may need an equivalent config
-option or environment variable (e.g., `SKILLS_DIR=/skills`).
+For DocsClaw, set `skills_dir: /skills` in `agent-config.yaml`
+(or use the `--skills-dir` CLI flag as an override). Other agent
+frameworks may need an equivalent config option or environment
+variable (e.g., `SKILLS_DIR=/skills`).
 
 This is a general Kubernetes limitation, not specific to any agent
 or OCI image format. It applies equally to ConfigMap-on-ConfigMap
