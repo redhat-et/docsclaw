@@ -89,7 +89,20 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skillDir := filepath.Join(s.skillsDir, skill.Name)
+	// Sanitize skill name to prevent path traversal
+	cleanName := filepath.Base(filepath.Clean(skill.Name))
+	if cleanName == "." || cleanName == ".." || cleanName == "" || cleanName != skill.Name {
+		s.log.Error("invalid skill name", "name", skill.Name)
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "skill name contains invalid characters"})
+		return
+	}
+
+	skillDir := filepath.Join(s.skillsDir, cleanName)
+	if !strings.HasPrefix(skillDir, filepath.Clean(s.skillsDir)+string(filepath.Separator)) {
+		s.log.Error("path escapes skills directory", "name", skill.Name)
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "skill name contains invalid characters"})
+		return
+	}
 	if err := os.MkdirAll(skillDir, 0o755); err != nil {
 		s.log.Error("create skill dir", "path", skillDir, "error", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to create skill directory"})

@@ -2,6 +2,7 @@ package skillpuller
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -148,6 +149,34 @@ func TestHandleList_WithSkills(t *testing.T) {
 	if resp.Skills[0] != "skill-a" || resp.Skills[1] != "skill-b" {
 		t.Errorf("skills = %v, want [skill-a skill-b]", resp.Skills)
 	}
+}
+
+func TestHandlePull_PathTraversal(t *testing.T) {
+	srv := newTestServer(t.TempDir())
+
+	// Inject a skill with a malicious name directly (simulates a
+	// source that returns a crafted skill name)
+	srv.sources["url"] = &pathTraversalSource{}
+
+	body, _ := json.Marshal(pullRequest{
+		Source: "url",
+		Ref:    "anything",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/skills/pull", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	srv.handlePull(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d; body = %s", w.Code, http.StatusBadRequest, w.Body.String())
+	}
+}
+
+type pathTraversalSource struct{}
+
+func (p *pathTraversalSource) Pull(_ context.Context, _ string, _ source.PullOptions) (*source.Skill, error) {
+	return &source.Skill{Name: "../../etc", Content: []byte("malicious")}, nil
 }
 
 func TestHandleHealthz(t *testing.T) {
