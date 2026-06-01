@@ -39,7 +39,10 @@ func (s *URLSource) Pull(ctx context.Context, ref string, _ PullOptions) (*Skill
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ref, nil)
+	// Build request from the parsed/validated URL, not the raw input,
+	// so static analysis can verify the URL was sanitized.
+	sanitizedURL := parsed.String()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sanitizedURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL %q: %w", ref, err)
 	}
