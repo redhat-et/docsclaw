@@ -17,8 +17,8 @@ import (
 )
 
 type Server struct {
-	SkillsDir string
-	Port      int
+	skillsDir string
+	port      int
 	log       *slog.Logger
 	sources   map[string]source.Source
 }
@@ -26,8 +26,8 @@ type Server struct {
 func NewServer(skillsDir string, port int) *Server {
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	return &Server{
-		SkillsDir: skillsDir,
-		Port:      port,
+		skillsDir: skillsDir,
+		port:      port,
 		log:       slog.Default(),
 		sources: map[string]source.Source{
 			"url":    &source.URLSource{Client: httpClient},
@@ -58,6 +58,7 @@ type listResponse struct {
 }
 
 func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req pullRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid JSON: " + err.Error()})
@@ -88,7 +89,7 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	skillDir := filepath.Join(s.SkillsDir, skill.Name)
+	skillDir := filepath.Join(s.skillsDir, skill.Name)
 	if err := os.MkdirAll(skillDir, 0o755); err != nil {
 		s.log.Error("create skill dir", "path", skillDir, "error", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to create skill directory"})
@@ -96,9 +97,16 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 	}
 
 	skillPath := filepath.Join(skillDir, "SKILL.md")
-	if err := os.WriteFile(skillPath, skill.Content, 0o644); err != nil {
-		s.log.Error("write skill", "path", skillPath, "error", err)
+	tmpPath := skillPath + ".tmp"
+	if err := os.WriteFile(tmpPath, skill.Content, 0o644); err != nil {
+		s.log.Error("write skill", "path", tmpPath, "error", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to write skill file"})
+		return
+	}
+	if err := os.Rename(tmpPath, skillPath); err != nil {
+		s.log.Error("rename skill", "from", tmpPath, "to", skillPath, "error", err)
+		_ = os.Remove(tmpPath)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to install skill file"})
 		return
 	}
 
@@ -115,7 +123,7 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleList(w http.ResponseWriter, _ *http.Request) {
 	var skills []string
 
-	entries, err := os.ReadDir(s.SkillsDir)
+	entries, err := os.ReadDir(s.skillsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			writeJSON(w, http.StatusOK, listResponse{Skills: []string{}})
@@ -129,7 +137,7 @@ func (s *Server) handleList(w http.ResponseWriter, _ *http.Request) {
 		if !entry.IsDir() {
 			continue
 		}
-		skillFile := filepath.Join(s.SkillsDir, entry.Name(), "SKILL.md")
+		skillFile := filepath.Join(s.skillsDir, entry.Name(), "SKILL.md")
 		if _, err := os.Stat(skillFile); err == nil {
 			skills = append(skills, entry.Name())
 		}
@@ -153,7 +161,7 @@ func (s *Server) Run() error {
 	mux.HandleFunc("GET /skills/list", s.handleList)
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 
-	addr := fmt.Sprintf(":%d", s.Port)
+	addr := fmt.Sprintf("127.0.0.1:%d", s.port)
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      mux,
@@ -175,7 +183,7 @@ func (s *Server) Run() error {
 		close(done)
 	}()
 
-	s.log.Info("skill-puller starting", "addr", addr, "skills_dir", s.SkillsDir)
+	s.log.Info("skill-puller starting", "addr", addr, "skills_dir", s.skillsDir)
 
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)

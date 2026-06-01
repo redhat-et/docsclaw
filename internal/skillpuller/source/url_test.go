@@ -15,7 +15,7 @@ func TestURLSource_Pull(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	src := &URLSource{Client: srv.Client()}
+	src := &URLSource{Client: srv.Client(), AllowPrivate: true}
 	skill, err := src.Pull(context.Background(), srv.URL+"/skills/my-skill/SKILL.md", PullOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -33,7 +33,7 @@ func TestURLSource_Pull_NotFound(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	defer srv.Close()
 
-	src := &URLSource{Client: srv.Client()}
+	src := &URLSource{Client: srv.Client(), AllowPrivate: true}
 	_, err := src.Pull(context.Background(), srv.URL+"/missing/SKILL.md", PullOptions{})
 	if err == nil {
 		t.Fatal("expected error for 404 response")

@@ -8,6 +8,7 @@ import (
 )
 
 func TestGithubRawURL(t *testing.T) {
+	base := "https://raw.githubusercontent.com"
 	tests := []struct {
 		ref     string
 		version string
@@ -31,7 +32,7 @@ func TestGithubRawURL(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		gotURL, _, err := githubRawURL(tt.ref, tt.version)
+		gotURL, _, err := githubRawURL(tt.ref, tt.version, base)
 		if tt.wantErr {
 			if err == nil {
 				t.Errorf("githubRawURL(%q, %q) expected error", tt.ref, tt.version)
@@ -62,20 +63,51 @@ func TestGitHubSource_Pull(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	urlSrc := &URLSource{Client: srv.Client()}
-	skill, err := urlSrc.Pull(
+	src := &GitHubSource{Client: srv.Client(), BaseURL: srv.URL, AllowPrivate: true}
+	skill, err := src.Pull(
 		context.Background(),
-		srv.URL+"/org/repo/main/skills/my-skill/SKILL.md",
+		"org/repo/skills/my-skill",
 		PullOptions{},
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if skill.Name != "my-skill" {
+		t.Errorf("name = %q, want %q", skill.Name, "my-skill")
+	}
 	if string(skill.Content) != content {
 		t.Errorf("content = %q, want %q", string(skill.Content), content)
 	}
+}
 
+func TestGitHubSource_Pull_WithVersion(t *testing.T) {
+	content := "---\nname: versioned\n---\nVersioned skill."
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := "/org/repo/v1.2.0/skills/versioned/SKILL.md"
+		if r.URL.Path != want {
+			t.Errorf("request path = %q, want %q", r.URL.Path, want)
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(content))
+	}))
+	defer srv.Close()
+
+	src := &GitHubSource{Client: srv.Client(), BaseURL: srv.URL, AllowPrivate: true}
+	skill, err := src.Pull(
+		context.Background(),
+		"org/repo/skills/versioned",
+		PullOptions{Version: "v1.2.0"},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if skill.Name != "versioned" {
+		t.Errorf("name = %q, want %q", skill.Name, "versioned")
+	}
 }
 
 func TestSkillNameFromPath(t *testing.T) {

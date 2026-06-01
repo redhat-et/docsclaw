@@ -7,8 +7,18 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/redhat-et/docsclaw/internal/skillpuller/source"
 )
+
+func newTestServer(skillsDir string) *Server {
+	srv := NewServer(skillsDir, 0)
+	srv.sources["url"] = &source.URLSource{AllowPrivate: true}
+	srv.sources["github"] = &source.GitHubSource{AllowPrivate: true}
+	return srv
+}
 
 func TestHandlePull_URL(t *testing.T) {
 	skillContent := "---\nname: fetched-skill\n---\nA test skill."
@@ -19,7 +29,7 @@ func TestHandlePull_URL(t *testing.T) {
 	defer upstream.Close()
 
 	skillsDir := t.TempDir()
-	srv := NewServer(skillsDir, 0)
+	srv := newTestServer(skillsDir)
 
 	body, _ := json.Marshal(pullRequest{
 		Source: "url",
@@ -133,6 +143,10 @@ func TestHandleList_WithSkills(t *testing.T) {
 
 	if len(resp.Skills) != 2 {
 		t.Fatalf("skills count = %d, want 2; got %v", len(resp.Skills), resp.Skills)
+	}
+	slices.Sort(resp.Skills)
+	if resp.Skills[0] != "skill-a" || resp.Skills[1] != "skill-b" {
+		t.Errorf("skills = %v, want [skill-a skill-b]", resp.Skills)
 	}
 }
 

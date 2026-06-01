@@ -43,6 +43,13 @@ spec:
           args: ["serve", "--skills-dir", "/skills"]
           ports:
             - containerPort: 8000
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: agent-config
               mountPath: /config/agent
@@ -65,6 +72,25 @@ spec:
           env:
             - name: DOCSCLAW_CONFIG_DIR
               value: /config/agent
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8001
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 10m
+            limits:
+              memory: 128Mi
+              cpu: 500m
           imagePullPolicy: Always
 
         - name: skill-puller
@@ -72,6 +98,13 @@ spec:
           args: ["--skills-dir", "/data/skills", "--port", "9100"]
           ports:
             - containerPort: 9100
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: dynamic-skills
               mountPath: /data/skills

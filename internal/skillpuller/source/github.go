@@ -4,20 +4,28 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
 type GitHubSource struct {
-	Client *http.Client
+	Client       *http.Client
+	BaseURL      string // override for testing; defaults to raw.githubusercontent.com
+	AllowPrivate bool   // skip SSRF checks (for testing only)
 }
 
 func (s *GitHubSource) Pull(ctx context.Context, ref string, opts PullOptions) (*Skill, error) {
-	rawURL, skillName, err := githubRawURL(ref, opts.Version)
+	baseURL := s.BaseURL
+	if baseURL == "" {
+		baseURL = "https://raw.githubusercontent.com"
+	}
+
+	rawURL, skillName, err := githubRawURL(ref, opts.Version, baseURL)
 	if err != nil {
 		return nil, err
 	}
 
-	urlSource := &URLSource{Client: s.Client}
+	urlSource := &URLSource{Client: s.Client, AllowPrivate: s.AllowPrivate}
 	skill, err := urlSource.Pull(ctx, rawURL, PullOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("github pull %q: %w", ref, err)
@@ -32,7 +40,9 @@ func (s *GitHubSource) Pull(ctx context.Context, ref string, opts PullOptions) (
 // skill name (last segment of the path).
 //
 // If the path does not end with SKILL.md, it is appended automatically.
-func githubRawURL(ref, version string) (string, string, error) {
+var safeSegment = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+func githubRawURL(ref, version, baseURL string) (string, string, error) {
 	parts := strings.SplitN(ref, "/", 3)
 	if len(parts) < 3 {
 		return "", "", fmt.Errorf("github ref must be owner/repo/path, got %q", ref)
@@ -40,8 +50,18 @@ func githubRawURL(ref, version string) (string, string, error) {
 
 	owner, repo, filePath := parts[0], parts[1], parts[2]
 
+	if !safeSegment.MatchString(owner) {
+		return "", "", fmt.Errorf("invalid owner %q", owner)
+	}
+	if !safeSegment.MatchString(repo) {
+		return "", "", fmt.Errorf("invalid repo %q", repo)
+	}
+
 	if version == "" {
 		version = "main"
+	}
+	if !safeSegment.MatchString(version) {
+		return "", "", fmt.Errorf("invalid version %q", version)
 	}
 
 	if !strings.HasSuffix(filePath, "SKILL.md") {
@@ -51,8 +71,8 @@ func githubRawURL(ref, version string) (string, string, error) {
 	// Extract skill name from the directory containing SKILL.md
 	skillName := skillNameFromPath(filePath)
 
-	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s",
-		owner, repo, version, filePath)
+	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s",
+		baseURL, owner, repo, version, filePath)
 
 	return rawURL, skillName, nil
 }

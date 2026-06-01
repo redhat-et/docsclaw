@@ -4,19 +4,39 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 )
 
+const maxSkillSize = 1 << 20 // 1 MiB
+
 type URLSource struct {
-	Client *http.Client
+	Client       *http.Client
+	AllowPrivate bool // skip SSRF checks (for testing only)
 }
 
 func (s *URLSource) Pull(ctx context.Context, ref string, _ PullOptions) (*Skill, error) {
 	client := s.Client
 	if client == nil {
 		client = http.DefaultClient
+	}
+
+	parsed, err := url.Parse(ref)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL %q: %w", ref, err)
+	}
+
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return nil, fmt.Errorf("unsupported scheme %q: only http and https are allowed", parsed.Scheme)
+	}
+
+	if !s.AllowPrivate {
+		if err := rejectPrivateHost(parsed.Hostname()); err != nil {
+			return nil, fmt.Errorf("blocked URL %q: %w", ref, err)
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ref, nil)
@@ -34,14 +54,49 @@ func (s *URLSource) Pull(ctx context.Context, ref string, _ PullOptions) (*Skill
 		return nil, fmt.Errorf("fetch %q: status %d", ref, resp.StatusCode)
 	}
 
-	content, err := io.ReadAll(resp.Body)
+	content, err := io.ReadAll(io.LimitReader(resp.Body, maxSkillSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("read %q: %w", ref, err)
+	}
+	if len(content) > maxSkillSize {
+		return nil, fmt.Errorf("skill from %q exceeds size limit (%d bytes)", ref, maxSkillSize)
 	}
 
 	name := skillNameFromURL(ref)
 
 	return &Skill{Name: name, Content: content}, nil
+}
+
+// rejectPrivateHost blocks requests to loopback, link-local, and
+// private IP ranges to prevent SSRF.
+func rejectPrivateHost(host string) error {
+	ip := net.ParseIP(host)
+	if ip == nil {
+		ips, err := net.LookupIP(host)
+		if err != nil || len(ips) == 0 {
+			return nil // let the HTTP client handle DNS failures
+		}
+		ip = ips[0]
+	}
+
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return fmt.Errorf("address %s is not allowed", ip)
+	}
+
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"169.254.0.0/16",
+	}
+	for _, cidr := range privateRanges {
+		_, network, _ := net.ParseCIDR(cidr)
+		if network.Contains(ip) {
+			return fmt.Errorf("address %s is in a private range", ip)
+		}
+	}
+
+	return nil
 }
 
 // skillNameFromURL extracts a skill name from a URL path.
