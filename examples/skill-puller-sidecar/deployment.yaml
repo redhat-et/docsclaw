@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: skill-puller-agent
+spec:
+  selector:
+    app: skill-puller-agent
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: skill-puller-agent
+spec:
+  to:
+    kind: Service
+    name: skill-puller-agent
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skill-puller-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: skill-puller-agent
+  template:
+    metadata:
+      labels:
+        app: skill-puller-agent
+    spec:
+      containers:
+        - name: agent
+          image: ghcr.io/redhat-et/docsclaw:e54a9c1
+          args: ["serve", "--skills-dir", "/skills"]
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: skill-code-review
+              mountPath: /skills/static/code-review
+              readOnly: true
+            - name: skill-url-summary
+              mountPath: /skills/static/url-summary
+              readOnly: true
+            - name: skill-skill-pull
+              mountPath: /skills/static/skill-pull
+              readOnly: true
+            - name: dynamic-skills
+              mountPath: /skills/dynamic
+              readOnly: true
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          env:
+            - name: DOCSCLAW_CONFIG_DIR
+              value: /config/agent
+          imagePullPolicy: Always
+
+        - name: skill-puller
+          image: ghcr.io/redhat-et/docsclaw-skill-puller:dev
+          args: ["--skills-dir", "/data/skills", "--port", "9100"]
+          ports:
+            - containerPort: 9100
+          volumeMounts:
+            - name: dynamic-skills
+              mountPath: /data/skills
+              readOnly: false
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9100
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: 16Mi
+              cpu: 10m
+            limits:
+              memory: 32Mi
+              cpu: 100m
+
+      volumes:
+        - name: agent-config
+          configMap:
+            name: skill-puller-config
+        - name: skill-code-review
+          configMap:
+            name: skill-puller-skill-code-review
+        - name: skill-url-summary
+          configMap:
+            name: skill-puller-skill-url-summary
+        - name: skill-skill-pull
+          configMap:
+            name: skill-puller-skill-skill-pull
+        - name: dynamic-skills
+          emptyDir: {}

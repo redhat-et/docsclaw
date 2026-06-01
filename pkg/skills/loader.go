@@ -15,63 +15,95 @@ type SkillMeta struct {
 	Dir         string
 }
 
-// Discover scans the skills directory for subdirectories containing
-// SKILL.md files and returns their metadata.
+// Discover recursively scans the skills directory for subdirectories
+// containing SKILL.md files and returns their metadata.
 func Discover(skillsDir string) ([]SkillMeta, error) {
-	entries, err := os.ReadDir(skillsDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to read skills directory: %w", err)
+	if _, err := os.Stat(skillsDir); os.IsNotExist(err) {
+		return nil, nil
 	}
 
 	var skills []SkillMeta
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		skillFile := filepath.Join(skillsDir, entry.Name(), "SKILL.md")
-		if _, err := os.Stat(skillFile); os.IsNotExist(err) {
-			continue
-		}
 
-		meta, err := ParseFrontmatter(skillFile)
+	err := filepath.WalkDir(skillsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			slog.Warn("skipping skill with invalid SKILL.md", "dir", entry.Name(), "error", err)
-			continue
+			return nil
 		}
-		meta.Dir = filepath.Join(skillsDir, entry.Name())
+		// Skip hidden directories (e.g. ..data, ..2024_01_01 created
+		// by Kubernetes ConfigMap volume mounts)
+		if d.IsDir() && strings.HasPrefix(d.Name(), "..") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Name() != "SKILL.md" {
+			return nil
+		}
 
-		// If skill.yaml exists, prefer its description.
-		cardPath := filepath.Join(skillsDir, entry.Name(), "skill.yaml")
+		dir := filepath.Dir(path)
+
+		meta, err := ParseFrontmatter(path)
+		if err != nil {
+			slog.Warn("skipping skill with invalid SKILL.md", "path", path, "error", err)
+			return nil
+		}
+		meta.Dir = dir
+
+		cardPath := filepath.Join(dir, "skill.yaml")
 		if _, statErr := os.Stat(cardPath); statErr == nil {
 			if sy, parseErr := ParseSkillYAML(cardPath); parseErr == nil {
 				if sy.Metadata.Description != "" {
 					meta.Description = sy.Metadata.Description
 				}
 			} else {
-				slog.Warn("skill.yaml exists but failed to parse", "dir", entry.Name(), "error", parseErr)
+				slog.Warn("skill.yaml exists but failed to parse", "dir", dir, "error", parseErr)
 			}
 		}
 
 		skills = append(skills, meta)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk skills directory: %w", err)
 	}
 
 	return skills, nil
 }
 
 // LoadContent reads the full content of a skill's SKILL.md file.
+// It searches recursively under skillsDir for a directory matching
+// the skill name that contains a SKILL.md file.
 func LoadContent(skillsDir, name string) (string, error) {
-	// Validate skill name to prevent path traversal
 	if name == "" || name != filepath.Base(name) || name == "." || name == ".." {
 		return "", fmt.Errorf("invalid skill name: %q", name)
 	}
 
+	// Try direct path first (backward compatible)
 	path := filepath.Join(skillsDir, name, "SKILL.md")
-	data, err := os.ReadFile(path)
+	if data, err := os.ReadFile(path); err == nil {
+		return fmt.Sprintf("=== SKILL: %s ===\n%s", name, string(data)), nil
+	}
+
+	// Search recursively
+	var found string
+	_ = filepath.WalkDir(skillsDir, func(p string, d os.DirEntry, err error) error {
+		if err != nil || found != "" {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && d.Name() == "SKILL.md" && filepath.Base(filepath.Dir(p)) == name {
+			found = p
+			return filepath.SkipAll
+		}
+		return nil
+	})
+
+	if found == "" {
+		return "", fmt.Errorf("skill '%s' not found", name)
+	}
+
+	data, err := os.ReadFile(found)
 	if err != nil {
-		return "", fmt.Errorf("skill '%s' not found: %w", name, err)
+		return "", fmt.Errorf("skill '%s': %w", name, err)
 	}
 	return fmt.Sprintf("=== SKILL: %s ===\n%s", name, string(data)), nil
 }
