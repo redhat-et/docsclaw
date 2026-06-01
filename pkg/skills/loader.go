@@ -26,6 +26,7 @@ func Discover(skillsDir string) ([]SkillMeta, error) {
 
 	err := filepath.WalkDir(skillsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			slog.Warn("error accessing path during skill discovery", "path", path, "error", err)
 			return nil
 		}
 		// Skip hidden directories (e.g. ..data, ..2024_01_01 created
@@ -87,7 +88,13 @@ func LoadContent(skillsDir, name string) (string, error) {
 	// Search recursively
 	var found string
 	_ = filepath.WalkDir(skillsDir, func(p string, d os.DirEntry, err error) error {
-		if err != nil || found != "" {
+		if err != nil {
+			return filepath.SkipDir
+		}
+		if found != "" {
+			return filepath.SkipAll
+		}
+		if d.IsDir() && strings.HasPrefix(d.Name(), "..") {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && d.Name() == "SKILL.md" && filepath.Base(filepath.Dir(p)) == name {

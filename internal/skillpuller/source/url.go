@@ -69,30 +69,42 @@ func (s *URLSource) Pull(ctx context.Context, ref string, _ PullOptions) (*Skill
 
 // rejectPrivateHost blocks requests to loopback, link-local, and
 // private IP ranges to prevent SSRF.
-func rejectPrivateHost(host string) error {
-	ip := net.ParseIP(host)
-	if ip == nil {
-		ips, err := net.LookupIP(host)
-		if err != nil || len(ips) == 0 {
-			return nil // let the HTTP client handle DNS failures
-		}
-		ip = ips[0]
-	}
+var privateNetworks []*net.IPNet
 
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return fmt.Errorf("address %s is not allowed", ip)
-	}
-
-	privateRanges := []string{
+func init() {
+	for _, cidr := range []string{
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
 		"169.254.0.0/16",
-	}
-	for _, cidr := range privateRanges {
+		"127.0.0.0/8",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
+	} {
 		_, network, _ := net.ParseCIDR(cidr)
-		if network.Contains(ip) {
-			return fmt.Errorf("address %s is in a private range", ip)
+		privateNetworks = append(privateNetworks, network)
+	}
+}
+
+func rejectPrivateHost(host string) error {
+	ips := []net.IP{net.ParseIP(host)}
+	if ips[0] == nil {
+		resolved, err := net.LookupIP(host)
+		if err != nil || len(resolved) == 0 {
+			return fmt.Errorf("cannot resolve host %q", host)
+		}
+		ips = resolved
+	}
+
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+			return fmt.Errorf("address %s is not allowed", ip)
+		}
+		for _, network := range privateNetworks {
+			if network.Contains(ip) {
+				return fmt.Errorf("address %s is in a private range", ip)
+			}
 		}
 	}
 

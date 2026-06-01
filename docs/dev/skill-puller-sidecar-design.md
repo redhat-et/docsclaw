@@ -35,8 +35,8 @@ We considered alternatives:
 
 The sidecar with a read-only volume mount is the simplest
 Kubernetes-native solution. The enforcement is at the VFS mount
-level — the agent kernel-enforced cannot write to the skills
-path, regardless of what code runs inside it.
+level — the kernel prevents the agent from writing to the
+skills path, regardless of what code runs inside it.
 
 ## Architecture
 

@@ -2,7 +2,8 @@ package main
 
 import (
 	"flag"
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/redhat-et/docsclaw/internal/skillpuller"
 )
@@ -14,6 +15,7 @@ func main() {
 
 	srv := skillpuller.NewServer(*skillsDir, *port)
 	if err := srv.Run(); err != nil {
-		log.Fatal(err)
+		slog.Error("failed to run server", "error", err)
+		os.Exit(1)
 	}
 }

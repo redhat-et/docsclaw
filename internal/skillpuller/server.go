@@ -110,10 +110,30 @@ func (s *Server) handlePull(w http.ResponseWriter, r *http.Request) {
 	}
 
 	skillPath := filepath.Join(skillDir, "SKILL.md")
-	tmpPath := skillPath + ".tmp"
-	if err := os.WriteFile(tmpPath, skill.Content, 0o644); err != nil {
+	tmpFile, err := os.CreateTemp(skillDir, "skill-*.tmp")
+	if err != nil {
+		s.log.Error("create temp file", "dir", skillDir, "error", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to create temp file"})
+		return
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.Write(skill.Content); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 		s.log.Error("write skill", "path", tmpPath, "error", err)
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to write skill file"})
+		return
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		s.log.Error("close temp file", "path", tmpPath, "error", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to write skill file"})
+		return
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		_ = os.Remove(tmpPath)
+		s.log.Error("chmod temp file", "path", tmpPath, "error", err)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to set file permissions"})
 		return
 	}
 	if err := os.Rename(tmpPath, skillPath); err != nil {
