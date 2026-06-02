@@ -125,6 +125,98 @@ metadata:
 	}
 }
 
+func TestDiscoverNestedSkills(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, path := range []string{
+		"static/code-review",
+		"static/url-summary",
+		"dynamic/fetched-skill",
+	} {
+		skillDir := filepath.Join(dir, path)
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		name := filepath.Base(path)
+		content := "---\nname: " + name + "\ndescription: test\n---\n"
+		if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	skills, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(skills) != 3 {
+		t.Fatalf("expected 3 skills, got %d", len(skills))
+	}
+
+	names := make(map[string]bool)
+	for _, s := range skills {
+		names[s.Name] = true
+	}
+	for _, want := range []string{"code-review", "url-summary", "fetched-skill"} {
+		if !names[want] {
+			t.Errorf("missing skill %q", want)
+		}
+	}
+}
+
+func TestDiscoverSkipsK8sDataSymlink(t *testing.T) {
+	dir := t.TempDir()
+
+	// Simulate K8s ConfigMap mount: real file in ..data, symlink in skill dir
+	skillDir := filepath.Join(dir, "my-skill")
+	dataDir := filepath.Join(skillDir, "..data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := "---\nname: my-skill\ndescription: test\n---\n"
+	if err := os.WriteFile(filepath.Join(dataDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Symlink SKILL.md -> ..data/SKILL.md (like K8s does)
+	if err := os.Symlink("..data/SKILL.md", filepath.Join(skillDir, "SKILL.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	skills, err := Discover(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should find exactly 1, not 2 (the ..data copy should be skipped)
+	if len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(skills))
+	}
+	if skills[0].Name != "my-skill" {
+		t.Errorf("name = %q, want %q", skills[0].Name, "my-skill")
+	}
+}
+
+func TestLoadContentRecursive(t *testing.T) {
+	dir := t.TempDir()
+
+	// Skill nested under static/
+	skillDir := filepath.Join(dir, "static", "deep-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := "---\nname: deep-skill\ndescription: nested\n---\n# Deep\n"
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := LoadContent(dir, "deep-skill")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result, "deep-skill") {
+		t.Errorf("result = %q, want to contain 'deep-skill'", result)
+	}
+}
+
 func TestBuildSkillSummary(t *testing.T) {
 	skills := []SkillMeta{
 		{Name: "code-review", Description: "Review code for bugs"},

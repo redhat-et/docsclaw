@@ -18,10 +18,13 @@ OUTDIR ?= deploy/generated/$(NAME)
 NAMESPACE ?=
 KUBECTL ?= oc
 
-.PHONY: build test lint fmt clean image image-push agent-build agent-image agent-push configmap-gen configmap-apply
+.PHONY: build build-skill-puller test lint fmt clean image image-push agent-build agent-image agent-push configmap-gen configmap-apply
 
 build:
 	go build -o $(BINDIR)/$(BINARY) ./cmd/docsclaw
+
+build-skill-puller:
+	go build -o $(BINDIR)/skill-puller ./cmd/skill-puller
 
 test:
 	go test ./...
@@ -100,25 +103,24 @@ endif
 		$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
 		--dry-run=client -o yaml > $(OUTDIR)/config.yaml
 	@echo "  Created $(OUTDIR)/config.yaml"
-	@# --- Skills ConfigMap (only if skills/ exists) ---
+	@# --- Per-skill ConfigMaps (only if skills/ exists) ---
 	@if [ -d "$(CONFIG_DIR)/skills" ]; then \
-		SKILL_FILES=""; \
+		FOUND=0; \
 		for skill_dir in $(CONFIG_DIR)/skills/*/; do \
 			skill_name=$$(basename "$$skill_dir"); \
-			[ -f "$$skill_dir/SKILL.md" ] && \
-				SKILL_FILES="$$SKILL_FILES --from-file=$$skill_name.SKILL.md=$$skill_dir/SKILL.md"; \
-		done; \
-		if [ -n "$$SKILL_FILES" ]; then \
-			$(KUBECTL) create configmap $(NAME)-skills \
-				$$SKILL_FILES \
+			[ -f "$$skill_dir/SKILL.md" ] || continue; \
+			FOUND=1; \
+			$(KUBECTL) create configmap $(NAME)-skill-$$skill_name \
+				--from-file=SKILL.md=$$skill_dir/SKILL.md \
 				$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
-				--dry-run=client -o yaml > $(OUTDIR)/skills.yaml; \
-			echo "  Created $(OUTDIR)/skills.yaml"; \
-		else \
-			echo "  No SKILL.md files found in $(CONFIG_DIR)/skills/, skipping skills ConfigMap"; \
+				--dry-run=client -o yaml > $(OUTDIR)/skill-$$skill_name.yaml; \
+			echo "  Created $(OUTDIR)/skill-$$skill_name.yaml"; \
+		done; \
+		if [ "$$FOUND" = "0" ]; then \
+			echo "  No SKILL.md files found in $(CONFIG_DIR)/skills/, skipping skill ConfigMaps"; \
 		fi; \
 	else \
-		echo "  No skills/ directory found, skipping skills ConfigMap"; \
+		echo "  No skills/ directory found, skipping skill ConfigMaps"; \
 	fi
 	@echo "Done. Apply with: $(KUBECTL) apply -f $(OUTDIR)/"
 
@@ -139,24 +141,23 @@ endif
 		$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
 		--dry-run=client -o yaml | $(KUBECTL) apply -f -
 	@echo "  Applied $(NAME)-config"
-	@# --- Skills ConfigMap (only if skills/ exists) ---
+	@# --- Per-skill ConfigMaps (only if skills/ exists) ---
 	@if [ -d "$(CONFIG_DIR)/skills" ]; then \
-		SKILL_FILES=""; \
+		FOUND=0; \
 		for skill_dir in $(CONFIG_DIR)/skills/*/; do \
 			skill_name=$$(basename "$$skill_dir"); \
-			[ -f "$$skill_dir/SKILL.md" ] && \
-				SKILL_FILES="$$SKILL_FILES --from-file=$$skill_name.SKILL.md=$$skill_dir/SKILL.md"; \
-		done; \
-		if [ -n "$$SKILL_FILES" ]; then \
-			$(KUBECTL) create configmap $(NAME)-skills \
-				$$SKILL_FILES \
+			[ -f "$$skill_dir/SKILL.md" ] || continue; \
+			FOUND=1; \
+			$(KUBECTL) create configmap $(NAME)-skill-$$skill_name \
+				--from-file=SKILL.md=$$skill_dir/SKILL.md \
 				$(if $(NAMESPACE),--namespace $(NAMESPACE),) \
 				--dry-run=client -o yaml | $(KUBECTL) apply -f -; \
-			echo "  Applied $(NAME)-skills"; \
-		else \
-			echo "  No SKILL.md files found in $(CONFIG_DIR)/skills/, skipping skills ConfigMap"; \
+			echo "  Applied $(NAME)-skill-$$skill_name"; \
+		done; \
+		if [ "$$FOUND" = "0" ]; then \
+			echo "  No SKILL.md files found in $(CONFIG_DIR)/skills/, skipping skill ConfigMaps"; \
 		fi; \
 	else \
-		echo "  No skills/ directory found, skipping skills ConfigMap"; \
+		echo "  No skills/ directory found, skipping skill ConfigMaps"; \
 	fi
 	@echo "Done."

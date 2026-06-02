@@ -1,0 +1,23 @@
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /skill-puller ./cmd/skill-puller
+
+FROM alpine:3.23
+
+RUN apk --no-cache add ca-certificates && \
+    addgroup -S skillpuller && adduser -S skillpuller -G skillpuller
+
+WORKDIR /app
+COPY --from=builder /skill-puller /app/skill-puller
+
+USER skillpuller
+
+EXPOSE 9100
+
+ENTRYPOINT ["/app/skill-puller"]
