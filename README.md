@@ -25,15 +25,23 @@ a2a discover http://localhost:8000
 a2a send http://localhost:8000 "Summarize https://go.dev/blog/go1.24"
 ```
 
-Or use the built-in interactive chat:
+DocsClaw exposes an OpenAI-compatible `/v1/chat/completions`
+endpoint, so any chat client that speaks that protocol works out of
+the box:
 
-```bash
-./bin/docsclaw chat --agent-url http://localhost:8000
-```
+| Client | Type | Notes |
+| ------ | ---- | ----- |
+| [Open WebUI](https://github.com/open-webui/open-webui) | Web | Full-featured; recommended for teams |
+| [Chatbox](https://chatboxai.app) | Desktop | macOS/Windows/Linux; simple setup |
+| [oterm](https://github.com/ggozad/oterm) | Terminal | Lightweight TUI |
+| [aichat](https://github.com/sigoden/aichat) | Terminal | Multi-model CLI with streaming |
 
-The agent uses `web_fetch` to retrieve the page, then summarizes
-it. Replace the text with any task — the agent decides which tools
-to call.
+Point the client at `http://<agent-host>:8000/v1` as the base URL
+and use any string as the API key (DocsClaw doesn't require one).
+
+The agent uses `web_fetch` to retrieve pages, `exec` to run
+commands, and other tools as configured. Replace the text with any
+task — the agent decides which tools to call.
 
 ## How it works
 
@@ -209,23 +217,24 @@ Set via environment variables:
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────┐
-│  docsclaw serve                                 │
-│                                                 │
-│  ┌──────────┐   ┌──────────┐   ┌────────────┐   │
-│  │ A2A      │──▶│ Agentic  │──▶│ LLM        │   │
-│  │ Endpoint │   │ Loop     │   │ Provider   │   │
-│  └──────────┘   └────┬─────┘   └────────────┘   │
-│                      │                          │
-│            ┌─────────┼─────────┐                │
-│            ▼         ▼         ▼                │
-│       ┌────────┐ ┌────────┐ ┌────────┐          │
-│       │  exec  │ │  web   │ │  read  │ ...      │
-│       │        │ │  fetch │ │  file  │          │
-│       └────────┘ └────────┘ └────────┘          │
-│                                                 │
-│  Config: system-prompt.txt + agent-config.yaml  │
-└─────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│  docsclaw serve                                   │
+│                                                   │
+│  ┌──────────┐  ┌───────────────┐  ┌────────────┐  │
+│  │ A2A      │  │ OpenAI-compat │  │            │  │
+│  │ /a2a     │──│ /v1/chat/     │──│ LLM        │  │
+│  │          │  │ completions   │  │ Provider   │  │
+│  └──────────┘  └───────┬───────┘  └────────────┘  │
+│                        │                          │
+│              ┌─────────┼─────────┐                │
+│              ▼         ▼         ▼                │
+│         ┌────────┐ ┌────────┐ ┌────────┐          │
+│         │  exec  │ │  web   │ │  read  │ ...      │
+│         │        │ │  fetch │ │  file  │          │
+│         └────────┘ └────────┘ └────────┘          │
+│                                                   │
+│  Config: system-prompt.txt + agent-config.yaml    │
+└───────────────────────────────────────────────────┘
 ```
 
 ## Custom agent images

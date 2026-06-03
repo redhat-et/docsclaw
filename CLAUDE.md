@@ -45,8 +45,7 @@ Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 | Path | Description |
 | ---- | ----------- |
 | `cmd/docsclaw/` | Main entrypoint; registers LLM providers |
-| `internal/cmd/` | Cobra commands (root, serve, chat, agentconfig) |
-| `internal/chat/` | Bubble Tea interactive chat TUI |
+| `internal/cmd/` | Cobra commands (root, serve, batch, agentconfig) |
 | `internal/anthropic/` | Anthropic LLM provider (auto-registers via init) |
 | `internal/openai/` | OpenAI-compatible provider (auto-registers via init) |
 | `internal/exec/` | Shell command execution tool |
