@@ -13,6 +13,10 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build the DocsClaw binary
 # ---------------------------------------------------------------------------
+# Base images use :latest intentionally — Red Hat Hardened Images receive
+# continuous security patches, and pinning to a digest would freeze those
+# updates. Trade-off: builds are not fully reproducible, but the runtime
+# always includes the latest CVE fixes from Red Hat.
 FROM registry.access.redhat.com/hi/go:latest AS builder
 
 WORKDIR /app
