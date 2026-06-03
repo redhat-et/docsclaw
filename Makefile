@@ -18,7 +18,7 @@ OUTDIR ?= deploy/generated/$(NAME)
 NAMESPACE ?=
 KUBECTL ?= oc
 
-.PHONY: build build-skill-puller test lint fmt clean image image-push agent-build agent-image agent-push configmap-gen configmap-apply
+.PHONY: build build-skill-puller test lint fmt clean image image-push image-security image-security-push agent-build agent-image agent-push configmap-gen configmap-apply
 
 build:
 	go build -o $(BINDIR)/$(BINARY) ./cmd/docsclaw
@@ -46,6 +46,15 @@ image:
 
 image-push: image
 	$(CONTAINER_ENGINE) push $(REGISTRY):$(DEV_TAG)
+
+image-security:
+	$(CONTAINER_ENGINE) build \
+		--platform linux/amd64 \
+		-t $(REGISTRY):$(DEV_TAG)-security \
+		-f containers/Containerfile.security .
+
+image-security-push: image-security
+	$(CONTAINER_ENGINE) push $(REGISTRY):$(DEV_TAG)-security
 
 # --- Agent image from manifest ---
 # Build a custom agent image from an agent manifest.

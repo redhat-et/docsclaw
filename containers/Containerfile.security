@@ -1,0 +1,137 @@
+# =============================================================================
+# Containerfile.security — Security-focused DocsClaw image
+# =============================================================================
+# Bundles code scanning, vulnerability detection, and supply chain security
+# tools into the DocsClaw agent runtime using Red Hat Hardened Images.
+#
+# Build:
+#   podman build -f containers/Containerfile.security -t docsclaw:security .
+#
+# See also: https://github.com/redhat-et/docsclaw/issues/85
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build the DocsClaw binary
+# ---------------------------------------------------------------------------
+# Base images use :latest intentionally — Red Hat Hardened Images receive
+# continuous security patches, and pinning to a digest would freeze those
+# updates. Trade-off: builds are not fully reproducible, but the runtime
+# always includes the latest CVE fixes from Red Hat.
+FROM registry.access.redhat.com/hi/go:latest AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /docsclaw ./cmd/docsclaw
+
+# ---------------------------------------------------------------------------
+# Stage 2: Download security tool binaries
+# ---------------------------------------------------------------------------
+# Using standard UBI for downloads — this stage is discarded after build,
+# so hardening is not needed here. The hi/go image lacks curl/tar.
+FROM registry.access.redhat.com/ubi9/ubi:latest AS tools
+
+ARG TRIVY_VERSION=0.71.0
+ARG TRIVY_SHA256=30a3d22b23f88c233f1658f562fb477cae3b3e8b4761109d515b7698daf85814
+ARG GOSEC_VERSION=2.27.1
+ARG GOSEC_SHA256=a1cc5fba45fb51131ba05dee4029b364f62f4b6739b8f24236f93de82f40da40
+ARG GITLEAKS_VERSION=8.30.1
+ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+ARG TRUFFLEHOG_VERSION=3.95.5
+ARG TRUFFLEHOG_SHA256=8d151a19465973bec226be5992a2a11b053f4ab92c77861f642089892ae9aa58
+ARG GRYPE_VERSION=0.113.0
+ARG GRYPE_SHA256=d87059d11616446a5dd817a47c21823676b4b24bdaac529695ca404a32ba339d
+ARG SYFT_VERSION=1.45.0
+ARG SYFT_SHA256=cd5efa489e93ecde99c03a218db5dee8b3f03610466d7565cefd735610d1b28b
+ARG COSIGN_VERSION=3.0.6
+ARG COSIGN_SHA256=c956e5dfcac53d52bcf058360d579472f0c1d2d9b69f55209e256fe7783f4c74
+
+WORKDIR /tools
+
+RUN curl -sSfL -o trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+    && echo "${TRIVY_SHA256}  trivy.tar.gz" | sha256sum -c - \
+    && tar xzf trivy.tar.gz -C /tools trivy && rm trivy.tar.gz \
+    && curl -sSfL -o gosec.tar.gz "https://github.com/securego/gosec/releases/download/v${GOSEC_VERSION}/gosec_${GOSEC_VERSION}_linux_amd64.tar.gz" \
+    && echo "${GOSEC_SHA256}  gosec.tar.gz" | sha256sum -c - \
+    && tar xzf gosec.tar.gz -C /tools gosec && rm gosec.tar.gz \
+    && curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+    && echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c - \
+    && tar xzf gitleaks.tar.gz -C /tools gitleaks && rm gitleaks.tar.gz \
+    && curl -sSfL -o trufflehog.tar.gz "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz" \
+    && echo "${TRUFFLEHOG_SHA256}  trufflehog.tar.gz" | sha256sum -c - \
+    && tar xzf trufflehog.tar.gz -C /tools trufflehog && rm trufflehog.tar.gz \
+    && curl -sSfL -o grype.tar.gz "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" \
+    && echo "${GRYPE_SHA256}  grype.tar.gz" | sha256sum -c - \
+    && tar xzf grype.tar.gz -C /tools grype && rm grype.tar.gz \
+    && curl -sSfL -o syft.tar.gz "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" \
+    && echo "${SYFT_SHA256}  syft.tar.gz" | sha256sum -c - \
+    && tar xzf syft.tar.gz -C /tools syft && rm syft.tar.gz \
+    && curl -sSfL -o /tools/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" \
+    && echo "${COSIGN_SHA256}  /tools/cosign" | sha256sum -c - \
+    && chmod +x /tools/cosign
+
+# ---------------------------------------------------------------------------
+# Stage 3: Assemble the security-focused runtime image
+# ---------------------------------------------------------------------------
+FROM registry.access.redhat.com/hi/core-runtime:latest
+
+USER root
+
+# tpm2-tss (a transitive dependency of containers-common/skopeo) ships a
+# %sysusers scriptlet that calls systemd-sysusers, which doesn't exist in
+# the hardened runtime. Provide a no-op stub so the scriptlet succeeds.
+RUN printf '#!/bin/sh\nexit 0\n' > /usr/bin/systemd-sysusers \
+    && chmod +x /usr/bin/systemd-sysusers
+
+RUN --mount=type=bind,from=registry.access.redhat.com/hi/core-runtime:latest-builder,target=/builder \
+    LD_LIBRARY_PATH=/builder/lib64:/builder/usr/lib64 \
+    RPM_CONFIGDIR=/builder/usr/lib/rpm \
+    /builder/usr/bin/dnf install -y \
+    --installroot=/ \
+    --setopt=reposdir=/builder/etc/yum.repos.d \
+    --setopt=install_weak_deps=False \
+    --setopt=tsflags=nodocs \
+    curl \
+    jq \
+    git-core \
+    make \
+    python3 \
+    python3-pip \
+    ShellCheck \
+    skopeo \
+    && rm -f /usr/bin/systemd-sysusers
+
+ARG SEMGREP_VERSION=1.164.0
+ARG BANDIT_VERSION=1.9.4
+RUN python3 -m pip install --no-cache-dir \
+    semgrep==${SEMGREP_VERSION} \
+    bandit==${BANDIT_VERSION}
+
+COPY --from=tools /tools/trivy      /usr/local/bin/trivy
+COPY --from=tools /tools/gosec      /usr/local/bin/gosec
+COPY --from=tools /tools/gitleaks   /usr/local/bin/gitleaks
+COPY --from=tools /tools/trufflehog /usr/local/bin/trufflehog
+COPY --from=tools /tools/grype      /usr/local/bin/grype
+COPY --from=tools /tools/syft       /usr/local/bin/syft
+COPY --from=tools /tools/cosign     /usr/local/bin/cosign
+
+RUN mkdir -p /tmp/agent-workspace \
+    && chown 65532:0 /tmp/agent-workspace \
+    && chmod 775 /tmp/agent-workspace
+
+# Trivy and grype need writable cache directories
+ENV TRIVY_CACHE_DIR=/tmp/agent-workspace/.cache/trivy
+ENV GRYPE_DB_CACHE_DIR=/tmp/agent-workspace/.cache/grype
+
+USER 65532
+
+WORKDIR /app
+COPY --from=builder /docsclaw /app/docsclaw
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/docsclaw"]
+CMD ["serve"]
