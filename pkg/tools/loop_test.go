@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
@@ -425,5 +429,106 @@ func TestBeforeToolCallHookDenial(t *testing.T) {
 	// AfterToolCall should NOT be called for denied tools
 	if len(hook.afterCalls) != 0 {
 		t.Fatalf("expected no AfterToolCall for denied tool, got %v", hook.afterCalls)
+	}
+}
+
+func TestRunToolLoopTracing(t *testing.T) {
+	prev := otel.GetTracerProvider()
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() {
+		_ = tp.Shutdown(context.Background())
+		otel.SetTracerProvider(prev)
+	})
+
+	provider := &mockProvider{
+		responses: []*llm.Response{
+			{
+				StopReason: llm.StopReasonToolUse,
+				Content:    "Let me use the tool.",
+				ToolCalls: []llm.ToolCall{
+					{ID: "tc1", Name: "test_tool", Args: map[string]any{"key": "value"}},
+				},
+				Usage: llm.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120},
+			},
+			{
+				StopReason: llm.StopReasonEndTurn,
+				Content:    "Done.",
+				Usage:      llm.Usage{InputTokens: 150, OutputTokens: 10, TotalTokens: 160},
+			},
+		},
+	}
+
+	registry := NewRegistry(nil)
+	registry.Register(&mockTool{name: "test_tool", output: "tool_result"})
+
+	messages := []llm.Message{
+		{Role: "user", Content: "Use the tool"},
+	}
+
+	_, err := RunToolLoop(context.Background(), provider, messages,
+		registry, DefaultLoopConfig())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	_ = tp.ForceFlush(context.Background())
+	spans := exporter.GetSpans()
+
+	// Collect span names for verification.
+	spanNames := make(map[string]bool)
+	for _, s := range spans {
+		spanNames[s.Name] = true
+	}
+
+	// Verify the expected span hierarchy was produced.
+	expectedSpans := []string{
+		"agent.loop",
+		"agent.loop.iteration.1",
+		"agent.loop.iteration.2",
+		"tool.execute",
+	}
+	for _, name := range expectedSpans {
+		if !spanNames[name] {
+			t.Errorf("expected span %q not found in %v", name, spanNames)
+		}
+	}
+
+	// Verify token usage attributes on an iteration span.
+	for _, s := range spans {
+		if s.Name == "agent.loop.iteration.1" {
+			found := false
+			for _, attr := range s.Attributes {
+				if string(attr.Key) == "llm.usage.total_tokens" {
+					found = true
+					if attr.Value.AsInt64() != 120 {
+						t.Errorf("expected total_tokens=120, got %d", attr.Value.AsInt64())
+					}
+				}
+			}
+			if !found {
+				t.Error("llm.usage.total_tokens attribute not found on iteration span")
+			}
+		}
+	}
+
+	// Verify tool.execute span has the tool.name attribute.
+	for _, s := range spans {
+		if s.Name == "tool.execute" {
+			found := false
+			for _, attr := range s.Attributes {
+				if string(attr.Key) == "tool.name" && attr.Value.AsString() == "test_tool" {
+					found = true
+				}
+			}
+			if !found {
+				t.Error("tool.name attribute not found on tool.execute span")
+			}
+			// Verify tool args and result events were recorded.
+			if len(s.Events) < 2 {
+				t.Errorf("expected at least 2 events (args + result), got %d", len(s.Events))
+			}
+		}
 	}
 }

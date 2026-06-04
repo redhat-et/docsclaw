@@ -12,6 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
@@ -180,6 +185,13 @@ func NewOpenAICompatProvider(cfg llm.Config) (*OpenAICompatProvider, error) {
 
 // Complete sends a message to the OpenAI-compatible API and returns the response
 func (p *OpenAICompatProvider) Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	ctx, span := otel.Tracer(telemetry.TracerName).Start(ctx, "llm.api.call",
+		trace.WithAttributes(
+			telemetry.AttrLLMProvider.String(p.providerName),
+			telemetry.AttrLLMModel.String(p.model),
+		))
+	defer span.End()
+
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
@@ -208,33 +220,49 @@ func (p *OpenAICompatProvider) Complete(ctx context.Context, systemPrompt, userP
 
 	resp, err := p.client.Do(req)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp openAIChatResponse
 		if json.Unmarshal(body, &errResp) == nil && errResp.Error != nil {
-			return "", fmt.Errorf("API error (%d): %s", resp.StatusCode, errResp.Error.Message)
+			errMsg := fmt.Sprintf("API error (%d): %s", resp.StatusCode, errResp.Error.Message)
+			span.SetStatus(codes.Error, errMsg)
+			return "", fmt.Errorf("%s", errMsg)
 		}
+		errMsg := fmt.Sprintf("API returned status %d", resp.StatusCode)
+		span.SetStatus(codes.Error, errMsg)
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var chatResp openAIChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if len(chatResp.Choices) == 0 {
+		span.SetStatus(codes.Error, "empty response")
 		return "", fmt.Errorf("empty response from API")
 	}
 
-	return chatResp.Choices[0].Message.Content, nil
+	result := chatResp.Choices[0].Message.Content
+	span.SetAttributes(
+		telemetry.AttrLLMInputTokens.Int(chatResp.Usage.PromptTokens),
+		telemetry.AttrLLMOutputTokens.Int(chatResp.Usage.CompletionTokens),
+		telemetry.AttrLLMTotalTokens.Int(chatResp.Usage.TotalTokens),
+	)
+	telemetry.AddMessageEvent(span, "llm.response", "assistant", result)
+
+	return result, nil
 }
 
 // CompleteWithTools sends a multi-turn conversation with tool
@@ -250,6 +278,13 @@ func (p *OpenAICompatProvider) CompleteWithTools(ctx context.Context,
 func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 	messages []llm.Message, tools []llm.ToolDefinition,
 	onEvent func(llm.StreamEvent)) (*llm.Response, error) {
+
+	ctx, span := otel.Tracer(telemetry.TracerName).Start(ctx, "llm.api.call",
+		trace.WithAttributes(
+			telemetry.AttrLLMProvider.String(p.providerName),
+			telemetry.AttrLLMModel.String(p.model),
+		))
+	defer span.End()
 
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
@@ -356,6 +391,7 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 				Content: fmt.Sprintf("API request failed: %v", err),
 			})
 		}
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("API request failed: %w", err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
@@ -473,6 +509,7 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 				Content: fmt.Sprintf("stream read error: %v", err),
 			})
 		}
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("stream read error: %w", err)
 	}
 
@@ -494,6 +531,13 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 			TotalTokens:  usage.TotalTokens,
 		}
 	}
+
+	span.SetAttributes(
+		telemetry.AttrLLMInputTokens.Int(resp.Usage.InputTokens),
+		telemetry.AttrLLMOutputTokens.Int(resp.Usage.OutputTokens),
+		telemetry.AttrLLMTotalTokens.Int(resp.Usage.TotalTokens),
+		telemetry.AttrLLMStopReason.String(string(resp.StopReason)),
+	)
 
 	// Convert accumulated tool calls to response
 	for i := 0; i < len(toolCalls); i++ {

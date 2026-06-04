@@ -27,7 +27,7 @@ const (
 	ComponentSummarizer  Component = "SUMMARIZER"
 	ComponentReviewer    Component = "REVIEWER"
 	ComponentCredGateway Component = "CRED-GATEWAY"
-	ComponentAgent       Component = "ZT-AGENT"
+	ComponentAgent       Component = "DOCSCLAW"
 )
 
 // ANSI color codes
@@ -161,23 +161,45 @@ type Logger struct {
 	component Component
 }
 
-// New creates a new component-specific logger
-// Set SPIFFE_DEMO_LOG_FORMAT=json for structured JSON output (useful for production/log aggregation)
+// New creates a new component-specific logger.
+//
+// Output format is auto-detected:
+//   - TTY (local dev terminal): color-coded human-readable output
+//   - Non-TTY (K8s pod, pipe): structured JSON for log aggregation
+//
+// Override with LOG_FORMAT=json or LOG_FORMAT=text to force a format.
+// NO_COLOR disables color in text mode. SPIFFE_DEMO_LOG_FORMAT is
+// accepted as a legacy alias for LOG_FORMAT.
 func New(component Component) *Logger {
 	var handler slog.Handler
 
-	if os.Getenv("SPIFFE_DEMO_LOG_FORMAT") == "json" {
-		// JSON handler for production/log aggregation
+	format := os.Getenv("LOG_FORMAT")
+	if format == "" {
+		format = os.Getenv("SPIFFE_DEMO_LOG_FORMAT")
+	}
+
+	useJSON := format == "json"
+	useText := format == "text"
+
+	// Auto-detect: JSON when stdout is not a TTY (K8s, pipes),
+	// color text when it is a TTY (local dev).
+	if !useJSON && !useText {
+		if isTerminal(os.Stdout) {
+			useText = true
+		} else {
+			useJSON = true
+		}
+	}
+
+	if useJSON {
 		opts := &slog.HandlerOptions{
 			Level: slog.LevelDebug,
 		}
 		baseHandler := slog.NewJSONHandler(os.Stdout, opts)
-		// Add component as a default attribute
 		handler = baseHandler.WithAttrs([]slog.Attr{
 			slog.String("component", string(component)),
 		})
 	} else {
-		// Color handler for local development
 		useColors := os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 		handler = NewColorHandler(os.Stdout, component, useColors)
 	}
@@ -186,6 +208,15 @@ func New(component Component) *Logger {
 		Logger:    slog.New(handler),
 		component: component,
 	}
+}
+
+// isTerminal reports whether f is a terminal (character device).
+func isTerminal(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
 }
 
 // NewWithWriter creates a logger with a custom writer

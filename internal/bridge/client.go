@@ -8,6 +8,8 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // A2AClient wraps the a2aclient to send requests to A2A agents.
@@ -84,6 +86,14 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 	if req.AgentSPIFFEID != "" {
 		sp.Append("x-delegation-agent", req.AgentSPIFFEID)
 	}
+
+	// Inject W3C trace context so downstream agents continue the trace.
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		sp.Append(k, v)
+	}
+
 	if len(sp) > 0 {
 		opts = append(opts, a2aclient.WithCallInterceptors(&serviceParamsInjector{params: sp}))
 	}
