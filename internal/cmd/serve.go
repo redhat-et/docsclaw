@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -290,6 +291,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	log := logger.New(logger.ComponentAgent)
+	slog.SetDefault(log.Logger)
 
 	// Load OS tool inventory and inject into system prompt
 	const toolsJSONPath = "/etc/docsclaw/tools.json"
