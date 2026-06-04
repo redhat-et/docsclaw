@@ -25,6 +25,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/logger"
 	"github.com/redhat-et/docsclaw/internal/mcpclient"
 	_ "github.com/redhat-et/docsclaw/internal/metrics"
+	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/ragsearch"
 	"github.com/redhat-et/docsclaw/internal/readfile"
@@ -331,6 +332,17 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Warn("LLM API key not configured - will use mock responses")
 	}
 
+	// Initialize OpenTelemetry tracing (no-op when disabled)
+	otelShutdown, err := telemetry.Init(context.Background(), telemetry.Config{
+		Enabled:           cfg.OTel.Enabled,
+		CollectorEndpoint: cfg.OTel.CollectorEndpoint,
+		StdoutExporter:    cfg.OTel.StdoutExporter,
+		ServiceVersion:    version,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize OpenTelemetry: %w", err)
+	}
+
 	// Document fetcher (same as existing agents)
 	fetchDocument := func(ctx context.Context, documentID, bearerToken string) (map[string]any, error) {
 		url := fmt.Sprintf("%s/documents/%s", cfg.DocumentServiceURL, documentID)
@@ -578,9 +590,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Main server — WriteTimeout is 0 because SSE streaming
 	// (OpenAI chat completions) and agentic tool loops can exceed
 	// any fixed deadline. Request-scoped contexts handle cancellation.
+	var handler http.Handler = mux
+	if cfg.OTel.Enabled {
+		handler = telemetry.HTTPMiddleware(handler)
+	}
 	server := &http.Server{
 		Addr:        cfg.Service.Addr(),
-		Handler:     mux,
+		Handler:     handler,
 		ReadTimeout: 10 * time.Second,
 	}
 
@@ -595,6 +611,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Error("Shutdown error", "error", err)
+		}
+		if err := otelShutdown(shutdownCtx); err != nil {
+			log.Error("OTel shutdown error", "error", err)
 		}
 		close(done)
 	}()

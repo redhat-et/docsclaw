@@ -7,8 +7,13 @@ import (
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redhat-et/docsclaw/internal/logger"
+	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
@@ -71,7 +76,26 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			if vals, found := sp.Get("x-session-id"); found && len(vals) > 0 {
 				sessionID = vals[0]
 			}
+
+			// Extract W3C trace context from incoming A2A request
+			// so this agent's spans join the caller's distributed trace.
+			carrier := propagation.MapCarrier{}
+			if vals, found := sp.Get("traceparent"); found && len(vals) > 0 {
+				carrier.Set("traceparent", vals[0])
+			}
+			if vals, found := sp.Get("tracestate"); found && len(vals) > 0 {
+				carrier.Set("tracestate", vals[0])
+			}
+			ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
 		}
+
+		// Create a span for the A2A execution, parented to the extracted trace.
+		ctx, execSpan := otel.Tracer(telemetry.TracerName).Start(ctx, "a2a.execute",
+			trace.WithAttributes(
+				attribute.String("a2a.task_id", string(execCtx.TaskID)),
+				telemetry.AttrSessionID.String(sessionID),
+			))
+		defer execSpan.End()
 
 		// Store delegation context so DelegationTransport can inject headers
 		// on outbound HTTP requests (e.g., to document-service).

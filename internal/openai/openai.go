@@ -12,6 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
@@ -180,6 +185,13 @@ func NewOpenAICompatProvider(cfg llm.Config) (*OpenAICompatProvider, error) {
 
 // Complete sends a message to the OpenAI-compatible API and returns the response
 func (p *OpenAICompatProvider) Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	ctx, span := otel.Tracer(telemetry.TracerName).Start(ctx, "llm.api.call",
+		trace.WithAttributes(
+			telemetry.AttrLLMProvider.String(p.providerName),
+			telemetry.AttrLLMModel.String(p.model),
+		))
+	defer span.End()
+
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
@@ -250,6 +262,13 @@ func (p *OpenAICompatProvider) CompleteWithTools(ctx context.Context,
 func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 	messages []llm.Message, tools []llm.ToolDefinition,
 	onEvent func(llm.StreamEvent)) (*llm.Response, error) {
+
+	ctx, span := otel.Tracer(telemetry.TracerName).Start(ctx, "llm.api.call",
+		trace.WithAttributes(
+			telemetry.AttrLLMProvider.String(p.providerName),
+			telemetry.AttrLLMModel.String(p.model),
+		))
+	defer span.End()
 
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
@@ -356,6 +375,7 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 				Content: fmt.Sprintf("API request failed: %v", err),
 			})
 		}
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("API request failed: %w", err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
@@ -473,6 +493,7 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 				Content: fmt.Sprintf("stream read error: %v", err),
 			})
 		}
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("stream read error: %w", err)
 	}
 
@@ -494,6 +515,13 @@ func (p *OpenAICompatProvider) StreamWithTools(ctx context.Context,
 			TotalTokens:  usage.TotalTokens,
 		}
 	}
+
+	span.SetAttributes(
+		telemetry.AttrLLMInputTokens.Int(resp.Usage.InputTokens),
+		telemetry.AttrLLMOutputTokens.Int(resp.Usage.OutputTokens),
+		telemetry.AttrLLMTotalTokens.Int(resp.Usage.TotalTokens),
+		telemetry.AttrLLMStopReason.String(string(resp.StopReason)),
+	)
 
 	// Convert accumulated tool calls to response
 	for i := 0; i < len(toolCalls); i++ {

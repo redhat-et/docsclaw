@@ -8,7 +8,11 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
@@ -56,6 +60,13 @@ func NewAnthropicProvider(cfg llm.Config) (*AnthropicProvider, error) {
 
 // Complete sends a message to the Claude API and returns the response
 func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	ctx, span := otel.Tracer(telemetry.TracerName).Start(ctx, "llm.api.call",
+		trace.WithAttributes(
+			telemetry.AttrLLMProvider.String(p.ProviderName()),
+			telemetry.AttrLLMModel.String(p.model),
+		))
+	defer span.End()
+
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
@@ -101,6 +112,13 @@ func (p *AnthropicProvider) CompleteWithTools(ctx context.Context,
 func (p *AnthropicProvider) StreamWithTools(ctx context.Context,
 	messages []llm.Message, tools []llm.ToolDefinition,
 	onEvent func(llm.StreamEvent)) (*llm.Response, error) {
+
+	ctx, span := otel.Tracer(telemetry.TracerName).Start(ctx, "llm.api.call",
+		trace.WithAttributes(
+			telemetry.AttrLLMProvider.String(p.ProviderName()),
+			telemetry.AttrLLMModel.String(p.model),
+		))
+	defer span.End()
 
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
@@ -216,6 +234,7 @@ func (p *AnthropicProvider) StreamWithTools(ctx context.Context,
 				Content: fmt.Sprintf("stream error: %v", err),
 			})
 		}
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("API streaming failed: %w", err)
 	}
 
@@ -235,6 +254,13 @@ func (p *AnthropicProvider) StreamWithTools(ctx context.Context,
 	default:
 		resp.StopReason = llm.StopReasonEndTurn
 	}
+
+	span.SetAttributes(
+		telemetry.AttrLLMInputTokens.Int(resp.Usage.InputTokens),
+		telemetry.AttrLLMOutputTokens.Int(resp.Usage.OutputTokens),
+		telemetry.AttrLLMTotalTokens.Int(resp.Usage.TotalTokens),
+		telemetry.AttrLLMStopReason.String(string(resp.StopReason)),
+	)
 
 	for _, block := range accumulated.Content {
 		switch block.Type {

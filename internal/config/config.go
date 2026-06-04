@@ -35,6 +35,7 @@ type SPIFFEConfig struct {
 type OTelConfig struct {
 	Enabled           bool   `mapstructure:"enabled"`
 	CollectorEndpoint string `mapstructure:"collector_endpoint"`
+	StdoutExporter    bool   `mapstructure:"stdout_exporter"`
 }
 
 // OPAConfig holds OPA service configuration
@@ -124,6 +125,7 @@ func setDefaults(v *viper.Viper, serviceName string) {
 	// OTel defaults
 	v.SetDefault("otel.enabled", false)
 	v.SetDefault("otel.collector_endpoint", "")
+	v.SetDefault("otel.stdout_exporter", false)
 
 	// Storage defaults (disabled by default for local development)
 	v.SetDefault("storage.enabled", false)
@@ -178,11 +180,13 @@ func BindFlags(cmd *cobra.Command, v *viper.Viper) {
 	_ = v.BindPFlag("service.log_level", cmd.PersistentFlags().Lookup("log-level"))
 	cmd.PersistentFlags().Bool("otel-enabled", false, "Enable OpenTelemetry tracing")
 	cmd.PersistentFlags().String("otel-collector-endpoint", "", "OpenTelemetry collector gRPC endpoint (e.g. localhost:4317)")
+	cmd.PersistentFlags().Bool("otel-stdout", false, "Export OTel traces as JSON to stdout (for K8s log pipelines)")
 
 	_ = v.BindPFlag("opa.host", cmd.PersistentFlags().Lookup("opa-host"))
 	_ = v.BindPFlag("opa.port", cmd.PersistentFlags().Lookup("opa-port"))
 	_ = v.BindPFlag("otel.enabled", cmd.PersistentFlags().Lookup("otel-enabled"))
 	_ = v.BindPFlag("otel.collector_endpoint", cmd.PersistentFlags().Lookup("otel-collector-endpoint"))
+	_ = v.BindPFlag("otel.stdout_exporter", cmd.PersistentFlags().Lookup("otel-stdout"))
 }
 
 // GetServiceEndpoints returns the default service endpoints for local development
