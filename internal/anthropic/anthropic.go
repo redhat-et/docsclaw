@@ -96,6 +96,13 @@ func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt, userProm
 		}
 	}
 
+	span.SetAttributes(
+		telemetry.AttrLLMInputTokens.Int(int(message.Usage.InputTokens)),
+		telemetry.AttrLLMOutputTokens.Int(int(message.Usage.OutputTokens)),
+		telemetry.AttrLLMTotalTokens.Int(int(message.Usage.InputTokens+message.Usage.OutputTokens)),
+	)
+	telemetry.AddMessageEvent(span, "llm.response", "assistant", result)
+
 	return result, nil
 }
 

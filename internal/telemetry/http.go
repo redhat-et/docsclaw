@@ -50,3 +50,17 @@ func (sw *statusWriter) WriteHeader(code int) {
 	}
 	sw.ResponseWriter.WriteHeader(code)
 }
+
+// Flush delegates to the underlying ResponseWriter so SSE streaming
+// continues to work when the OTel middleware is active.
+func (sw *statusWriter) Flush() {
+	if f, ok := sw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap returns the underlying ResponseWriter so net/http's
+// interface checks (e.g. http.Flusher) can reach through.
+func (sw *statusWriter) Unwrap() http.ResponseWriter {
+	return sw.ResponseWriter
+}

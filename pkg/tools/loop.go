@@ -130,6 +130,7 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 		iterSpan.End()
 
 		if ctx.Err() != nil {
+			loopSpan.SetStatus(codes.Error, ctx.Err().Error())
 			return "", ctx.Err()
 		}
 
@@ -139,6 +140,7 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 		})
 	}
 
+	loopSpan.SetStatus(codes.Error, "max iterations reached")
 	return "", fmt.Errorf("max iterations (%d) reached without final response", config.MaxIterations)
 }
 
@@ -160,7 +162,6 @@ func executeTool(ctx context.Context, registry *Registry,
 				telemetry.AttrToolDenied.Bool(true),
 				telemetry.AttrToolDenyReason.String(reason),
 			)
-			span.SetStatus(codes.Error, "tool call denied")
 			slog.Warn("tool call denied by hook",
 				"tool", tc.Name, "reason", reason)
 			return Errorf("Tool call denied: %s", reason)

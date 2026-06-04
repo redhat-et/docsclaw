@@ -246,7 +246,15 @@ func (p *OpenAICompatProvider) Complete(ctx context.Context, systemPrompt, userP
 		return "", fmt.Errorf("empty response from API")
 	}
 
-	return chatResp.Choices[0].Message.Content, nil
+	result := chatResp.Choices[0].Message.Content
+	span.SetAttributes(
+		telemetry.AttrLLMInputTokens.Int(chatResp.Usage.PromptTokens),
+		telemetry.AttrLLMOutputTokens.Int(chatResp.Usage.CompletionTokens),
+		telemetry.AttrLLMTotalTokens.Int(chatResp.Usage.TotalTokens),
+	)
+	telemetry.AddMessageEvent(span, "llm.response", "assistant", result)
+
+	return result, nil
 }
 
 // CompleteWithTools sends a multi-turn conversation with tool

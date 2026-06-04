@@ -80,11 +80,10 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 			// Extract W3C trace context from incoming A2A request
 			// so this agent's spans join the caller's distributed trace.
 			carrier := propagation.MapCarrier{}
-			if vals, found := sp.Get("traceparent"); found && len(vals) > 0 {
-				carrier.Set("traceparent", vals[0])
-			}
-			if vals, found := sp.Get("tracestate"); found && len(vals) > 0 {
-				carrier.Set("tracestate", vals[0])
+			for _, key := range []string{"traceparent", "tracestate", "baggage"} {
+				if vals, found := sp.Get(key); found && len(vals) > 0 {
+					carrier.Set(key, vals[0])
+				}
 			}
 			ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
 		}
