@@ -51,14 +51,18 @@ func AddToolResultEvent(span trace.Span, toolName string, output string, isError
 }
 
 // truncate cuts s to at most maxBytes, respecting UTF-8 boundaries.
+// The suffix is included in the byte budget so the result never exceeds maxBytes.
 func truncate(s string, maxBytes int) string {
 	if len(s) <= maxBytes {
 		return s
 	}
-	// Walk backward from the cut point to find a valid UTF-8 boundary.
-	truncated := s[:maxBytes]
+	const suffix = "...[truncated]"
+	if maxBytes <= len(suffix) {
+		return suffix[:maxBytes]
+	}
+	truncated := s[:maxBytes-len(suffix)]
 	for !utf8.ValidString(truncated) {
 		truncated = truncated[:len(truncated)-1]
 	}
-	return strings.TrimRight(truncated, "\x00") + "...[truncated]"
+	return strings.TrimRight(truncated, "\x00") + suffix
 }

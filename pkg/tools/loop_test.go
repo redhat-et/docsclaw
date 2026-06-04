@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
@@ -434,12 +433,13 @@ func TestBeforeToolCallHookDenial(t *testing.T) {
 }
 
 func TestRunToolLoopTracing(t *testing.T) {
+	prev := otel.GetTracerProvider()
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
 	otel.SetTracerProvider(tp)
 	t.Cleanup(func() {
 		_ = tp.Shutdown(context.Background())
-		otel.SetTracerProvider(noop.NewTracerProvider())
+		otel.SetTracerProvider(prev)
 	})
 
 	provider := &mockProvider{

@@ -64,6 +64,7 @@ func RunToolLoop(ctx context.Context, provider llm.Provider,
 		if err != nil {
 			iterSpan.SetStatus(codes.Error, err.Error())
 			iterSpan.End()
+			loopSpan.SetStatus(codes.Error, "LLM call failed")
 			return "", fmt.Errorf("LLM call failed: %w", err)
 		}
 

@@ -607,12 +607,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 		log.Info("Shutting down docsclaw...")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		serverCtx, serverCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer serverCancel()
+		if err := server.Shutdown(serverCtx); err != nil {
 			log.Error("Shutdown error", "error", err)
 		}
-		if err := otelShutdown(shutdownCtx); err != nil {
+		otelCtx, otelCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer otelCancel()
+		if err := otelShutdown(otelCtx); err != nil {
 			log.Error("OTel shutdown error", "error", err)
 		}
 		close(done)

@@ -220,29 +220,37 @@ func (p *OpenAICompatProvider) Complete(ctx context.Context, systemPrompt, userP
 
 	resp, err := p.client.Do(req)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("API request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp openAIChatResponse
 		if json.Unmarshal(body, &errResp) == nil && errResp.Error != nil {
-			return "", fmt.Errorf("API error (%d): %s", resp.StatusCode, errResp.Error.Message)
+			errMsg := fmt.Sprintf("API error (%d): %s", resp.StatusCode, errResp.Error.Message)
+			span.SetStatus(codes.Error, errMsg)
+			return "", fmt.Errorf("%s", errMsg)
 		}
+		errMsg := fmt.Sprintf("API returned status %d", resp.StatusCode)
+		span.SetStatus(codes.Error, errMsg)
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var chatResp openAIChatResponse
 	if err := json.Unmarshal(body, &chatResp); err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if len(chatResp.Choices) == 0 {
+		span.SetStatus(codes.Error, "empty response")
 		return "", fmt.Errorf("empty response from API")
 	}
 

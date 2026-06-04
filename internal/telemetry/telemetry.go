@@ -61,9 +61,9 @@ func Init(ctx context.Context, cfg Config) (shutdown func(context.Context) error
 		if cfg.CollectorEndpoint != "" {
 			grpcOpts = append(grpcOpts, otlptracegrpc.WithEndpoint(cfg.CollectorEndpoint))
 		}
-		// Default to insecure for local dev; production should use TLS
-		// via OTEL_EXPORTER_OTLP_INSECURE=false or mTLS certs.
-		if os.Getenv("OTEL_EXPORTER_OTLP_INSECURE") == "" {
+		// Default to TLS. Set OTEL_EXPORTER_OTLP_INSECURE=true for
+		// plaintext (local dev with a collector on localhost).
+		if os.Getenv("OTEL_EXPORTER_OTLP_INSECURE") == "true" {
 			grpcOpts = append(grpcOpts, otlptracegrpc.WithInsecure())
 		}
 

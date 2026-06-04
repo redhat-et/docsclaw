@@ -81,11 +81,13 @@ func (p *AnthropicProvider) Complete(ctx context.Context, systemPrompt, userProm
 		},
 	})
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return "", fmt.Errorf("API request failed: %w", err)
 	}
 
 	// Extract text content from response
 	if len(message.Content) == 0 {
+		span.SetStatus(codes.Error, "empty response")
 		return "", fmt.Errorf("empty response from API")
 	}
 
