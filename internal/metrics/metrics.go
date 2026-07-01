@@ -1,4 +1,4 @@
-// Package metrics provides Prometheus metrics for the SPIFFE demo services.
+// Package metrics provides Prometheus metrics for the DocsClaw services.
 package metrics
 
 import (
@@ -12,7 +12,7 @@ var (
 	// SVIDExpirationSeconds tracks the time remaining until SVID expires
 	SVIDExpirationSeconds = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "svid_expiration_seconds",
 			Help:      "Seconds until SVID expires",
 		},
@@ -22,7 +22,7 @@ var (
 	// SVIDRotations counts the number of SVID rotations
 	SVIDRotations = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "svid_rotations_total",
 			Help:      "Total number of SVID rotations",
 		},
@@ -34,7 +34,7 @@ var (
 	// RequestDuration tracks HTTP request latency
 	RequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "http_request_duration_seconds",
 			Help:      "HTTP request duration in seconds",
 			Buckets:   prometheus.DefBuckets,
@@ -45,7 +45,7 @@ var (
 	// RequestsTotal counts total HTTP requests
 	RequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "http_requests_total",
 			Help:      "Total number of HTTP requests",
 		},
@@ -57,7 +57,7 @@ var (
 	// AuthorizationDecisions counts OPA authorization decisions
 	AuthorizationDecisions = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "authorization_decisions_total",
 			Help:      "Total number of OPA authorization decisions",
 		},
@@ -67,7 +67,7 @@ var (
 	// AuthorizationDuration tracks OPA policy evaluation latency
 	AuthorizationDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "authorization_duration_seconds",
 			Help:      "OPA authorization evaluation duration in seconds",
 			Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0},
@@ -80,7 +80,7 @@ var (
 	// DelegationsTotal counts delegation attempts
 	DelegationsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "spiffe_demo",
+			Namespace: "docsclaw",
 			Name:      "delegations_total",
 			Help:      "Total number of delegation attempts",
 		},

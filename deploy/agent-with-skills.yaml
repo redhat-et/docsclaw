@@ -102,7 +102,7 @@ data:
       exec:
         timeout: 30
         max_output: 50000
-      workspace: /tmp/agent-workspace
+      workspace: /workspace
     loop:
       max_iterations: 10
 
@@ -194,7 +194,7 @@ spec:
             - containerPort: 8100
               name: health
           env:
-            - name: SPIFFE_DEMO_SERVICE_PORT
+            - name: DOCSCLAW_SERVICE_PORT
               value: "8000"
           envFrom:
             - secretRef:
@@ -229,7 +229,7 @@ spec:
               mountPath: /config/agent/skills/code-review
               readOnly: true
             - name: workspace
-              mountPath: /tmp/agent-workspace
+              mountPath: /workspace
       volumes:
         - name: agent-config
           configMap:

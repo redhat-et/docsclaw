@@ -259,11 +259,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 		workspace := agentCfg.Tools.Workspace
 		if workspace == "" {
-			workspace = "/tmp/agent-workspace"
+			workspace = "/workspace"
 		}
 		if err := os.MkdirAll(workspace, 0755); err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
 		}
+		systemPrompt += fmt.Sprintf(
+			"\n\nYour workspace directory is %s. Always write files there.", workspace)
 
 		toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
 			Timeout:   agentCfg.Tools.Exec.Timeout,
