@@ -281,11 +281,11 @@ type Config struct {
 }
 
 func resolveWorkspace(cfgWorkspace, flagWorkspace string) string {
-	if cfgWorkspace != "" {
-		return cfgWorkspace
+	if v := strings.TrimSpace(cfgWorkspace); v != "" {
+		return v
 	}
-	if flagWorkspace != "" {
-		return flagWorkspace
+	if v := strings.TrimSpace(flagWorkspace); v != "" {
+		return v
 	}
 	return defaultWorkspace
 }

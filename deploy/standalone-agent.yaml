@@ -126,7 +126,8 @@ spec:
           env:
             - name: DOCSCLAW_SERVICE_PORT
               value: "8000"
-            # Uncomment to override the workspace directory:
+            # Fallback workspace directory — used only when
+            # agent-config.yaml does not set tools.workspace:
             # - name: DOCSCLAW_WORKSPACE
             #   value: "/data/agent"
           envFrom:
