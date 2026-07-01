@@ -99,7 +99,7 @@ agent-config.yaml
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
 | `allowed` | `[]string` | `[]` (none) | Tools the LLM may call. See [available tools](#available-tools). |
-| `workspace` | `string` | `/workspace` | Root directory for `read_file` and `write_file`. The agent cannot access files outside this path. |
+| `workspace` | `string` | `/workspace` | Root directory for `read_file` and `write_file`. The agent cannot access files outside this path. The workspace path can also be set via the `--workspace` flag or the `DOCSCLAW_WORKSPACE` env var; the config file value takes precedence. |
 
 ### `tools.exec`
 
@@ -289,6 +289,9 @@ for a complete example.
 
 Workspace context loads regardless of whether `agent-config.yaml`
 exists. It works in both phase 1 (single-shot) and phase 2
-(agentic loop). The workspace directory defaults to `/workspace`;
-if `agent-config.yaml` specifies `tools.workspace`, that path is
-used instead.
+(agentic loop). The workspace directory is resolved with this
+priority:
+
+1. `agent-config.yaml` `tools.workspace` (config file wins)
+2. `--workspace` flag or `DOCSCLAW_WORKSPACE` env var
+3. Default: `/workspace`

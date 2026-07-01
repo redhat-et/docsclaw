@@ -251,10 +251,13 @@ func init() {
 	serveCmd.Flags().String("llm-model", "", "LLM model to use")
 	serveCmd.Flags().Int("llm-max-tokens", 4096, "Max tokens for LLM response")
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
+	serveCmd.Flags().String("workspace", "",
+		"Workspace directory path (default: /workspace)")
 	serveCmd.Flags().String("session-db", "",
 		"Session database backend ('memory' for in-memory, or a file path for SQLite; default: memory)")
 
 	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
+	_ = v.BindPFlag("workspace", serveCmd.Flags().Lookup("workspace"))
 	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
 	_ = v.BindPFlag("document_service_url", serveCmd.Flags().Lookup("document-service-url"))
 	_ = v.BindPFlag("llm.provider", serveCmd.Flags().Lookup("llm-provider"))
@@ -271,9 +274,20 @@ type Config struct {
 	config.CommonConfig `mapstructure:",squash"`
 	ConfigDir          string     `mapstructure:"config_dir"`
 	SkillsDir          string     `mapstructure:"skills_dir"`
+	Workspace          string     `mapstructure:"workspace"`
 	DocumentServiceURL string     `mapstructure:"document_service_url"`
 	LLM                llm.Config `mapstructure:"llm"`
 	SessionDB          string     `mapstructure:"session_db"`
+}
+
+func resolveWorkspace(cfgWorkspace, flagWorkspace string) string {
+	if v := strings.TrimSpace(cfgWorkspace); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(flagWorkspace); v != "" {
+		return v
+	}
+	return defaultWorkspace
 }
 
 // startAgent loads config from configDir and validates it.
@@ -338,6 +352,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Resolve workspace path: agent-config.yaml > --workspace flag/env > default
+	var cfgWorkspace string
+	if agentCfg != nil {
+		cfgWorkspace = agentCfg.Tools.Workspace
+	}
+	workspace := resolveWorkspace(cfgWorkspace, cfg.Workspace)
+
 	// Set up tool registry and skill loading if agent config exists
 	var toolRegistry *tools.Registry
 	var loopCfg tools.LoopConfig
@@ -346,10 +367,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if agentCfg != nil {
 		toolRegistry = tools.NewRegistry(agentCfg.Tools.Allowed)
 
-		workspace := agentCfg.Tools.Workspace
-		if workspace == "" {
-			workspace = defaultWorkspace
-		}
 		if err := os.MkdirAll(workspace, 0755); err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
 		}
@@ -385,10 +402,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	slog.SetDefault(log.Logger)
 
 	// Load OpenClaw workspace context (works in both phase 1 and phase 2)
-	workspace := defaultWorkspace
-	if agentCfg != nil && agentCfg.Tools.Workspace != "" {
-		workspace = agentCfg.Tools.Workspace
-	}
 	systemPrompt += loadWorkspaceContext(workspace)
 
 	// Load OS tool inventory and inject into system prompt

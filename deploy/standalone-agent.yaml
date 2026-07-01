@@ -126,6 +126,10 @@ spec:
           env:
             - name: DOCSCLAW_SERVICE_PORT
               value: "8000"
+            # Fallback workspace directory — used only when
+            # agent-config.yaml does not set tools.workspace:
+            # - name: DOCSCLAW_WORKSPACE
+            #   value: "/data/agent"
           envFrom:
             - secretRef:
                 name: llm-secret
