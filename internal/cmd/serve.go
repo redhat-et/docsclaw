@@ -159,6 +159,9 @@ func loadWorkspaceContext(workspaceDir string) string {
 
 		data, err := os.ReadFile(filepath.Join(workspaceDir, name))
 		if err != nil {
+			if !os.IsNotExist(err) {
+				slog.Warn("failed to read workspace file", "file", name, "error", err)
+			}
 			continue
 		}
 

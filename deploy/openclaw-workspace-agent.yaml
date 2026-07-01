@@ -97,7 +97,7 @@ spec:
       initContainers:
         - name: seed-workspace
           image: ghcr.io/redhat-et/docsclaw:latest
-          command: ["sh", "-c", "cp /openclaw-files/*.md /workspace/"]
+          command: ["sh", "-c", "for f in /openclaw-files/*.md; do [ -e \"$f\" ] && cp \"$f\" /workspace/; done; true"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
