@@ -49,15 +49,25 @@ DocsClaw reads its personality from a config directory:
 
 ```text
 my-agent/
-├── system-prompt.txt       # Who the agent is
+├── system-prompt.txt       # Who the agent is (operator)
 ├── agent-card.json         # A2A metadata (name, skills, URL)
 ├── agent-config.yaml       # Which tools to allow, loop settings
 └── skills/                 # Optional SKILL.md instructions
     └── url-summary/
         └── SKILL.md
+
+/workspace/                 # Optional OpenClaw workspace files
+├── AGENTS.md               # Operating instructions
+├── SOUL.md                 # Persona and tone
+├── USER.md                 # User context
+├── IDENTITY.md             # Agent name and role
+└── TOOLS.md                # Tool guidance
 ```
 
-Same binary, different config = different agent.
+Same binary, different config = different agent. If OpenClaw
+workspace files are present in the workspace directory, they are
+loaded as project context alongside the system prompt — giving
+users a migration path from OpenClaw to a leaner runtime.
 
 Without `agent-config.yaml`, DocsClaw runs in **single-shot mode**
 (no tools, prompt-in/response-out). With it, the **agentic loop**
@@ -172,6 +182,21 @@ tools:
 loop:
   max_iterations: 10  # Max tool-use rounds before giving up
 ```
+
+### Workspace context (OpenClaw compatibility)
+
+DocsClaw loads OpenClaw-compatible workspace files from the
+workspace directory (`/workspace` by default) and appends them to
+the system prompt as a `## Project Context` section. The operator
+defines the agent's job via `system-prompt.txt`; the user provides
+project context via workspace files. All files are optional and
+work in both single-shot and agentic modes.
+
+Files are loaded in order: AGENTS.md, SOUL.md, USER.md,
+IDENTITY.md, TOOLS.md. Each file is capped at 20,000 characters;
+total context is capped at 60,000 characters. See the
+[agent config guide](docs/agent-config-guide.md#workspace-context)
+for details and deployment examples.
 
 ### Built-in tools
 

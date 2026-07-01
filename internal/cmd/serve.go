@@ -120,6 +120,73 @@ func loadToolsJSON(path string) (*manifest.ToolsJSON, error) {
 
 const defaultWorkspace = "/workspace"
 
+var openClawFiles = []string{
+	"AGENTS.md",
+	"SOUL.md",
+	"USER.md",
+	"IDENTITY.md",
+	"TOOLS.md",
+}
+
+const (
+	maxPerFileChars = 20_000
+	maxTotalChars   = 60_000
+)
+
+func loadWorkspaceContext(workspaceDir string) string {
+	var loaded []string
+	var sections []string
+	totalChars := 0
+
+	for _, name := range openClawFiles {
+		if totalChars >= maxTotalChars {
+			break
+		}
+
+		data, err := os.ReadFile(filepath.Join(workspaceDir, name))
+		if err != nil {
+			continue
+		}
+
+		content := strings.TrimSpace(string(data))
+		if content == "" {
+			continue
+		}
+
+		if len(content) > maxPerFileChars {
+			slog.Warn("workspace file truncated",
+				"file", name,
+				"original_chars", len(content),
+				"limit", maxPerFileChars)
+			content = content[:maxPerFileChars]
+		}
+
+		remaining := maxTotalChars - totalChars
+		if len(content) > remaining {
+			slog.Warn("workspace context truncated at total limit",
+				"file", name,
+				"used_chars", len(content[:remaining]),
+				"total_limit", maxTotalChars)
+			content = content[:remaining]
+		}
+
+		totalChars += len(content)
+		header := strings.TrimSuffix(name, ".md")
+		sections = append(sections, fmt.Sprintf("### %s\n%s", header, content))
+		loaded = append(loaded, name)
+	}
+
+	if len(sections) == 0 {
+		return ""
+	}
+
+	slog.Info("loaded workspace context",
+		"files", loaded,
+		"total_chars", totalChars)
+
+	return "\n\n## Project Context\n\n" + strings.Join(sections, "\n\n")
+}
+
 var toolNameAllowed = regexp.MustCompile(`[^a-zA-Z0-9 _-]`)
 
 func sanitizeToolName(name string) string {
@@ -293,6 +360,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
+	// Load OpenClaw workspace context (works in both phase 1 and phase 2)
+	workspace := defaultWorkspace
+	if agentCfg != nil && agentCfg.Tools.Workspace != "" {
+		workspace = agentCfg.Tools.Workspace
+	}
+	systemPrompt += loadWorkspaceContext(workspace)
 
 	log := logger.New(logger.ComponentAgent)
 	slog.SetDefault(log.Logger)
