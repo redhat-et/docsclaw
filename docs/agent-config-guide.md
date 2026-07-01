@@ -182,3 +182,113 @@ registered automatically when the MCP server connects.
 
 To run in phase 1, simply omit `agent-config.yaml` from the config
 directory.
+
+## Workspace context
+
+DocsClaw supports [OpenClaw](https://openclaw.dev)-compatible
+workspace files. When present in the workspace directory, these
+files are loaded at startup and appended to the system prompt as
+structured project context. See the
+[OpenClaw agent workspace docs](https://docs.openclaw.ai/concepts/agent-workspace)
+for the full specification of these files.
+
+This creates an overlay model: the operator controls the base
+behavior via `system-prompt.txt`, while users provide project-level
+personality and context through workspace files.
+
+### Supported files
+
+Files are loaded in this order (all optional):
+
+| File | Purpose |
+| ---- | ------- |
+| `AGENTS.md` | Operating instructions |
+| `SOUL.md` | Persona and tone |
+| `USER.md` | User context |
+| `IDENTITY.md` | Agent name and role |
+| `TOOLS.md` | Tool guidance (advisory) |
+
+Missing files are skipped silently. Empty files are ignored.
+
+### Truncation limits
+
+| Limit | Default | Description |
+| ----- | ------- | ----------- |
+| Per file | 20,000 chars | Files exceeding this are truncated with a warning log |
+| Total | 60,000 chars | Combined content across all files is capped; files load in order and the last file crossing the boundary is truncated |
+
+### Prompt assembly order
+
+The final system prompt is assembled in this order:
+
+1. `system-prompt.txt` content (from config directory)
+2. Workspace path injection (`"Your workspace directory is ..."`)
+3. **Workspace context** (`## Project Context` with `### <FILE>`
+   headers per loaded file)
+4. OS tool inventory (if `/etc/docsclaw/tools.json` exists)
+5. Skills summary (if skills are discovered)
+
+### Example output
+
+When SOUL.md and USER.md are present, the injected section looks
+like:
+
+```text
+## Project Context
+
+### SOUL
+Be direct and concise. Avoid unnecessary pleasantries.
+
+### USER
+Pavel, OCTO team at Red Hat.
+```
+
+### Deployment
+
+Store workspace files in a ConfigMap and use an init container to
+seed them into a writable emptyDir (so `write_file` still works):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docsclaw-workspace
+data:
+  SOUL.md: |
+    Be direct and concise.
+  USER.md: |
+    Pavel, OCTO team at Red Hat.
+---
+# In the Deployment spec:
+initContainers:
+  - name: seed-workspace
+    image: ghcr.io/redhat-et/docsclaw:latest
+    command: ["sh", "-c", "cp /openclaw-files/*.md /workspace/"]
+    volumeMounts:
+      - name: openclaw-files
+        mountPath: /openclaw-files
+        readOnly: true
+      - name: workspace
+        mountPath: /workspace
+# Main container:
+volumeMounts:
+  - name: workspace
+    mountPath: /workspace
+volumes:
+  - name: openclaw-files
+    configMap:
+      name: docsclaw-workspace
+  - name: workspace
+    emptyDir: {}
+```
+
+See [`deploy/openclaw-workspace-agent.yaml`](../deploy/openclaw-workspace-agent.yaml)
+for a complete example.
+
+### Phase compatibility
+
+Workspace context loads regardless of whether `agent-config.yaml`
+exists. It works in both phase 1 (single-shot) and phase 2
+(agentic loop). The workspace directory defaults to `/workspace`;
+if `agent-config.yaml` specifies `tools.workspace`, that path is
+used instead.

@@ -1,0 +1,207 @@
+# Standalone docsclaw deployment with OpenClaw workspace files.
+#
+# This example shows how to mount OpenClaw-compatible workspace files
+# (AGENTS.md, SOUL.md, USER.md, IDENTITY.md, TOOLS.md) as a ConfigMap
+# so DocsClaw loads them as "Project Context" in the system prompt.
+#
+# The base system-prompt.txt defines what the agent does (operator).
+# The workspace files define how it interacts (user/project context).
+#
+# Prerequisites:
+#   oc new-project docsclaw
+#   oc apply -f secrets/anthropic.yaml  (or openai/maas)
+#
+# Deploy:
+#   oc apply -f openclaw-workspace-agent.yaml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docsclaw-config
+data:
+  system-prompt.txt: |
+    You are a helpful research assistant with access to tools.
+
+    You can:
+    - Execute shell commands (exec)
+    - Fetch web pages (web_fetch)
+    - Read and write files in your workspace (read_file, write_file)
+
+    When given a task, break it into steps and use your tools to complete it.
+    Be concise in your responses. Show your work.
+  agent-card.json: |
+    {
+      "name": "docsclaw",
+      "description": "Research agent with OpenClaw workspace context",
+      "version": "2.0.0",
+      "protocolVersion": "0.3.0",
+      "url": "http://docsclaw:8000",
+      "capabilities": {},
+      "defaultInputModes": ["application/json"],
+      "defaultOutputModes": ["text/plain"]
+    }
+  agent-config.yaml: |
+    tools:
+      allowed:
+        - exec
+        - web_fetch
+        - read_file
+        - write_file
+      exec:
+        timeout: 30
+        max_output: 50000
+      workspace: /workspace
+    loop:
+      max_iterations: 10
+
+---
+# OpenClaw workspace files — mount these to /workspace alongside
+# any other workspace content. All files are optional; DocsClaw
+# loads whichever files are present.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docsclaw-workspace
+data:
+  SOUL.md: |
+    Be direct and concise. Avoid unnecessary pleasantries.
+    Prefer showing code over describing it.
+    When uncertain, say so rather than guessing.
+  USER.md: |
+    Pavel, OCTO team at Red Hat.
+    Prefers Go, familiar with Kubernetes and container technologies.
+  IDENTITY.md: |
+    Name: Research Assistant
+    Role: Technical research and document analysis
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docsclaw
+  labels:
+    app: docsclaw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docsclaw
+  template:
+    metadata:
+      labels:
+        app: docsclaw
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      initContainers:
+        - name: seed-workspace
+          image: ghcr.io/redhat-et/docsclaw:latest
+          command: ["sh", "-c", "for f in /openclaw-files/*.md; do [ -e \"$f\" ] && cp \"$f\" /workspace/; done; true"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: openclaw-files
+              mountPath: /openclaw-files
+              readOnly: true
+            - name: workspace
+              mountPath: /workspace
+      containers:
+        - name: docsclaw
+          image: ghcr.io/redhat-et/docsclaw:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          args:
+            - serve
+          ports:
+            - containerPort: 8000
+              name: http
+            - containerPort: 8100
+              name: health
+          env:
+            - name: DOCSCLAW_SERVICE_PORT
+              value: "8000"
+          envFrom:
+            - secretRef:
+                name: llm-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: agent-config
+              mountPath: /config/agent
+              readOnly: true
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        - name: agent-config
+          configMap:
+            name: docsclaw-config
+        - name: openclaw-files
+          configMap:
+            name: docsclaw-workspace
+        - name: workspace
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docsclaw
+  labels:
+    app: docsclaw
+spec:
+  selector:
+    app: docsclaw
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: docsclaw
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s
+  labels:
+    app: docsclaw
+spec:
+  to:
+    kind: Service
+    name: docsclaw
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

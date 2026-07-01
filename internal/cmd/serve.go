@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -119,6 +120,92 @@ func loadToolsJSON(path string) (*manifest.ToolsJSON, error) {
 }
 
 const defaultWorkspace = "/workspace"
+
+var openClawFiles = []string{
+	"AGENTS.md",
+	"SOUL.md",
+	"USER.md",
+	"IDENTITY.md",
+	"TOOLS.md",
+}
+
+const (
+	maxPerFileChars = 20_000
+	maxTotalChars   = 60_000
+)
+
+// truncateRunes returns s truncated to at most n runes, without
+// splitting multi-byte characters.
+func truncateRunes(s string, n int) string {
+	runes := 0
+	for i := range s {
+		if runes >= n {
+			return s[:i]
+		}
+		runes++
+	}
+	return s
+}
+
+func loadWorkspaceContext(workspaceDir string) string {
+	var loaded []string
+	var sections []string
+	totalChars := 0
+
+	for _, name := range openClawFiles {
+		if totalChars >= maxTotalChars {
+			break
+		}
+
+		data, err := os.ReadFile(filepath.Join(workspaceDir, name))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				slog.Warn("failed to read workspace file", "file", name, "error", err)
+			}
+			continue
+		}
+
+		content := strings.TrimSpace(string(data))
+		if content == "" {
+			continue
+		}
+
+		runeCount := utf8.RuneCountInString(content)
+		if runeCount > maxPerFileChars {
+			slog.Warn("workspace file truncated",
+				"file", name,
+				"original_chars", runeCount,
+				"limit", maxPerFileChars)
+			content = truncateRunes(content, maxPerFileChars)
+			runeCount = maxPerFileChars
+		}
+
+		remaining := maxTotalChars - totalChars
+		if runeCount > remaining {
+			slog.Warn("workspace context truncated at total limit",
+				"file", name,
+				"used_chars", remaining,
+				"total_limit", maxTotalChars)
+			content = truncateRunes(content, remaining)
+			runeCount = remaining
+		}
+
+		totalChars += runeCount
+		header := strings.TrimSuffix(name, ".md")
+		sections = append(sections, fmt.Sprintf("### %s\n%s", header, content))
+		loaded = append(loaded, name)
+	}
+
+	if len(sections) == 0 {
+		return ""
+	}
+
+	slog.Info("loaded workspace context",
+		"files", loaded,
+		"total_chars", totalChars)
+
+	return "\n\n## Project Context\n\n" + strings.Join(sections, "\n\n")
+}
 
 var toolNameAllowed = regexp.MustCompile(`[^a-zA-Z0-9 _-]`)
 
@@ -296,6 +383,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	log := logger.New(logger.ComponentAgent)
 	slog.SetDefault(log.Logger)
+
+	// Load OpenClaw workspace context (works in both phase 1 and phase 2)
+	workspace := defaultWorkspace
+	if agentCfg != nil && agentCfg.Tools.Workspace != "" {
+		workspace = agentCfg.Tools.Workspace
+	}
+	systemPrompt += loadWorkspaceContext(workspace)
 
 	// Load OS tool inventory and inject into system prompt
 	const toolsJSONPath = "/etc/docsclaw/tools.json"
