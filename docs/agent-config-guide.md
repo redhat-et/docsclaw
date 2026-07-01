@@ -99,7 +99,7 @@ agent-config.yaml
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
 | `allowed` | `[]string` | `[]` (none) | Tools the LLM may call. See [available tools](#available-tools). |
-| `workspace` | `string` | `/workspace` | Root directory for `read_file` and `write_file`. The agent cannot access files outside this path. Can also be set via `--workspace` flag or `DOCSCLAW_WORKSPACE` env var (config file takes precedence). |
+| `workspace` | `string` | `/workspace` | Root directory for `read_file` and `write_file`. The agent cannot access files outside this path. The workspace path can also be set via the `--workspace` flag or the `DOCSCLAW_WORKSPACE` env var; the config file value takes precedence. |
 
 ### `tools.exec`
 

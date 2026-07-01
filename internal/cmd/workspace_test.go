@@ -188,6 +188,13 @@ func TestResolveWorkspaceDefault(t *testing.T) {
 	}
 }
 
+func TestResolveWorkspaceWhitespaceIgnored(t *testing.T) {
+	result := resolveWorkspace("   ", "/from-flag")
+	if result != "/from-flag" {
+		t.Fatalf("expected /from-flag, got %q", result)
+	}
+}
+
 func TestLoadWorkspaceContextNonexistentDir(t *testing.T) {
 	result := loadWorkspaceContext("/nonexistent/path")
 
