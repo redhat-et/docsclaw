@@ -245,7 +245,8 @@ Pavel, OCTO team at Red Hat.
 
 ### Deployment
 
-Mount workspace files as a ConfigMap to the workspace directory:
+Store workspace files in a ConfigMap and use an init container to
+seed them into a writable emptyDir (so `write_file` still works):
 
 ```yaml
 apiVersion: v1
@@ -259,13 +260,26 @@ data:
     Pavel, OCTO team at Red Hat.
 ---
 # In the Deployment spec:
+initContainers:
+  - name: seed-workspace
+    image: ghcr.io/redhat-et/docsclaw:latest
+    command: ["sh", "-c", "cp /openclaw-files/*.md /workspace/"]
+    volumeMounts:
+      - name: openclaw-files
+        mountPath: /openclaw-files
+        readOnly: true
+      - name: workspace
+        mountPath: /workspace
+# Main container:
 volumeMounts:
   - name: workspace
     mountPath: /workspace
 volumes:
-  - name: workspace
+  - name: openclaw-files
     configMap:
       name: docsclaw-workspace
+  - name: workspace
+    emptyDir: {}
 ```
 
 See [`deploy/openclaw-workspace-agent.yaml`](../deploy/openclaw-workspace-agent.yaml)

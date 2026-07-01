@@ -94,6 +94,24 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+      initContainers:
+        - name: seed-workspace
+          image: ghcr.io/redhat-et/docsclaw:latest
+          command: ["sh", "-c", "cp /openclaw-files/*.md /workspace/"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: openclaw-files
+              mountPath: /openclaw-files
+              readOnly: true
+            - name: workspace
+              mountPath: /workspace
       containers:
         - name: docsclaw
           image: ghcr.io/redhat-et/docsclaw:latest
@@ -148,9 +166,11 @@ spec:
         - name: agent-config
           configMap:
             name: docsclaw-config
-        - name: workspace
+        - name: openclaw-files
           configMap:
             name: docsclaw-workspace
+        - name: workspace
+          emptyDir: {}
 
 ---
 apiVersion: v1

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func writeTestFile(t *testing.T, path, content string) {
@@ -142,6 +143,27 @@ func TestLoadWorkspaceContextEmptyFiles(t *testing.T) {
 	}
 	if !strings.Contains(result, "### USER") {
 		t.Fatal("should include USER.md with content")
+	}
+}
+
+func TestLoadWorkspaceContextUnicodeTruncation(t *testing.T) {
+	dir := t.TempDir()
+
+	// Each character is 3 bytes in UTF-8; 25K runes = 75K bytes.
+	// Truncation should preserve whole runes, not split mid-character.
+	unicodeContent := strings.Repeat("日", 25_000)
+	writeTestFile(t, filepath.Join(dir, "AGENTS.md"), unicodeContent)
+
+	result := loadWorkspaceContext(dir)
+
+	contentStart := strings.Index(result, "### AGENTS\n") + len("### AGENTS\n")
+	content := result[contentStart:]
+	runeCount := utf8.RuneCountInString(content)
+	if runeCount > maxPerFileChars {
+		t.Fatalf("expected at most %d runes, got %d", maxPerFileChars, runeCount)
+	}
+	if !utf8.ValidString(content) {
+		t.Fatal("truncated content is not valid UTF-8")
 	}
 }
 

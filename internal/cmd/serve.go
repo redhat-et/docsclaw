@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -133,6 +134,19 @@ const (
 	maxTotalChars   = 60_000
 )
 
+// truncateRunes returns s truncated to at most n runes, without
+// splitting multi-byte characters.
+func truncateRunes(s string, n int) string {
+	runes := 0
+	for i := range s {
+		if runes >= n {
+			return s[:i]
+		}
+		runes++
+	}
+	return s
+}
+
 func loadWorkspaceContext(workspaceDir string) string {
 	var loaded []string
 	var sections []string
@@ -153,24 +167,27 @@ func loadWorkspaceContext(workspaceDir string) string {
 			continue
 		}
 
-		if len(content) > maxPerFileChars {
+		runeCount := utf8.RuneCountInString(content)
+		if runeCount > maxPerFileChars {
 			slog.Warn("workspace file truncated",
 				"file", name,
-				"original_chars", len(content),
+				"original_chars", runeCount,
 				"limit", maxPerFileChars)
-			content = content[:maxPerFileChars]
+			content = truncateRunes(content, maxPerFileChars)
+			runeCount = maxPerFileChars
 		}
 
 		remaining := maxTotalChars - totalChars
-		if len(content) > remaining {
+		if runeCount > remaining {
 			slog.Warn("workspace context truncated at total limit",
 				"file", name,
-				"used_chars", len(content[:remaining]),
+				"used_chars", remaining,
 				"total_limit", maxTotalChars)
-			content = content[:remaining]
+			content = truncateRunes(content, remaining)
+			runeCount = remaining
 		}
 
-		totalChars += len(content)
+		totalChars += runeCount
 		header := strings.TrimSuffix(name, ".md")
 		sections = append(sections, fmt.Sprintf("### %s\n%s", header, content))
 		loaded = append(loaded, name)
@@ -361,15 +378,15 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	log := logger.New(logger.ComponentAgent)
+	slog.SetDefault(log.Logger)
+
 	// Load OpenClaw workspace context (works in both phase 1 and phase 2)
 	workspace := defaultWorkspace
 	if agentCfg != nil && agentCfg.Tools.Workspace != "" {
 		workspace = agentCfg.Tools.Workspace
 	}
 	systemPrompt += loadWorkspaceContext(workspace)
-
-	log := logger.New(logger.ComponentAgent)
-	slog.SetDefault(log.Logger)
 
 	// Load OS tool inventory and inject into system prompt
 	const toolsJSONPath = "/etc/docsclaw/tools.json"
