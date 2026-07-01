@@ -67,7 +67,7 @@ data:
         - read_file
         - write_file
         - web_fetch
-      workspace: /tmp/agent-workspace
+      workspace: /workspace
     loop:
       max_iterations: 5
 
@@ -178,7 +178,7 @@ spec:
               mountPath: /skills/code-review
               readOnly: true
             - name: workspace
-              mountPath: /tmp/agent-workspace
+              mountPath: /workspace
       volumes:
         - name: agent-config
           configMap:

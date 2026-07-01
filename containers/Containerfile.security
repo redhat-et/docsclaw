@@ -118,13 +118,13 @@ COPY --from=tools /tools/grype      /usr/local/bin/grype
 COPY --from=tools /tools/syft       /usr/local/bin/syft
 COPY --from=tools /tools/cosign     /usr/local/bin/cosign
 
-RUN mkdir -p /tmp/agent-workspace \
-    && chown 65532:0 /tmp/agent-workspace \
-    && chmod 775 /tmp/agent-workspace
+RUN mkdir -p /workspace \
+    && chown 65532:0 /workspace \
+    && chmod 775 /workspace
 
 # Trivy and grype need writable cache directories
-ENV TRIVY_CACHE_DIR=/tmp/agent-workspace/.cache/trivy
-ENV GRYPE_DB_CACHE_DIR=/tmp/agent-workspace/.cache/grype
+ENV TRIVY_CACHE_DIR=/workspace/.cache/trivy
+ENV GRYPE_DB_CACHE_DIR=/workspace/.cache/grype
 
 USER 65532
 

@@ -59,7 +59,7 @@ data:
     tools:
       allowed:
         - fetch_document
-      workspace: /tmp/agent-workspace
+      workspace: /workspace
     loop:
       max_iterations: 15
 
@@ -136,7 +136,7 @@ spec:
               mountPath: /config/agent
               readOnly: true
             - name: workspace
-              mountPath: /tmp/agent-workspace
+              mountPath: /workspace
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

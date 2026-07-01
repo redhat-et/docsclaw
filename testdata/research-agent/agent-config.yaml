@@ -12,7 +12,7 @@ tools:
     allowed_hosts:
       - ".s3.amazonaws.com"
       - ".svc.cluster.local"
-  workspace: /tmp/agent-workspace
+  workspace: /workspace
 
 loop:
   max_iterations: 10

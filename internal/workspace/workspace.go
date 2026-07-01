@@ -28,8 +28,8 @@ func IsInsideWorkspace(path, workspace string) bool {
 		absWorkspace = resolved
 	}
 
-	// Ensure trailing separator to prevent /tmp/agent matching
-	// /tmp/agent-evil
+	// Ensure trailing separator to prevent /workspace/agent matching
+	// /workspace/agent-evil
 	return strings.HasPrefix(absPath, absWorkspace+string(filepath.Separator)) ||
 		absPath == absWorkspace
 }

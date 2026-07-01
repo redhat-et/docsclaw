@@ -92,7 +92,7 @@ spec:
               readOnly: true
             # Writable workspace for agent file operations
             - name: workspace
-              mountPath: /tmp/agent-workspace
+              mountPath: /workspace
       volumes:
         - name: agent-config
           configMap:

@@ -568,7 +568,7 @@ func buildDeploymentJSON(name, namespace, configMap, docServiceURL string, llmTi
 						},
 						"volumeMounts": []map[string]any{
 							{"name": "agent-config", "mountPath": "/config/agent", "readOnly": true},
-							{"name": "workspace", "mountPath": "/tmp/agent-workspace"},
+							{"name": "workspace", "mountPath": "/workspace"},
 						},
 						"securityContext": map[string]any{
 							"allowPrivilegeEscalation": false,
