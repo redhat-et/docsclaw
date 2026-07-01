@@ -80,7 +80,7 @@ spec:
               mountPath: /config/agent/skills/draft-skill
               readOnly: true
             - name: workspace
-              mountPath: /tmp/agent-workspace
+              mountPath: /workspace
       volumes:
         - name: agent-config
           configMap:

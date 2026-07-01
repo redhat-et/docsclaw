@@ -82,10 +82,10 @@ func InitViper(serviceName string) *viper.Viper {
 	v.SetConfigType("yaml")
 	v.AddConfigPath(".")
 	v.AddConfigPath(fmt.Sprintf("./%s", serviceName))
-	v.AddConfigPath("/etc/spiffe-demo/")
+	v.AddConfigPath("/etc/docsclaw/")
 
 	// Environment variable settings
-	v.SetEnvPrefix("SPIFFE_DEMO")
+	v.SetEnvPrefix("DOCSCLAW")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 	v.AutomaticEnv()
 

@@ -167,7 +167,7 @@ tools:
     allowed_hosts:    # SSRF protection (empty = all allowed)
       - go.dev
       - kubernetes.io
-  workspace: /tmp/agent-workspace  # read_file/write_file root
+  workspace: /workspace  # read_file/write_file root
 
 loop:
   max_iterations: 10  # Max tool-use rounds before giving up

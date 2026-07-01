@@ -168,14 +168,14 @@ type Logger struct {
 //   - Non-TTY (K8s pod, pipe): structured JSON for log aggregation
 //
 // Override with LOG_FORMAT=json or LOG_FORMAT=text to force a format.
-// NO_COLOR disables color in text mode. SPIFFE_DEMO_LOG_FORMAT is
-// accepted as a legacy alias for LOG_FORMAT.
+// NO_COLOR disables color in text mode. DOCSCLAW_LOG_FORMAT is
+// accepted as an alias for LOG_FORMAT.
 func New(component Component) *Logger {
 	var handler slog.Handler
 
 	format := os.Getenv("LOG_FORMAT")
 	if format == "" {
-		format = os.Getenv("SPIFFE_DEMO_LOG_FORMAT")
+		format = os.Getenv("DOCSCLAW_LOG_FORMAT")
 	}
 
 	useJSON := format == "json"

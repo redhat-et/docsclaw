@@ -17,7 +17,7 @@ tools:
     - exec
     - read_file
     - write_file
-  workspace: /tmp/agent-workspace
+  workspace: /workspace
 
 loop:
   max_iterations: 10
@@ -43,7 +43,7 @@ tools:
     allowed_hosts:
       - "api.example.com"
       - "svc.cluster.local"
-  workspace: /tmp/agent-workspace
+  workspace: /workspace
   mcp:
     - name: db
       transport: streamable_http
@@ -99,7 +99,7 @@ agent-config.yaml
 | Field | Type | Default | Description |
 | ----- | ---- | ------- | ----------- |
 | `allowed` | `[]string` | `[]` (none) | Tools the LLM may call. See [available tools](#available-tools). |
-| `workspace` | `string` | `/tmp/agent-workspace` | Root directory for `read_file` and `write_file`. The agent cannot access files outside this path. |
+| `workspace` | `string` | `/workspace` | Root directory for `read_file` and `write_file`. The agent cannot access files outside this path. |
 
 ### `tools.exec`
 

@@ -61,7 +61,7 @@ spec:
               mountPath: /config/agent
               readOnly: true
             - name: workspace
-              mountPath: /tmp/agent-workspace
+              mountPath: /workspace
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

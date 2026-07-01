@@ -118,6 +118,8 @@ func loadToolsJSON(path string) (*manifest.ToolsJSON, error) {
 	return &tj, nil
 }
 
+const defaultWorkspace = "/workspace"
+
 var toolNameAllowed = regexp.MustCompile(`[^a-zA-Z0-9 _-]`)
 
 func sanitizeToolName(name string) string {
@@ -259,11 +261,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 		workspace := agentCfg.Tools.Workspace
 		if workspace == "" {
-			workspace = "/tmp/agent-workspace"
+			workspace = defaultWorkspace
 		}
 		if err := os.MkdirAll(workspace, 0755); err != nil {
 			return fmt.Errorf("failed to create workspace: %w", err)
 		}
+		systemPrompt += fmt.Sprintf(
+			"\n\nYour workspace directory is %s. Always write files there.", workspace)
 
 		toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
 			Timeout:   agentCfg.Tools.Exec.Timeout,
