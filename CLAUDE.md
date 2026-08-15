@@ -85,7 +85,7 @@ The agent reads personality from a config directory:
 
 ## Key technologies
 
-- **Go 1.25+**
+- **Go 1.26+**
 - **Cobra/Viper** for CLI and configuration
 - **A2A (a2a-go)** for agent protocol
 - **log/slog** for structured logging
