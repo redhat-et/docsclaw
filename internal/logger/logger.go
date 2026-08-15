@@ -183,12 +183,8 @@ func New(component Component) *Logger {
 
 	// Auto-detect: JSON when stdout is not a TTY (K8s, pipes),
 	// color text when it is a TTY (local dev).
-	if !useJSON && !useText {
-		if isTerminal(os.Stdout) {
-			useText = true
-		} else {
-			useJSON = true
-		}
+	if !useJSON && !useText && !isTerminal(os.Stdout) {
+		useJSON = true
 	}
 
 	if useJSON {

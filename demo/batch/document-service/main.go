@@ -66,7 +66,9 @@ func main() {
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"status":"healthy"}`)
+		if _, err := fmt.Fprint(w, `{"status":"healthy"}`); err != nil {
+			slog.Warn("failed to write health response", "error", err)
+		}
 	})
 
 	mux.HandleFunc("GET /documents/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +81,9 @@ func main() {
 		}
 		slog.Info("serving document", "id", id, "title", doc.Title)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"document": doc})
+		if err := json.NewEncoder(w).Encode(map[string]any{"document": doc}); err != nil {
+			slog.Warn("failed to encode document response", "error", err)
+		}
 	})
 
 	mux.HandleFunc("GET /documents", func(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +99,9 @@ func main() {
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"documents": list})
+		if err := json.NewEncoder(w).Encode(map[string]any{"documents": list}); err != nil {
+			slog.Warn("failed to encode documents response", "error", err)
+		}
 	})
 
 	if err := http.ListenAndServe(*addr, mux); err != nil {
