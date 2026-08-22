@@ -43,7 +43,7 @@ func (s *FileStore) Load(_ context.Context) (string, error) {
 }
 
 // Remember appends the entry to the memory file with a timestamp header.
-func (s *FileStore) Remember(_ context.Context, entry string) error {
+func (s *FileStore) Remember(_ context.Context, entry string) (err error) {
 	entry = strings.TrimSpace(entry)
 	if entry == "" {
 		return nil
@@ -57,8 +57,8 @@ func (s *FileStore) Remember(_ context.Context, entry string) error {
 	// Ensure the file ends with a blank line so appended sections are
 	// separated cleanly.
 	prefix := ""
-	data, err := os.ReadFile(s.path)
-	if err == nil && len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+	data, rerr := os.ReadFile(s.path)
+	if rerr == nil && len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
 		prefix = "\n"
 	}
 

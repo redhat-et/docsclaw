@@ -170,7 +170,7 @@ func init() {
 	serveCmd.Flags().String("workspace", "",
 		"Workspace directory path (default: /workspace)")
 	serveCmd.Flags().String("workspace-profile", "docsclaw",
-		"Workspace context profile: docsclaw, openclaw, hermes, or custom")
+		"Workspace context profile: docsclaw, openclaw, or hermes")
 	serveCmd.Flags().String("session-db", "",
 		"Session database backend ('memory' for in-memory, or a file path for SQLite; default: memory)")
 
@@ -325,7 +325,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 	slog.SetDefault(log.Logger)
 
 	// Load workspace context using the selected profile (works in both phases)
-	profile := agentcontext.ResolveProfile(cfg.WorkspaceProfile)
+	profile, known := agentcontext.ResolveProfile(cfg.WorkspaceProfile)
+	if cfg.WorkspaceProfile != "" && !known {
+		log.Warn("unknown workspace profile, using docsclaw",
+			"profile", cfg.WorkspaceProfile)
+	}
 	systemPrompt += agentcontext.NewLoader().Load(workspace, profile)
 
 	// Load OS tool inventory and inject into system prompt

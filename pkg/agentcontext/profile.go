@@ -12,7 +12,6 @@ const (
 	ProfileDocsclaw = "docsclaw"
 	ProfileOpenClaw = "openclaw"
 	ProfileHermes   = "hermes"
-	ProfileCustom   = "custom"
 )
 
 // DefaultProfiles is the built-in set of workspace context profiles.
@@ -33,14 +32,14 @@ var DefaultProfiles = map[string]Profile{
 	},
 }
 
-// ResolveProfile returns the named profile, or the docsclaw profile if the
-// name is empty or unknown.
-func ResolveProfile(name string) Profile {
+// ResolveProfile returns the named profile and true if it is a built-in
+// profile. An empty or unknown name returns the docsclaw profile and false.
+func ResolveProfile(name string) (Profile, bool) {
 	if name == "" {
-		return DefaultProfiles[ProfileDocsclaw]
+		return DefaultProfiles[ProfileDocsclaw], false
 	}
 	if p, ok := DefaultProfiles[name]; ok {
-		return p
+		return p, true
 	}
-	return DefaultProfiles[ProfileDocsclaw]
+	return DefaultProfiles[ProfileDocsclaw], false
 }

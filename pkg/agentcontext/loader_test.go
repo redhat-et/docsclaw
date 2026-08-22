@@ -187,17 +187,22 @@ func TestLoaderNonexistentDir(t *testing.T) {
 }
 
 func TestResolveProfileDefaults(t *testing.T) {
-	if ResolveProfile("").Name != DefaultProfiles[ProfileDocsclaw].Name {
-		t.Fatal("empty profile should resolve to docsclaw")
+	p, ok := ResolveProfile("")
+	if ok || p.Name != DefaultProfiles[ProfileDocsclaw].Name {
+		t.Fatal("empty profile should resolve to docsclaw with ok=false")
 	}
-	if ResolveProfile("unknown").Name != DefaultProfiles[ProfileDocsclaw].Name {
-		t.Fatal("unknown profile should resolve to docsclaw")
+	p, ok = ResolveProfile("unknown")
+	if ok || p.Name != DefaultProfiles[ProfileDocsclaw].Name {
+		t.Fatal("unknown profile should resolve to docsclaw with ok=false")
 	}
 }
 
 func TestResolveProfileKnown(t *testing.T) {
 	for name := range DefaultProfiles {
-		p := ResolveProfile(name)
+		p, ok := ResolveProfile(name)
+		if !ok {
+			t.Fatalf("expected profile %q to be known", name)
+		}
 		if p.Name != name {
 			t.Fatalf("expected profile %q, got %q", name, p.Name)
 		}
