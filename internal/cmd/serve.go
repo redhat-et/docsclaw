@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -26,16 +25,19 @@ import (
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
 	"github.com/redhat-et/docsclaw/internal/mcpclient"
+	"github.com/redhat-et/docsclaw/internal/memorytool"
 	_ "github.com/redhat-et/docsclaw/internal/metrics"
-	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/ragsearch"
 	"github.com/redhat-et/docsclaw/internal/readfile"
 	"github.com/redhat-et/docsclaw/internal/session"
+	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/webfetch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
+	"github.com/redhat-et/docsclaw/pkg/agentcontext"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 	"github.com/redhat-et/docsclaw/pkg/manifest"
+	"github.com/redhat-et/docsclaw/pkg/memory"
 	"github.com/redhat-et/docsclaw/pkg/rag"
 	"github.com/redhat-et/docsclaw/pkg/skills"
 	"github.com/redhat-et/docsclaw/pkg/tools"
@@ -121,92 +123,6 @@ func loadToolsJSON(path string) (*manifest.ToolsJSON, error) {
 
 const defaultWorkspace = "/workspace"
 
-var openClawFiles = []string{
-	"AGENTS.md",
-	"SOUL.md",
-	"USER.md",
-	"IDENTITY.md",
-	"TOOLS.md",
-}
-
-const (
-	maxPerFileChars = 20_000
-	maxTotalChars   = 60_000
-)
-
-// truncateRunes returns s truncated to at most n runes, without
-// splitting multi-byte characters.
-func truncateRunes(s string, n int) string {
-	runes := 0
-	for i := range s {
-		if runes >= n {
-			return s[:i]
-		}
-		runes++
-	}
-	return s
-}
-
-func loadWorkspaceContext(workspaceDir string) string {
-	var loaded []string
-	var sections []string
-	totalChars := 0
-
-	for _, name := range openClawFiles {
-		if totalChars >= maxTotalChars {
-			break
-		}
-
-		data, err := os.ReadFile(filepath.Join(workspaceDir, name))
-		if err != nil {
-			if !os.IsNotExist(err) {
-				slog.Warn("failed to read workspace file", "file", name, "error", err)
-			}
-			continue
-		}
-
-		content := strings.TrimSpace(string(data))
-		if content == "" {
-			continue
-		}
-
-		runeCount := utf8.RuneCountInString(content)
-		if runeCount > maxPerFileChars {
-			slog.Warn("workspace file truncated",
-				"file", name,
-				"original_chars", runeCount,
-				"limit", maxPerFileChars)
-			content = truncateRunes(content, maxPerFileChars)
-			runeCount = maxPerFileChars
-		}
-
-		remaining := maxTotalChars - totalChars
-		if runeCount > remaining {
-			slog.Warn("workspace context truncated at total limit",
-				"file", name,
-				"used_chars", remaining,
-				"total_limit", maxTotalChars)
-			content = truncateRunes(content, remaining)
-			runeCount = remaining
-		}
-
-		totalChars += runeCount
-		header := strings.TrimSuffix(name, ".md")
-		sections = append(sections, fmt.Sprintf("### %s\n%s", header, content))
-		loaded = append(loaded, name)
-	}
-
-	if len(sections) == 0 {
-		return ""
-	}
-
-	slog.Info("loaded workspace context",
-		"files", loaded,
-		"total_chars", totalChars)
-
-	return "\n\n## Project Context\n\n" + strings.Join(sections, "\n\n")
-}
-
 var toolNameAllowed = regexp.MustCompile(`[^a-zA-Z0-9 _-]`)
 
 func sanitizeToolName(name string) string {
@@ -253,11 +169,14 @@ func init() {
 	serveCmd.Flags().Int("llm-timeout", 45, "LLM request timeout in seconds")
 	serveCmd.Flags().String("workspace", "",
 		"Workspace directory path (default: /workspace)")
+	serveCmd.Flags().String("workspace-profile", "docsclaw",
+		"Workspace context profile: docsclaw, openclaw, hermes, or custom")
 	serveCmd.Flags().String("session-db", "",
 		"Session database backend ('memory' for in-memory, or a file path for SQLite; default: memory)")
 
 	_ = v.BindPFlag("config_dir", serveCmd.Flags().Lookup("config-dir"))
 	_ = v.BindPFlag("workspace", serveCmd.Flags().Lookup("workspace"))
+	_ = v.BindPFlag("workspace_profile", serveCmd.Flags().Lookup("workspace-profile"))
 	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
 	_ = v.BindPFlag("document_service_url", serveCmd.Flags().Lookup("document-service-url"))
 	_ = v.BindPFlag("llm.provider", serveCmd.Flags().Lookup("llm-provider"))
@@ -272,12 +191,13 @@ func init() {
 // Config holds docsclaw configuration.
 type Config struct {
 	config.CommonConfig `mapstructure:",squash"`
-	ConfigDir          string     `mapstructure:"config_dir"`
-	SkillsDir          string     `mapstructure:"skills_dir"`
-	Workspace          string     `mapstructure:"workspace"`
-	DocumentServiceURL string     `mapstructure:"document_service_url"`
-	LLM                llm.Config `mapstructure:"llm"`
-	SessionDB          string     `mapstructure:"session_db"`
+	ConfigDir           string     `mapstructure:"config_dir"`
+	SkillsDir           string     `mapstructure:"skills_dir"`
+	Workspace           string     `mapstructure:"workspace"`
+	WorkspaceProfile    string     `mapstructure:"workspace_profile"`
+	DocumentServiceURL  string     `mapstructure:"document_service_url"`
+	LLM                 llm.Config `mapstructure:"llm"`
+	SessionDB           string     `mapstructure:"session_db"`
 }
 
 func resolveWorkspace(cfgWorkspace, flagWorkspace string) string {
@@ -382,6 +302,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}))
 		toolRegistry.Register(readfile.NewReadFileTool(workspace))
 		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
+		toolRegistry.Register(memorytool.NewRememberTool(
+			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
+		))
 
 		loopCfg = agentCfg.toLoopConfig()
 
@@ -401,8 +324,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 	log := logger.New(logger.ComponentAgent)
 	slog.SetDefault(log.Logger)
 
-	// Load OpenClaw workspace context (works in both phase 1 and phase 2)
-	systemPrompt += loadWorkspaceContext(workspace)
+	// Load workspace context using the selected profile (works in both phases)
+	profile := agentcontext.ResolveProfile(cfg.WorkspaceProfile)
+	systemPrompt += agentcontext.NewLoader().Load(workspace, profile)
 
 	// Load OS tool inventory and inject into system prompt
 	const toolsJSONPath = "/etc/docsclaw/tools.json"
