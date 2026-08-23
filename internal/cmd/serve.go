@@ -437,7 +437,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Register additional tools and skills when in phase 2 mode
 	if toolRegistry != nil {
-		// Register aliases first
+		// Register aliases first. Alias conflicts are logged but not fatal:
+		// the canonical tools are still usable, so the agent can function.
 		if err := toolRegistry.RegisterAlias("read", "read_file"); err != nil {
 			log.Warn("failed to register tool alias", "alias", "read", "error", err)
 		}
@@ -448,7 +449,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 			log.Warn("failed to register tool alias", "alias", "terminal", "error", err)
 		}
 
-		// Register existing tools
+		// Register existing tools. Missing canonical tools are fatal because
+		// the agent would be unable to perform basic operations without them.
 		if err := toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
 			Timeout:   agentCfg.Tools.Exec.Timeout,
 			MaxOutput: agentCfg.Tools.Exec.MaxOutput,

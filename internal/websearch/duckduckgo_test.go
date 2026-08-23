@@ -32,10 +32,7 @@ func TestDuckDuckGoProvider_Search(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := server.Client()
-	provider := NewDuckDuckGoProvider(client)
-	ddg := provider.(*duckDuckGoProvider)
-	ddg.baseURL = server.URL
+	provider := newDuckDuckGoProvider(server.Client(), server.URL)
 
 	results, err := provider.Search(context.Background(), "golang", 2)
 	if err != nil {
@@ -70,9 +67,7 @@ func TestDuckDuckGoProvider_SearchErrorStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	provider := NewDuckDuckGoProvider(server.Client())
-	ddg := provider.(*duckDuckGoProvider)
-	ddg.baseURL = server.URL
+	provider := newDuckDuckGoProvider(server.Client(), server.URL)
 	_, err := provider.Search(context.Background(), "test", 1)
 	if err == nil {
 		t.Fatal("expected error for non-OK status")
@@ -86,9 +81,7 @@ func TestDuckDuckGoProvider_EmptyResults(t *testing.T) {
 	}))
 	defer server.Close()
 
-	provider := NewDuckDuckGoProvider(server.Client())
-	ddg := provider.(*duckDuckGoProvider)
-	ddg.baseURL = server.URL
+	provider := newDuckDuckGoProvider(server.Client(), server.URL)
 	results, err := provider.Search(context.Background(), "xyznothing", 5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -243,9 +236,7 @@ func TestDuckDuckGoProvider_BodySizeCap(t *testing.T) {
 	}
 	client := &http.Client{Transport: transport}
 
-	provider := NewDuckDuckGoProvider(client)
-	ddg := provider.(*duckDuckGoProvider)
-	ddg.baseURL = server.URL
+	provider := newDuckDuckGoProvider(client, server.URL)
 	results, err := provider.Search(context.Background(), "test", 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

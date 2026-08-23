@@ -36,12 +36,16 @@ type duckDuckGoProvider struct {
 
 // NewDuckDuckGoProvider creates a DuckDuckGo search provider.
 func NewDuckDuckGoProvider(client *http.Client) Provider {
+	return newDuckDuckGoProvider(client, DuckDuckGoBaseURL)
+}
+
+func newDuckDuckGoProvider(client *http.Client, baseURL string) *duckDuckGoProvider {
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
 	return &duckDuckGoProvider{
 		client:  client,
-		baseURL: DuckDuckGoBaseURL,
+		baseURL: baseURL,
 	}
 }
 
