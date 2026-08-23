@@ -119,7 +119,9 @@ if cfg.RAG != nil {
     if err != nil {
         return fmt.Errorf("rag: %w", err)
     }
-    registry.Register(tools.NewRAGSearchTool(ragClient, cfg.RAG))
+    if err := registry.RegisterAlwaysAllowed(ragsearch.NewRAGSearchTool(ragClient, cfg.RAG)); err != nil {
+        return fmt.Errorf("register rag_search tool: %w", err)
+    }
 }
 ```
 

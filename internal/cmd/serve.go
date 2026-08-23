@@ -19,8 +19,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
+	"github.com/redhat-et/docsclaw/internal/applypatch"
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/config"
+	"github.com/redhat-et/docsclaw/internal/edit"
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
@@ -30,9 +32,11 @@ import (
 	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/ragsearch"
 	"github.com/redhat-et/docsclaw/internal/readfile"
+	"github.com/redhat-et/docsclaw/internal/searchfiles"
 	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/webfetch"
+	"github.com/redhat-et/docsclaw/internal/websearch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
 	"github.com/redhat-et/docsclaw/pkg/agentcontext"
 	"github.com/redhat-et/docsclaw/pkg/llm"
@@ -293,19 +297,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		systemPrompt += fmt.Sprintf(
 			"\n\nYour workspace directory is %s. Always write files there.", workspace)
 
-		toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
-			Timeout:   agentCfg.Tools.Exec.Timeout,
-			MaxOutput: agentCfg.Tools.Exec.MaxOutput,
-		}))
-		toolRegistry.Register(webfetch.NewWebFetchTool(webfetch.WebFetchConfig{
-			AllowedHosts: agentCfg.Tools.WebFetch.AllowedHosts,
-		}))
-		toolRegistry.Register(readfile.NewReadFileTool(workspace))
-		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
-		toolRegistry.Register(memorytool.NewRememberTool(
-			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
-		))
-
 		loopCfg = agentCfg.toLoopConfig()
 
 		if len(agentCfg.Tools.MCP) > 0 {
@@ -315,9 +306,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 			}
 			defer func() { _ = mcpMgr.Close() }()
 
+			// MCP tools are registered after the OpenClaw/Hermes aliases and
+			// canonical tools. Registry registration rejects names that collide
+			// with existing aliases or canonical tools, so an MCP tool named
+			// read/write/terminal (or their canonical counterparts
+			// read_file/write_file/exec) aborts startup instead of shadowing
+			// the reserved tools.
 			for _, t := range mcpMgr.Tools() {
-				toolRegistry.RegisterAlwaysAllowed(t)
+				if err := toolRegistry.RegisterAlwaysAllowed(t); err != nil {
+					return fmt.Errorf("failed to register MCP tool %q: %w", t.Name(), err)
+				}
 			}
+
 		}
 	}
 
@@ -443,32 +443,89 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Register additional tools and skills when in phase 2 mode
 	if toolRegistry != nil {
+		// Register aliases first. Alias conflicts are logged but not fatal:
+		// the canonical tools are still usable, so the agent can function.
+		if err := toolRegistry.RegisterAlias("read", "read_file"); err != nil {
+			log.Warn("failed to register tool alias", "alias", "read", "error", err)
+		}
+		if err := toolRegistry.RegisterAlias("write", "write_file"); err != nil {
+			log.Warn("failed to register tool alias", "alias", "write", "error", err)
+		}
+		if err := toolRegistry.RegisterAlias("terminal", "exec"); err != nil {
+			log.Warn("failed to register tool alias", "alias", "terminal", "error", err)
+		}
+
+		// Register existing tools. Missing canonical tools are fatal because
+		// the agent would be unable to perform basic operations without them.
+		if err := toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
+			Timeout:   agentCfg.Tools.Exec.Timeout,
+			MaxOutput: agentCfg.Tools.Exec.MaxOutput,
+		})); err != nil {
+			return fmt.Errorf("failed to register exec tool: %w", err)
+		}
+		if err := toolRegistry.Register(webfetch.NewWebFetchTool(webfetch.WebFetchConfig{
+			AllowedHosts: agentCfg.Tools.WebFetch.AllowedHosts,
+		})); err != nil {
+			return fmt.Errorf("failed to register webfetch tool: %w", err)
+		}
+		if err := toolRegistry.Register(readfile.NewReadFileTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register readfile tool: %w", err)
+		}
+		if err := toolRegistry.Register(writefile.NewWriteFileTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register writefile tool: %w", err)
+		}
+		if err := toolRegistry.Register(searchfiles.NewSearchFilesTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register searchfiles tool: %w", err)
+		}
+		if err := toolRegistry.Register(memorytool.NewRememberTool(
+			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
+		)); err != nil {
+			return fmt.Errorf("failed to register remember tool: %w", err)
+		}
+
 		if agentCfg.RAG != nil {
 			ragClient, err := rag.NewClient(agentCfg.RAG)
 			if err != nil {
 				return fmt.Errorf("rag: %w", err)
 			}
-			toolRegistry.RegisterAlwaysAllowed(ragsearch.NewRAGSearchTool(
-				ragClient, agentCfg.RAG))
+			if err := toolRegistry.RegisterAlwaysAllowed(ragsearch.NewRAGSearchTool(
+				ragClient, agentCfg.RAG)); err != nil {
+				return fmt.Errorf("failed to register ragsearch tool: %w", err)
+			}
 			log.Info("RAG search enabled",
 				"backend", agentCfg.RAG.Backend,
 				"collection", agentCfg.RAG.Collection)
 		}
 
 		// Register fetch_document tool (uses delegation transport)
-		toolRegistry.Register(fetchdoc.NewFetchDocTool(
+		if err := toolRegistry.Register(fetchdoc.NewFetchDocTool(
 			func(ctx context.Context, docID, token string) (map[string]any, error) {
 				return fetchDocument(ctx, docID, token)
 			},
-		))
+		)); err != nil {
+			return fmt.Errorf("failed to register fetchdoc tool: %w", err)
+		}
+
+		// Register new tools after existing ones
+		if err := toolRegistry.Register(websearch.NewWebSearchTool(websearch.NewDuckDuckGoProvider(httpClient))); err != nil {
+			return fmt.Errorf("failed to register websearch tool: %w", err)
+		}
+		if err := toolRegistry.Register(applypatch.NewApplyPatchTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register applypatch tool: %w", err)
+		}
+		if err := toolRegistry.Register(edit.NewEditTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register edit tool: %w", err)
+		}
 
 		// Register skill loading tool in phase 2
 		if len(discoveredSkills) > 0 {
 			skillsSummary = skills.BuildSummary(discoveredSkills)
 
-			toolRegistry.RegisterAlwaysAllowed(&loadSkillTool{
+			if err := toolRegistry.RegisterAlwaysAllowed(&loadSkillTool{
 				skillsDir: skillsDir,
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to register load_skill tool: %w", err)
+			}
 		}
 
 		log.Info("Tools enabled",

@@ -1,0 +1,110 @@
+package edit
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/redhat-et/docsclaw/internal/fileutil"
+	"github.com/redhat-et/docsclaw/internal/workspace"
+	"github.com/redhat-et/docsclaw/pkg/tools"
+)
+
+type editTool struct {
+	workspaceDir string
+}
+
+// NewEditTool creates a new edit tool scoped to the given workspace.
+// An empty workspaceDir disables workspace sandboxing, allowing absolute
+// paths anywhere on the filesystem (consistent with read_file/write_file).
+func NewEditTool(workspaceDir string) tools.Tool {
+	return &editTool{workspaceDir: workspaceDir}
+}
+
+func (t *editTool) Name() string { return "edit" }
+func (t *editTool) Description() string {
+	return "Replace the first occurrence of an exact string in a file. " +
+		"If the old string occurs multiple times, only the first is replaced " +
+		"and a warning is returned."
+}
+func (t *editTool) Parameters() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"path": map[string]any{
+				"type":        "string",
+				"description": "Path to the file to edit. Relative paths are resolved against the workspace directory.",
+			},
+			"old_string": map[string]any{
+				"type":        "string",
+				"description": "Exact string to replace",
+			},
+			"new_string": map[string]any{
+				"type":        "string",
+				"description": "Replacement string",
+			},
+		},
+		"required": []string{"path", "old_string", "new_string"},
+	}
+}
+
+func (t *editTool) Execute(_ context.Context, args map[string]any) *tools.ToolResult {
+	path, ok := args["path"].(string)
+	if !ok || path == "" {
+		return tools.Errorf("path is required")
+	}
+
+	oldString, ok := args["old_string"].(string)
+	if !ok {
+		return tools.Errorf("old_string is required")
+	}
+	if oldString == "" {
+		return tools.Errorf("old_string must not be empty")
+	}
+
+	newString, ok := args["new_string"].(string)
+	if !ok {
+		return tools.Errorf("new_string is required")
+	}
+
+	absPath, err := workspace.ResolveWorkspacePath(path, t.workspaceDir)
+	if err != nil {
+		return tools.Errorf("%s", err)
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return tools.Errorf("file does not exist: %s", absPath)
+		}
+		return tools.Errorf("failed to stat file: %s", err)
+	}
+	if !info.Mode().IsRegular() {
+		return tools.Errorf("path is not a regular file: %s", absPath)
+	}
+	originalMode := info.Mode().Perm()
+
+	original, err := os.ReadFile(absPath)
+	if err != nil {
+		return tools.Errorf("failed to read file: %s", err)
+	}
+
+	content := string(original)
+	if !strings.Contains(content, oldString) {
+		return tools.Errorf("old_string not found in file: %s", absPath)
+	}
+
+	count := strings.Count(content, oldString)
+	replaced := strings.Replace(content, oldString, newString, 1)
+
+	if err := fileutil.WriteFileAtomically(absPath, []byte(replaced), originalMode); err != nil {
+		return tools.Errorf("failed to apply edit: %s", err)
+	}
+
+	output := fmt.Sprintf("Edited %s", absPath)
+	if count > 1 {
+		output += fmt.Sprintf("\nWarning: %d occurrences of old_string found; only the first was replaced", count)
+	}
+	return tools.OK(output)
+}

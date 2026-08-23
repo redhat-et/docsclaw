@@ -36,5 +36,8 @@ demo/batch/dashboard/dashboard
 # Local documentation drafts
 /docs/superpowers/
 
+# Git worktrees
+.worktrees/
+
 # PDF files
 *.pdf
