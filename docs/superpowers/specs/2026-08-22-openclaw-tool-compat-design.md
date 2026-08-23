@@ -32,8 +32,18 @@ following aliases are registered when Phase 2 mode is enabled:
 | `terminal` | `exec`         |
 
 The allowed-tools filter is applied to the canonical name, so an alias is
-usable only when its canonical target is allowed. Registering a tool whose
-name collides with an existing alias (or vice versa) returns an error.
+usable only when its canonical target is allowed.
+
+### Reserved names
+
+The aliases `read`, `write`, and `terminal` are reserved for
+OpenClaw/Hermes compatibility. Their canonical targets `read_file`,
+`write_file`, and `exec` are also reserved names. Registering a tool whose
+name collides with an existing alias or canonical name (or vice versa)
+returns an error. Because aliases and canonical tools are registered before
+MCP tools in `internal/cmd/serve.go`, any later registration—including from
+an MCP server—that tries to reuse a reserved alias or canonical name will
+fail startup.
 
 ### Breaking API change
 
@@ -153,7 +163,9 @@ When Phase 2 mode is enabled (`toolRegistry != nil` block in
   canonical tools are still available.
 - Tool registration errors abort startup. A missing canonical tool would leave
   the agent unable to perform basic operations, so startup fails fast with a
-  clear error.
+  clear error. This also applies to MCP tools that collide with reserved
+  aliases (`read`, `write`, `terminal`) or canonical names (`read_file`,
+  `write_file`, `exec`).
 
 ## Implementation details
 

@@ -306,6 +306,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 			}
 			defer func() { _ = mcpMgr.Close() }()
 
+			// MCP tools are registered after the OpenClaw/Hermes aliases and
+			// canonical tools. Registry registration rejects names that collide
+			// with existing aliases or canonical tools, so an MCP tool named
+			// read/write/terminal (or their canonical counterparts
+			// read_file/write_file/exec) aborts startup instead of shadowing
+			// the reserved tools.
 			for _, t := range mcpMgr.Tools() {
 				if err := toolRegistry.RegisterAlwaysAllowed(t); err != nil {
 					return fmt.Errorf("failed to register MCP tool %q: %w", t.Name(), err)
