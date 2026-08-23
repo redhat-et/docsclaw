@@ -22,7 +22,7 @@ RUN --mount=type=bind,from=registry.access.redhat.com/hi/core-runtime:latest-bui
     --setopt=reposdir=/builder/etc/yum.repos.d \
     --setopt=install_weak_deps=False \
     --setopt=tsflags=nodocs \
-    curl jq
+    curl jq ripgrep
 USER 65532
 
 WORKDIR /app

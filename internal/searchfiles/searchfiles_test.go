@@ -205,6 +205,44 @@ func TestSearchFilesToolSymlinkEscapeBlocked(t *testing.T) {
 	}
 }
 
+// Runtime requirement: search_files shells out to ripgrep (rg). Production
+// container images install the ripgrep package; if rg is missing from PATH,
+// Execute returns a clear error.
+func TestSearchFilesToolMissingRipgrep(t *testing.T) {
+	tmpDir := t.TempDir()
+	tool := NewSearchFilesTool(tmpDir)
+
+	// Hide rg from PATH so LookPath cannot find it.
+	t.Setenv("PATH", "")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  ".",
+		"regex": "foo",
+	})
+
+	if !result.Error {
+		t.Fatal("expected error when rg is not available")
+	}
+	if !strings.Contains(result.Output, "ripgrep (rg) is not installed") {
+		t.Fatalf("expected ripgrep missing error, got %q", result.Output)
+	}
+}
+
+func TestSearchFilesToolInvalidRegexEmptyWorkspace(t *testing.T) {
+	tool := NewSearchFilesTool("")
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  ".",
+		"regex": "[",
+	})
+
+	if !result.Error {
+		t.Fatal("expected error for invalid regex")
+	}
+	if !strings.Contains(result.Output, "invalid regex") {
+		t.Fatalf("expected invalid regex error, got %q", result.Output)
+	}
+}
+
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }

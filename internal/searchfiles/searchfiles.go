@@ -101,6 +101,11 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 		return tools.Errorf("invalid regex: %s", err)
 	}
 
+	// search_files shells out to ripgrep; make sure it is available at runtime.
+	if _, err := exec.LookPath("rg"); err != nil {
+		return tools.Errorf("ripgrep (rg) is not installed; search_files requires it")
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

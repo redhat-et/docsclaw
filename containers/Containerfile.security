@@ -96,6 +96,7 @@ RUN --mount=type=bind,from=registry.access.redhat.com/hi/core-runtime:latest-bui
     --setopt=tsflags=nodocs \
     curl \
     jq \
+    ripgrep \
     git-core \
     make \
     python3 \

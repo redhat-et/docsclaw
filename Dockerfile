@@ -10,7 +10,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /docsclaw ./cmd/docsclaw
 
 FROM alpine:3.24
 
-RUN apk --no-cache add ca-certificates curl && \
+RUN apk --no-cache add ca-certificates curl ripgrep && \
     addgroup -S docsclaw && adduser -S docsclaw -G docsclaw
 
 WORKDIR /app
