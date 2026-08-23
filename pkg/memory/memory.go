@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,6 +44,8 @@ func (s *FileStore) Load(_ context.Context) (string, error) {
 }
 
 // Remember appends the entry to the memory file with a timestamp header.
+// The file is created with owner-only permissions (0600) and existing files
+// are chmod'd to 0600 on every call to guard against umask or prior leaks.
 func (s *FileStore) Remember(_ context.Context, entry string) (err error) {
 	entry = strings.TrimSpace(entry)
 	if entry == "" {
@@ -54,21 +57,7 @@ func (s *FileStore) Remember(_ context.Context, entry string) (err error) {
 		return fmt.Errorf("create memory directory: %w", err)
 	}
 
-	// Ensure the file ends with a blank line so appended sections are
-	// separated cleanly.
-	prefix := ""
-	data, rerr := os.ReadFile(s.path)
-	if rerr == nil && len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
-		prefix = "\n"
-	}
-
-	section := fmt.Sprintf("%s## %s\n\n%s\n\n",
-		prefix,
-		time.Now().UTC().Format(time.RFC3339),
-		entry,
-	)
-
-	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("open memory file: %w", err)
 	}
@@ -77,6 +66,27 @@ func (s *FileStore) Remember(_ context.Context, entry string) (err error) {
 			err = fmt.Errorf("close memory file: %w", cerr)
 		}
 	}()
+
+	// Ensure owner-only permissions regardless of umask or pre-existing mode.
+	if err := os.Chmod(s.path, 0600); err != nil {
+		return fmt.Errorf("chmod memory file: %w", err)
+	}
+
+	// Determine whether the existing content ends with a newline by reading
+	// only the final byte instead of the whole file.
+	prefix := ""
+	if _, err := f.Seek(-1, io.SeekEnd); err == nil {
+		buf := make([]byte, 1)
+		if _, err := f.Read(buf); err == nil && buf[0] != '\n' {
+			prefix = "\n"
+		}
+	}
+
+	section := fmt.Sprintf("%s## %s\n\n%s\n\n",
+		prefix,
+		time.Now().UTC().Format(time.RFC3339),
+		entry,
+	)
 
 	if _, err = f.WriteString(section); err != nil {
 		return fmt.Errorf("write memory file: %w", err)

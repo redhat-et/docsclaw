@@ -2,6 +2,7 @@ package memorytool
 
 import (
 	"context"
+	"strings"
 
 	"github.com/redhat-et/docsclaw/pkg/memory"
 	"github.com/redhat-et/docsclaw/pkg/tools"
@@ -38,7 +39,7 @@ func (t *rememberTool) Parameters() map[string]any {
 
 func (t *rememberTool) Execute(ctx context.Context, args map[string]any) *tools.ToolResult {
 	entry, _ := args["entry"].(string)
-	if entry == "" {
+	if strings.TrimSpace(entry) == "" {
 		return tools.Errorf("entry is required")
 	}
 

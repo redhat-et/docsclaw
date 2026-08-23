@@ -110,16 +110,18 @@ git push --tags
 - Requires the repo secret `HOMEBREW_TAP_TOKEN` for the Homebrew tap.
 - Produces cross-platform binaries, multi-arch images (`ghcr.io/redhat-et/docsclaw:<version>`), and a Homebrew formula.
 
-## OpenClaw workspace context
+## Workspace context
 
-When a workspace directory (default `/workspace`) contains these files, they are appended to the system prompt as `## Project Context` in this order:
+When a workspace directory (default `/workspace`) contains Markdown files, they are appended to the system prompt as `## Project Context`. Use `--workspace-profile` to select which files are loaded and in what order:
 
-1. `AGENTS.md`
-2. `SOUL.md`
-3. `USER.md`
-4. `IDENTITY.md`
-5. `TOOLS.md`
+| Profile | Files loaded |
+| ------- | ------------ |
+| `docsclaw` (default) | `AGENTS.md`, `SOUL.md`, `USER.md`, `IDENTITY.md`, `TOOLS.md` |
+| `openclaw` | `AGENTS.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, `IDENTITY.md`, `TOOLS.md` |
+| `hermes` | `AGENTS.md`, `SOUL.md`, `USER.md`, `MEMORY.md` |
 
+- `MEMORY.md` is loaded only by the `openclaw` and `hermes` profiles.
+- In Phase 2 mode, the `remember` tool appends entries to `MEMORY.md`, giving the agent file-backed long-term memory that survives restarts.
 - Each file is capped at 20,000 characters; total context is capped at 60,000 characters.
 - Do not confuse `/workspace/AGENTS.md` with this repo-level `AGENTS.md`.
 

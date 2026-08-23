@@ -24,6 +24,24 @@ func TestRememberToolRequiresEntry(t *testing.T) {
 	}
 }
 
+func TestRememberToolRejectsWhitespace(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "MEMORY.md")
+	store := memory.NewFileStore(path)
+	tool := NewRememberTool(store)
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"entry": "   \n  ",
+	})
+	if !result.Error {
+		t.Fatal("expected error for whitespace-only entry")
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("expected no memory file for whitespace-only entry")
+	}
+}
+
 func TestRememberToolAppends(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "MEMORY.md")
