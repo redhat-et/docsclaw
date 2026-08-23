@@ -16,6 +16,8 @@ type editTool struct {
 }
 
 // NewEditTool creates a new edit tool scoped to the given workspace.
+// An empty workspaceDir disables workspace sandboxing, allowing absolute
+// paths anywhere on the filesystem (consistent with read_file/write_file).
 func NewEditTool(workspaceDir string) tools.Tool {
 	return &editTool{workspaceDir: workspaceDir}
 }
@@ -87,6 +89,9 @@ func (t *editTool) Execute(_ context.Context, args map[string]any) *tools.ToolRe
 			return tools.Errorf("file does not exist: %s", absPath)
 		}
 		return tools.Errorf("failed to stat file: %s", err)
+	}
+	if !info.Mode().IsRegular() {
+		return tools.Errorf("path is not a regular file: %s", absPath)
 	}
 	originalMode := info.Mode().Perm()
 
