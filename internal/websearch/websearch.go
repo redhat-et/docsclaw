@@ -23,8 +23,10 @@ func NewWebSearchTool(provider Provider) tools.Tool {
 	return &webSearchTool{provider: provider}
 }
 
-func (t *webSearchTool) Name() string        { return "web_search" }
-func (t *webSearchTool) Description() string { return "Search the web and return a list of relevant results." }
+func (t *webSearchTool) Name() string { return "web_search" }
+func (t *webSearchTool) Description() string {
+	return "Search the web and return a list of relevant results."
+}
 
 func (t *webSearchTool) Parameters() map[string]any {
 	return map[string]any{
