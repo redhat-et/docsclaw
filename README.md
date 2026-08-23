@@ -56,18 +56,27 @@ my-agent/
     └── url-summary/
         └── SKILL.md
 
-/workspace/                 # Optional OpenClaw workspace files
+/workspace/                 # Optional workspace context files
 ├── AGENTS.md               # Operating instructions
 ├── SOUL.md                 # Persona and tone
 ├── USER.md                 # User context
+├── MEMORY.md               # Long-term memory (read + written by `remember`)
 ├── IDENTITY.md             # Agent name and role
 └── TOOLS.md                # Tool guidance
 ```
 
-Same binary, different config = different agent. If OpenClaw
-workspace files are present in the workspace directory, they are
-loaded as project context alongside the system prompt — giving
-users a migration path from OpenClaw to a leaner runtime.
+Same binary, different config = different agent. DocsClaw loads
+workspace Markdown as project context. Use `--workspace-profile`
+to choose which files are loaded:
+
+```bash
+docsclaw serve --workspace-profile openclaw   # AGENTS, SOUL, USER, MEMORY, IDENTITY, TOOLS
+docsclaw serve --workspace-profile hermes     # AGENTS, SOUL, USER, MEMORY
+```
+
+The default `docsclaw` profile omits `MEMORY.md`. In Phase 2 mode,
+the `remember` tool appends entries to `MEMORY.md`, giving agents
+a simple file-based long-term memory that survives restarts.
 
 Without `agent-config.yaml`, DocsClaw runs in **single-shot mode**
 (no tools, prompt-in/response-out). With it, the **agentic loop**

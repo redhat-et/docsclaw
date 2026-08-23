@@ -91,3 +91,17 @@ The agent reads personality from a config directory:
 - **log/slog** for structured logging
 - **Prometheus** for metrics
 - **GoReleaser** for automated releases
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `redhat-et/docsclaw` via `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` at root + `docs/adr/`. See `docs/agents/domain.md`.

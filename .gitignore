@@ -23,6 +23,18 @@ oci-layout/
 # Superpowers brainstorm sessions
 .superpowers/
 
+# Kaiden workspace config
+.kaiden/
+
 # Scratch notes (not committed)
 scratch/
 demo/batch/dashboard/dashboard
+
+# Built binaries
+/skill-puller
+
+# Local documentation drafts
+/docs/superpowers/
+
+# PDF files
+*.pdf
