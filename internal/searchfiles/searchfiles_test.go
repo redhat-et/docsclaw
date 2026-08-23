@@ -75,6 +75,36 @@ func TestSearchFilesToolWorkspaceEscapeBlocked(t *testing.T) {
 	}
 }
 
+func TestSearchFilesToolRelativeTraversalBlocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	outsideDir := t.TempDir()
+
+	tool := NewSearchFilesTool(tmpDir)
+
+	cases := []struct {
+		name string
+		path string
+	}{
+		{name: "parent traversal", path: ".."},
+		{name: "nested traversal escape", path: filepath.Join("subdir", "..", "..", filepath.Base(outsideDir))},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := tool.Execute(context.Background(), map[string]any{
+				"path":  tc.path,
+				"regex": "secret",
+			})
+			if !result.Error {
+				t.Fatal("expected error for relative path outside workspace")
+			}
+			if !strings.Contains(result.Output, "outside workspace") {
+				t.Fatalf("expected outside workspace error, got %q", result.Output)
+			}
+		})
+	}
+}
+
 func TestSearchFilesToolInvalidRegex(t *testing.T) {
 	tool := NewSearchFilesTool(t.TempDir())
 	result := tool.Execute(context.Background(), map[string]any{

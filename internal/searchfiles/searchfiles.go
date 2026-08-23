@@ -93,7 +93,7 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 
 	if t.workspaceDir != "" {
 		if !workspace.IsInsideWorkspace(searchPath, t.workspaceDir) {
-			return tools.Errorf("Access denied: path outside workspace")
+			return tools.Errorf("access denied: path outside workspace")
 		}
 	}
 
@@ -104,7 +104,7 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	rgArgs := []string{"--json"}
+	rgArgs := []string{"--no-config", "--json"}
 	if filePattern != "" {
 		rgArgs = append(rgArgs, "-g", filePattern)
 	}
