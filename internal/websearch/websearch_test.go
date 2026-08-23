@@ -168,6 +168,31 @@ func TestWebSearchTool_NoResults(t *testing.T) {
 	}
 }
 
+func TestWebSearchTool_InvalidNumResultsType(t *testing.T) {
+	tool := NewWebSearchTool(&fakeProvider{})
+	result := tool.Execute(context.Background(), map[string]any{
+		"query":       "go",
+		"num_results": "ten",
+	})
+	if !result.Error {
+		t.Fatal("expected error result for invalid num_results type")
+	}
+	if !strings.Contains(result.Output, "num_results must be an integer") {
+		t.Errorf("expected 'num_results must be an integer', got %q", result.Output)
+	}
+}
+
+func TestWebSearchTool_WhitespaceOnlyQuery(t *testing.T) {
+	tool := NewWebSearchTool(&fakeProvider{})
+	result := tool.Execute(context.Background(), map[string]any{"query": "   "})
+	if !result.Error {
+		t.Fatal("expected error result for whitespace-only query")
+	}
+	if !strings.Contains(result.Output, "query is required") {
+		t.Errorf("expected 'query is required', got %q", result.Output)
+	}
+}
+
 func TestWebSearchTool_OutputFormat(t *testing.T) {
 	fake := &fakeProvider{results: []Result{{
 		Title:   "Example",

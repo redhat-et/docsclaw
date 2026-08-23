@@ -18,9 +18,10 @@ const DuckDuckGoBaseURL = "https://html.duckduckgo.com/html/"
 const maxResponseBytes = 1 << 20 // 1 MiB
 
 var (
-	titleRe   = regexp.MustCompile(`<a[^>]*class="result__a"[^>]*>(.*?)</a>`)
-	snippetRe = regexp.MustCompile(`<div[^>]*class="result__snippet"[^>]*>(.*?)</div>`)
-	hrefRe    = regexp.MustCompile(`<a[^>]*class="result__a"[^>]*href="([^"]*)"`)
+	titleRe     = regexp.MustCompile(`<a[^>]*class="result__a"[^>]*>(.*?)</a>`)
+	snippetRe   = regexp.MustCompile(`<div[^>]*class="result__snippet"[^>]*>(.*?)</div>`)
+	hrefRe      = regexp.MustCompile(`<a[^>]*class="result__a"[^>]*href="([^"]*)"`)
+	stripHTMLRe = regexp.MustCompile("<[^>]*>")
 )
 
 type duckDuckGoProvider struct {
@@ -73,6 +74,10 @@ func (p *duckDuckGoProvider) Search(ctx context.Context, query string, numResult
 	return parseDDGResults(string(body), numResults), nil
 }
 
+// parseDDGResults scrapes DuckDuckGo HTML with regexes. This is inherently
+// fragile and tightly coupled to DuckDuckGo's current markup. The Provider
+// interface allows swapping to a more robust backend (e.g., Brave or Tavily)
+// without changing the tool implementation.
 func parseDDGResults(htmlBody string, limit int) []Result {
 	titles := titleRe.FindAllStringSubmatch(htmlBody, -1)
 	snippets := snippetRe.FindAllStringSubmatch(htmlBody, -1)
@@ -92,8 +97,7 @@ func parseDDGResults(htmlBody string, limit int) []Result {
 
 func stripHTML(s string) string {
 	s = html.UnescapeString(s)
-	re := regexp.MustCompile("<[^>]*>")
-	s = re.ReplaceAllString(s, "")
+	s = stripHTMLRe.ReplaceAllString(s, "")
 	return strings.TrimSpace(s)
 }
 

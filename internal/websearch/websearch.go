@@ -79,6 +79,9 @@ func (t *webSearchTool) Execute(ctx context.Context, args map[string]any) *tools
 		return tools.OK("No results found.")
 	}
 
+	// Titles, URLs, and snippets are inserted raw into markdown. If they
+	// contain characters such as ']', ')', or '"', the resulting markdown may
+	// be malformed. A full markdown escaper is intentionally not included.
 	var b strings.Builder
 	for _, r := range results {
 		fmt.Fprintf(&b, "* [%s](%s): %s\n", r.Title, r.URL, r.Snippet)
