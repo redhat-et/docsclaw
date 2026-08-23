@@ -71,7 +71,9 @@ func TestRegistryAlwaysAllowed(t *testing.T) {
 func TestRegistryAliasLookup(t *testing.T) {
 	r := NewRegistry(nil)
 	r.Register(&mockTool{name: "read_file"})
-	r.RegisterAlias("read", "read_file")
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("RegisterAlias failed: %v", err)
+	}
 
 	tool, ok := r.Get("read")
 	if !ok {
@@ -85,7 +87,9 @@ func TestRegistryAliasLookup(t *testing.T) {
 func TestRegistryDefinitionsExcludeAliases(t *testing.T) {
 	r := NewRegistry(nil)
 	r.Register(&mockTool{name: "read_file"})
-	r.RegisterAlias("read", "read_file")
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("RegisterAlias failed: %v", err)
+	}
 
 	defs := r.Definitions()
 	if len(defs) != 1 {
@@ -100,13 +104,52 @@ func TestRegistryAllowedToolsWithAlias(t *testing.T) {
 	r := NewRegistry([]string{"read_file"})
 	r.Register(&mockTool{name: "read_file"})
 	r.Register(&mockTool{name: "write_file"})
-	r.RegisterAlias("read", "read_file")
-	r.RegisterAlias("write", "write_file")
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("RegisterAlias read failed: %v", err)
+	}
+	if err := r.RegisterAlias("write", "write_file"); err != nil {
+		t.Fatalf("RegisterAlias write failed: %v", err)
+	}
 
 	if _, ok := r.Get("read"); !ok {
 		t.Fatal("alias read should be allowed because read_file is allowed")
 	}
 	if _, ok := r.Get("write"); ok {
 		t.Fatal("alias write should be blocked because write_file is not allowed")
+	}
+}
+
+func TestRegistryAllowedToolsUsesCanonicalName(t *testing.T) {
+	r := NewRegistry([]string{"read"})
+	r.Register(&mockTool{name: "read_file"})
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("RegisterAlias failed: %v", err)
+	}
+
+	// Definitions only include tools whose canonical name is allowed.
+	defs := r.Definitions()
+	if len(defs) != 0 {
+		t.Fatalf("expected 0 definitions because canonical name read_file is not allowed, got %d", len(defs))
+	}
+
+	// Get("read") resolves to read_file before the allowed filter, so it is
+	// blocked because read_file is not in allowedTools.
+	if _, ok := r.Get("read"); ok {
+		t.Fatal("expected Get(read) to be false because canonical name read_file is not allowed")
+	}
+}
+
+func TestRegisterAliasValidation(t *testing.T) {
+	r := NewRegistry(nil)
+	r.Register(&mockTool{name: "existing_tool"})
+
+	if err := r.RegisterAlias("", "read_file"); err == nil {
+		t.Fatal("expected error for empty alias")
+	}
+	if err := r.RegisterAlias("read", ""); err == nil {
+		t.Fatal("expected error for empty canonical")
+	}
+	if err := r.RegisterAlias("existing_tool", "other"); err == nil {
+		t.Fatal("expected error when alias conflicts with existing tool name")
 	}
 }

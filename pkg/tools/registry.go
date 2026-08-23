@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 
@@ -43,10 +44,26 @@ func (r *Registry) RegisterAlwaysAllowed(t Tool) {
 	r.alwaysAllowed[t.Name()] = true
 }
 
-func (r *Registry) RegisterAlias(alias, canonical string) {
+// RegisterAlias maps alias to canonical so that Get(alias) resolves to the
+// tool registered under canonical. Aliases are resolved before the allowed
+// filter is applied; therefore allowedTools must list the canonical tool
+// name, not the alias, for the alias to be usable. RegisterAlias returns an
+// error if alias or canonical are empty, or if alias matches a tool name
+// already registered in the registry.
+func (r *Registry) RegisterAlias(alias, canonical string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if alias == "" {
+		return fmt.Errorf("alias cannot be empty")
+	}
+	if canonical == "" {
+		return fmt.Errorf("canonical cannot be empty")
+	}
+	if _, exists := r.tools[alias]; exists {
+		return fmt.Errorf("alias %q conflicts with an existing tool name", alias)
+	}
 	r.aliases[alias] = canonical
+	return nil
 }
 
 func (r *Registry) resolveLocked(name string) string {
