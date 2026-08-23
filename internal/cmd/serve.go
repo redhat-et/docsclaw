@@ -30,6 +30,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/openaiapi"
 	"github.com/redhat-et/docsclaw/internal/ragsearch"
 	"github.com/redhat-et/docsclaw/internal/readfile"
+	"github.com/redhat-et/docsclaw/internal/searchfiles"
 	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/webfetch"
@@ -302,6 +303,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}))
 		toolRegistry.Register(readfile.NewReadFileTool(workspace))
 		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
+		toolRegistry.Register(searchfiles.NewSearchFilesTool(workspace))
 		toolRegistry.Register(memorytool.NewRememberTool(
 			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
 		))
