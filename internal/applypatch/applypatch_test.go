@@ -139,6 +139,164 @@ func TestApplyPatchMissingFileReturnsError(t *testing.T) {
 	}
 }
 
+func TestApplyPatchPreservesFileMode(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "script.sh")
+
+	if err := os.WriteFile(path, []byte("#!/bin/sh\necho hello\n"), 0755); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/script.sh",
+		"+++ b/script.sh",
+		"@@ -1,2 +1,2 @@",
+		" #!/bin/sh",
+		"-echo hello",
+		"+echo world",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("failed to stat file: %v", err)
+	}
+	if info.Mode().Perm() != 0755 {
+		t.Fatalf("expected mode 0755, got %04o", info.Mode().Perm())
+	}
+}
+
+func TestApplyPatchMultiHunk(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "file.txt")
+
+	original := "line1\nline2\nline3\nline4\nline5\nline6\n"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/file.txt",
+		"+++ b/file.txt",
+		"@@ -1,2 +1,2 @@",
+		" line1",
+		"-line2",
+		"+line2modified",
+		"@@ -5,2 +5,2 @@",
+		" line5",
+		"-line6",
+		"+line6modified",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	expected := "line1\nline2modified\nline3\nline4\nline5\nline6modified\n"
+	if string(data) != expected {
+		t.Fatalf("expected %q, got %q", expected, string(data))
+	}
+}
+
+func TestApplyPatchSymlinkWorkspaceEscapeBlocked(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	outsideFile := filepath.Join(dir, "..", "outside.txt")
+	if err := os.WriteFile(outsideFile, []byte("secret\n"), 0644); err != nil {
+		t.Fatalf("failed to create outside file: %v", err)
+	}
+
+	linkPath := filepath.Join(dir, "link.txt")
+	if err := os.Symlink(outsideFile, linkPath); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/link.txt",
+		"+++ b/link.txt",
+		"@@ -1,1 +1,1 @@",
+		"-secret",
+		"+modified",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  linkPath,
+		"patch": patch,
+	})
+	if !result.Error {
+		t.Fatal("expected error for symlink escaping workspace")
+	}
+	if !strings.Contains(result.Output, "workspace") {
+		t.Fatalf("expected workspace error, got %q", result.Output)
+	}
+
+	data, err := os.ReadFile(outsideFile)
+	if err != nil {
+		t.Fatalf("failed to read outside file: %v", err)
+	}
+	if string(data) != "secret\n" {
+		t.Fatalf("outside file should be unchanged, got %q", string(data))
+	}
+}
+
+func TestApplyPatchNoNewlineAtEndOfFile(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "file.txt")
+
+	if err := os.WriteFile(path, []byte("line1\nline2\n"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/file.txt",
+		"+++ b/file.txt",
+		"@@ -1,2 +1,2 @@",
+		" line1",
+		"-line2",
+		"+line2modified",
+		"\\ No newline at end of file",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	expected := "line1\nline2modified"
+	if string(data) != expected {
+		t.Fatalf("expected %q, got %q", expected, string(data))
+	}
+}
+
 func TestApplyPatchRelativePathResolvedAgainstWorkspace(t *testing.T) {
 	dir := t.TempDir()
 	tool := NewApplyPatchTool(dir)

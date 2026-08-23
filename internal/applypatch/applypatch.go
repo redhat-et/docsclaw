@@ -78,16 +78,22 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		return tools.Errorf("no hunks found in patch")
 	}
 
-	original, err := os.ReadFile(absPath)
+	info, err := os.Stat(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return tools.Errorf("file does not exist: %s", absPath)
 		}
+		return tools.Errorf("failed to stat file: %s", err)
+	}
+	originalMode := info.Mode().Perm()
+
+	original, err := os.ReadFile(absPath)
+	if err != nil {
 		return tools.Errorf("failed to read file: %s", err)
 	}
 
 	originalLines := strings.Split(string(original), "\n")
-	newLines, err := applyHunks(originalLines, hunks)
+	newLines, noTrailingNewline, err := applyHunks(originalLines, hunks)
 	if err != nil {
 		return tools.Errorf("patch failed: %s", err)
 	}
@@ -98,6 +104,9 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		output = ""
 	} else {
 		output = strings.Join(newLines, "\n")
+	}
+	if noTrailingNewline && strings.HasSuffix(output, "\n") {
+		output = strings.TrimSuffix(output, "\n")
 	}
 
 	tmpFile, err := os.CreateTemp(filepath.Dir(absPath), filepath.Base(absPath)+".*.tmp")
@@ -115,7 +124,7 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		_ = os.Remove(tmpPath)
 		return tools.Errorf("failed to close temp file: %s", err)
 	}
-	if err := os.Chmod(tmpPath, 0644); err != nil {
+	if err := os.Chmod(tmpPath, originalMode); err != nil {
 		_ = os.Remove(tmpPath)
 		return tools.Errorf("failed to set file permissions: %s", err)
 	}
@@ -141,11 +150,12 @@ type diffLine struct {
 }
 
 type hunk struct {
-	oldStart int
-	oldCount int
-	newStart int
-	newCount int
-	lines    []diffLine
+	oldStart       int
+	oldCount       int
+	newStart       int
+	newCount       int
+	lines          []diffLine
+	noNewlineAtEnd bool
 }
 
 func parsePatch(patch string) ([]hunk, error) {
@@ -173,7 +183,13 @@ func parsePatch(patch string) ([]hunk, error) {
 		}
 
 		if line == "\\ No newline at end of file" {
-			// Not tracked; we preserve the original file's trailing newline state.
+			// The marker is emitted when the last line of a hunk (on either
+			// or both sides) lacks a trailing newline. We record it on the
+			// hunk and use it for the new file when the hunk contributes the
+			// final lines of the output. This is a best-effort interpretation:
+			// if the marker refers only to the old side of the last hunk, the
+			// output may incorrectly lose its trailing newline.
+			current.noNewlineAtEnd = true
 			continue
 		}
 
@@ -213,37 +229,6 @@ func parseHunkHeader(line string) (hunk, error) {
 		return hunk{}, fmt.Errorf("invalid hunk ranges: %q", ranges)
 	}
 
-	parseRange := func(s string) (start, count int, err error) {
-		if len(s) < 2 {
-			return 0, 0, fmt.Errorf("invalid range: %q", s)
-		}
-		body := s[1:]
-		idx := strings.Index(body, ",")
-		var startStr, countStr string
-		if idx == -1 {
-			startStr = body
-			countStr = "1"
-		} else {
-			startStr = body[:idx]
-			countStr = body[idx+1:]
-		}
-		start, err = strconv.Atoi(startStr)
-		if err != nil {
-			return 0, 0, fmt.Errorf("invalid range start: %q", startStr)
-		}
-		count, err = strconv.Atoi(countStr)
-		if err != nil {
-			return 0, 0, fmt.Errorf("invalid range count: %q", countStr)
-		}
-		if start == 0 && count != 0 {
-			count = 0
-		}
-		if start < 0 || count < 0 {
-			return 0, 0, fmt.Errorf("negative range: %s", s)
-		}
-		return start, count, nil
-	}
-
 	var h hunk
 	var err error
 	h.oldStart, h.oldCount, err = parseRange(fields[0])
@@ -257,7 +242,38 @@ func parseHunkHeader(line string) (hunk, error) {
 	return h, nil
 }
 
-func applyHunks(original []string, hunks []hunk) ([]string, error) {
+func parseRange(s string) (start, count int, err error) {
+	if len(s) < 2 {
+		return 0, 0, fmt.Errorf("invalid range: %q", s)
+	}
+	body := s[1:]
+	idx := strings.Index(body, ",")
+	var startStr, countStr string
+	if idx == -1 {
+		startStr = body
+		countStr = "1"
+	} else {
+		startStr = body[:idx]
+		countStr = body[idx+1:]
+	}
+	start, err = strconv.Atoi(startStr)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid range start: %q", startStr)
+	}
+	count, err = strconv.Atoi(countStr)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid range count: %q", countStr)
+	}
+	if start == 0 && count != 0 {
+		count = 0
+	}
+	if start < 0 || count < 0 {
+		return 0, 0, fmt.Errorf("negative range: %s", s)
+	}
+	return start, count, nil
+}
+
+func applyHunks(original []string, hunks []hunk) ([]string, bool, error) {
 	sort.Slice(hunks, func(i, j int) bool {
 		return hunks[i].oldStart < hunks[j].oldStart
 	})
@@ -272,17 +288,17 @@ func applyHunks(original []string, hunks []hunk) ([]string, error) {
 		}
 
 		if insertAt < origIdx {
-			return nil, fmt.Errorf("hunk %d overlaps a previous hunk", i+1)
+			return nil, false, fmt.Errorf("hunk %d overlaps a previous hunk", i+1)
 		}
 		if insertAt > len(original) {
-			return nil, fmt.Errorf("hunk %d starts beyond end of file", i+1)
+			return nil, false, fmt.Errorf("hunk %d starts beyond end of file", i+1)
 		}
 
 		result = append(result, original[origIdx:insertAt]...)
 		origIdx = insertAt
 
 		if origIdx+h.oldCount > len(original) {
-			return nil, fmt.Errorf("hunk %d extends past end of file", i+1)
+			return nil, false, fmt.Errorf("hunk %d extends past end of file", i+1)
 		}
 
 		oldConsumed := 0
@@ -292,14 +308,14 @@ func applyHunks(original []string, hunks []hunk) ([]string, error) {
 			switch dl.op {
 			case diffContext:
 				if original[origIdx+oldConsumed] != dl.text {
-					return nil, fmt.Errorf("hunk %d context mismatch at line %d", i+1, origIdx+oldConsumed+1)
+					return nil, false, fmt.Errorf("hunk %d context mismatch at line %d", i+1, origIdx+oldConsumed+1)
 				}
 				result = append(result, dl.text)
 				oldConsumed++
 				contextCount++
 			case diffRemove:
 				if original[origIdx+oldConsumed] != dl.text {
-					return nil, fmt.Errorf("hunk %d removal mismatch at line %d", i+1, origIdx+oldConsumed+1)
+					return nil, false, fmt.Errorf("hunk %d removal mismatch at line %d", i+1, origIdx+oldConsumed+1)
 				}
 				oldConsumed++
 			case diffAdd:
@@ -309,15 +325,16 @@ func applyHunks(original []string, hunks []hunk) ([]string, error) {
 		}
 
 		if oldConsumed != h.oldCount {
-			return nil, fmt.Errorf("hunk %d expected %d old lines, got %d", i+1, h.oldCount, oldConsumed)
+			return nil, false, fmt.Errorf("hunk %d expected %d old lines, got %d", i+1, h.oldCount, oldConsumed)
 		}
 		if contextCount+addCount != h.newCount {
-			return nil, fmt.Errorf("hunk %d expected %d new lines, got %d", i+1, h.newCount, contextCount+addCount)
+			return nil, false, fmt.Errorf("hunk %d expected %d new lines, got %d", i+1, h.newCount, contextCount+addCount)
 		}
 
 		origIdx += h.oldCount
 	}
 
 	result = append(result, original[origIdx:]...)
-	return result, nil
+	noTrailingNewline := len(hunks) > 0 && hunks[len(hunks)-1].noNewlineAtEnd
+	return result, noTrailingNewline, nil
 }
