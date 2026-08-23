@@ -67,3 +67,46 @@ func TestRegistryAlwaysAllowed(t *testing.T) {
 		t.Fatal("only_this should be accessible")
 	}
 }
+
+func TestRegistryAliasLookup(t *testing.T) {
+	r := NewRegistry(nil)
+	r.Register(&mockTool{name: "read_file"})
+	r.RegisterAlias("read", "read_file")
+
+	tool, ok := r.Get("read")
+	if !ok {
+		t.Fatal("expected alias read to resolve to read_file")
+	}
+	if tool.Name() != "read_file" {
+		t.Fatalf("expected read_file, got %q", tool.Name())
+	}
+}
+
+func TestRegistryDefinitionsExcludeAliases(t *testing.T) {
+	r := NewRegistry(nil)
+	r.Register(&mockTool{name: "read_file"})
+	r.RegisterAlias("read", "read_file")
+
+	defs := r.Definitions()
+	if len(defs) != 1 {
+		t.Fatalf("expected 1 definition, got %d", len(defs))
+	}
+	if defs[0].Name != "read_file" {
+		t.Fatalf("expected read_file, got %q", defs[0].Name)
+	}
+}
+
+func TestRegistryAllowedToolsWithAlias(t *testing.T) {
+	r := NewRegistry([]string{"read_file"})
+	r.Register(&mockTool{name: "read_file"})
+	r.Register(&mockTool{name: "write_file"})
+	r.RegisterAlias("read", "read_file")
+	r.RegisterAlias("write", "write_file")
+
+	if _, ok := r.Get("read"); !ok {
+		t.Fatal("alias read should be allowed because read_file is allowed")
+	}
+	if _, ok := r.Get("write"); ok {
+		t.Fatal("alias write should be blocked because write_file is not allowed")
+	}
+}

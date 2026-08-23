@@ -12,12 +12,14 @@ type Registry struct {
 	tools         map[string]Tool
 	alwaysAllowed map[string]bool
 	allowedFilter map[string]bool // nil means all allowed
+	aliases       map[string]string
 }
 
 func NewRegistry(allowedTools []string) *Registry {
 	r := &Registry{
 		tools:         make(map[string]Tool),
 		alwaysAllowed: make(map[string]bool),
+		aliases:       make(map[string]string),
 	}
 	if len(allowedTools) > 0 {
 		r.allowedFilter = make(map[string]bool, len(allowedTools))
@@ -41,14 +43,28 @@ func (r *Registry) RegisterAlwaysAllowed(t Tool) {
 	r.alwaysAllowed[t.Name()] = true
 }
 
+func (r *Registry) RegisterAlias(alias, canonical string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.aliases[alias] = canonical
+}
+
+func (r *Registry) resolveLocked(name string) string {
+	if canonical, ok := r.aliases[name]; ok {
+		return canonical
+	}
+	return name
+}
+
 func (r *Registry) Get(name string) (Tool, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	t, exists := r.tools[name]
+	canonical := r.resolveLocked(name)
+	t, exists := r.tools[canonical]
 	if !exists {
 		return nil, false
 	}
-	if r.allowedFilter != nil && !r.allowedFilter[name] && !r.alwaysAllowed[name] {
+	if r.allowedFilter != nil && !r.allowedFilter[canonical] && !r.alwaysAllowed[canonical] {
 		return nil, false
 	}
 	return t, true
