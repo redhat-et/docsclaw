@@ -109,17 +109,24 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 	rgArgs = append(rgArgs, "-e", regex, "--", searchPath)
 
 	cmd := exec.CommandContext(ctx, "rg", rgArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
-	runErr := cmd.Run()
+	stdout, pipeErr := cmd.StdoutPipe()
+	if pipeErr != nil {
+		return tools.Errorf("search failed: %s", pipeErr)
+	}
+
+	if startErr := cmd.Start(); startErr != nil {
+		return tools.Errorf("search failed: %s", startErr)
+	}
 
 	const maxScanTokenSize = 4 * 1024 * 1024
 	scannerBuf := make([]byte, 0, 64*1024)
 
-	var matches []string
-	scanner := bufio.NewScanner(&stdout)
+	var result strings.Builder
+	truncated := false
+	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(scannerBuf, maxScanTokenSize)
 	for scanner.Scan() {
 		var ev rgEvent
@@ -130,16 +137,38 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 			continue
 		}
 		line := strings.TrimSpace(ev.Data.Lines.Text)
-		matches = append(matches, fmt.Sprintf("%s:%d:%s", ev.Data.Path.Text, ev.Data.LineNumber, line))
+		match := fmt.Sprintf("%s:%d:%s", ev.Data.Path.Text, ev.Data.LineNumber, line)
+
+		sep := ""
+		if result.Len() > 0 {
+			sep = "\n"
+		}
+
+		if result.Len()+len(sep)+len(match) > maxOutput {
+			allowed := maxOutput - result.Len() - len(sep)
+			if allowed > 0 {
+				result.WriteString(sep)
+				result.WriteString(match[:allowed])
+			}
+			truncated = true
+			cancel()
+			break
+		}
+
+		result.WriteString(sep)
+		result.WriteString(match)
 	}
 
 	if scanErr := scanner.Err(); scanErr != nil {
 		return tools.Errorf("search failed: reading rg output: %s", scanErr)
 	}
 
-	if runErr != nil {
+	runErr := cmd.Wait()
+	_ = stdout.Close()
+
+	if runErr != nil && !truncated {
 		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 && stdout.Len() == 0 {
+		if errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 && result.Len() == 0 {
 			return tools.OK("No matches found.")
 		}
 		errMsg := runErr.Error()
@@ -149,14 +178,14 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 		return tools.Errorf("search failed: %s", errMsg)
 	}
 
-	if len(matches) == 0 {
+	if result.Len() == 0 {
 		return tools.OK("No matches found.")
 	}
 
-	result := strings.Join(matches, "\n")
-	if len(result) > maxOutput {
-		result = strings.ToValidUTF8(result[:maxOutput], "") + "\n...(truncated)"
+	output := result.String()
+	if truncated {
+		output = strings.ToValidUTF8(output, "") + "\n...(truncated)"
 	}
 
-	return tools.OK(result)
+	return tools.OK(output)
 }

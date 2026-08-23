@@ -243,6 +243,38 @@ func TestSearchFilesToolInvalidRegexEmptyWorkspace(t *testing.T) {
 	}
 }
 
+func TestSearchFilesToolTruncation(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not installed")
+	}
+
+	tmpDir := t.TempDir()
+	// Generate enough matches to exceed maxOutput.
+	var b strings.Builder
+	for i := 0; i < 1200; i++ {
+		b.WriteString("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n")
+	}
+	if err := writeFile(filepath.Join(tmpDir, "big.txt"), b.String()); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	tool := NewSearchFilesTool(tmpDir)
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  tmpDir,
+		"regex": "a",
+	})
+
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if !strings.HasSuffix(result.Output, "\n...(truncated)") {
+		t.Fatalf("expected truncated output, got %q", result.Output)
+	}
+	if len(result.Output) > maxOutput+len("\n...(truncated)") {
+		t.Fatalf("output length %d exceeds limit", len(result.Output))
+	}
+}
+
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
