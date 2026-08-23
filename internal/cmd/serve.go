@@ -19,8 +19,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
+	"github.com/redhat-et/docsclaw/internal/applypatch"
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/config"
+	"github.com/redhat-et/docsclaw/internal/edit"
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
@@ -34,6 +36,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/session"
 	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/webfetch"
+	"github.com/redhat-et/docsclaw/internal/websearch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
 	"github.com/redhat-et/docsclaw/pkg/agentcontext"
 	"github.com/redhat-et/docsclaw/pkg/llm"
@@ -294,20 +297,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		systemPrompt += fmt.Sprintf(
 			"\n\nYour workspace directory is %s. Always write files there.", workspace)
 
-		toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
-			Timeout:   agentCfg.Tools.Exec.Timeout,
-			MaxOutput: agentCfg.Tools.Exec.MaxOutput,
-		}))
-		toolRegistry.Register(webfetch.NewWebFetchTool(webfetch.WebFetchConfig{
-			AllowedHosts: agentCfg.Tools.WebFetch.AllowedHosts,
-		}))
-		toolRegistry.Register(readfile.NewReadFileTool(workspace))
-		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
-		toolRegistry.Register(searchfiles.NewSearchFilesTool(workspace))
-		toolRegistry.Register(memorytool.NewRememberTool(
-			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
-		))
-
 		loopCfg = agentCfg.toLoopConfig()
 
 		if len(agentCfg.Tools.MCP) > 0 {
@@ -445,6 +434,32 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// Register additional tools and skills when in phase 2 mode
 	if toolRegistry != nil {
+		// Register aliases first
+		if err := toolRegistry.RegisterAlias("read", "read_file"); err != nil {
+			slog.Warn("failed to register tool alias", "alias", "read", "error", err)
+		}
+		if err := toolRegistry.RegisterAlias("write", "write_file"); err != nil {
+			slog.Warn("failed to register tool alias", "alias", "write", "error", err)
+		}
+		if err := toolRegistry.RegisterAlias("terminal", "exec"); err != nil {
+			slog.Warn("failed to register tool alias", "alias", "terminal", "error", err)
+		}
+
+		// Register existing tools
+		toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
+			Timeout:   agentCfg.Tools.Exec.Timeout,
+			MaxOutput: agentCfg.Tools.Exec.MaxOutput,
+		}))
+		toolRegistry.Register(webfetch.NewWebFetchTool(webfetch.WebFetchConfig{
+			AllowedHosts: agentCfg.Tools.WebFetch.AllowedHosts,
+		}))
+		toolRegistry.Register(readfile.NewReadFileTool(workspace))
+		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
+		toolRegistry.Register(searchfiles.NewSearchFilesTool(workspace))
+		toolRegistry.Register(memorytool.NewRememberTool(
+			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
+		))
+
 		if agentCfg.RAG != nil {
 			ragClient, err := rag.NewClient(agentCfg.RAG)
 			if err != nil {
@@ -463,6 +478,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 				return fetchDocument(ctx, docID, token)
 			},
 		))
+
+		// Register new tools after existing ones
+		toolRegistry.Register(websearch.NewWebSearchTool(websearch.NewDuckDuckGoProvider(httpClient)))
+		toolRegistry.Register(applypatch.NewApplyPatchTool(workspace))
+		toolRegistry.Register(edit.NewEditTool(workspace))
 
 		// Register skill loading tool in phase 2
 		if len(discoveredSkills) > 0 {
