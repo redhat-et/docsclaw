@@ -93,7 +93,7 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 
 	if t.workspaceDir != "" {
 		if !workspace.IsInsideWorkspace(searchPath, t.workspaceDir) {
-			return tools.Errorf("access denied: path outside workspace")
+			return tools.Errorf("Access denied: path outside workspace")
 		}
 	}
 
