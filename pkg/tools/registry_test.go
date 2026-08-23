@@ -168,6 +168,24 @@ func TestRegisterAliasValidation(t *testing.T) {
 	}
 }
 
+func TestRegisterAliasRejectsOverwrite(t *testing.T) {
+	r := NewRegistry(nil)
+	mustRegister(t, r, &mockTool{name: "read_file"})
+	mustRegister(t, r, &mockTool{name: "write_file"})
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("RegisterAlias failed: %v", err)
+	}
+
+	if err := r.RegisterAlias("read", "write_file"); err == nil {
+		t.Fatal("expected error when overwriting alias with a different canonical")
+	}
+
+	// Re-registering the same alias to the same canonical should succeed.
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("re-registering alias to same canonical failed: %v", err)
+	}
+}
+
 func TestRegisterRejectsAliasCollision(t *testing.T) {
 	r := NewRegistry(nil)
 	if err := r.RegisterAlias("read", "read_file"); err != nil {

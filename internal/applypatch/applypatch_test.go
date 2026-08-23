@@ -297,6 +297,93 @@ func TestApplyPatchNoNewlineAtEndOfFile(t *testing.T) {
 	}
 }
 
+func TestApplyPatchRejectsOutOfOrderHunks(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "file.txt")
+
+	original := "line1\nline2\nline3\nline4\nline5\nline6\n"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/file.txt",
+		"+++ b/file.txt",
+		"@@ -5,2 +5,2 @@",
+		" line5",
+		"-line6",
+		"+line6modified",
+		"@@ -1,2 +1,2 @@",
+		" line1",
+		"-line2",
+		"+line2modified",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if !result.Error {
+		t.Fatal("expected error for out-of-order hunks")
+	}
+	if !strings.Contains(result.Output, "out of order or overlaps a previous hunk") {
+		t.Fatalf("expected out of order error, got %q", result.Output)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	if string(data) != original {
+		t.Fatalf("file should be unchanged, expected %q, got %q", original, string(data))
+	}
+}
+
+func TestApplyPatchRejectsMalformedHunkHeader(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "file.txt")
+
+	original := "line1\nline2\nline3\nline4\nline5\n"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/file.txt",
+		"+++ b/file.txt",
+		"@@ -0,5 +0,5 @@",
+		" line1",
+		"-line2",
+		"+line2modified",
+		" line3",
+		" line4",
+		" line5",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if !result.Error {
+		t.Fatal("expected error for malformed hunk header")
+	}
+	if !strings.Contains(result.Output, "invalid range") {
+		t.Fatalf("expected invalid range error, got %q", result.Output)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	if string(data) != original {
+		t.Fatalf("file should be unchanged, expected %q, got %q", original, string(data))
+	}
+}
+
 func TestApplyPatchRelativePathResolvedAgainstWorkspace(t *testing.T) {
 	dir := t.TempDir()
 	tool := NewApplyPatchTool(dir)

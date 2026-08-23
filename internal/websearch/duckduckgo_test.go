@@ -155,6 +155,34 @@ func TestResolveDDGURL(t *testing.T) {
 	}
 }
 
+func TestParseDDGResults_MissingSnippetDoesNotCorruptAlignment(t *testing.T) {
+	html := `<!DOCTYPE html>
+<html><body>
+<div class="result results_links results_links_deep web-result">
+	<a class="result__a" href="https://first.com/">First</a>
+	<div class="result__snippet">First snippet.</div>
+</div>
+<div class="result results_links results_links_deep web-result">
+	<a class="result__a" href="https://second.com/">Second</a>
+</div>
+<div class="result results_links results_links_deep web-result">
+	<a class="result__a" href="https://third.com/">Third</a>
+	<div class="result__snippet">Third snippet.</div>
+</div>
+</body></html>`
+
+	results := parseDDGResults(html, 10)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if results[0].Title != "First" || results[0].Snippet != "First snippet." || results[0].URL != "https://first.com/" {
+		t.Errorf("result 0 = %+v, want First/First snippet./https://first.com/", results[0])
+	}
+	if results[1].Title != "Third" || results[1].Snippet != "Third snippet." || results[1].URL != "https://third.com/" {
+		t.Errorf("result 1 = %+v, want Third/Third snippet./https://third.com/", results[1])
+	}
+}
+
 func TestDuckDuckGoProvider_DefaultClient(t *testing.T) {
 	provider := NewDuckDuckGoProvider(nil)
 	if provider == nil {

@@ -68,6 +68,9 @@ func (r *Registry) RegisterAlias(alias, canonical string) error {
 	if canonical == "" {
 		return fmt.Errorf("canonical cannot be empty")
 	}
+	if existingCanonical, exists := r.aliases[alias]; exists && existingCanonical != canonical {
+		return fmt.Errorf("alias %q already maps to %q", alias, existingCanonical)
+	}
 	if _, exists := r.tools[alias]; exists {
 		return fmt.Errorf("alias %q conflicts with an existing tool name", alias)
 	}

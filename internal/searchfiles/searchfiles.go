@@ -162,7 +162,7 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 
 	result := strings.Join(matches, "\n")
 	if len(result) > maxOutput {
-		result = result[:maxOutput] + "\n...(truncated)"
+		result = strings.ToValidUTF8(result[:maxOutput], "") + "\n...(truncated)"
 	}
 
 	return tools.OK(result)

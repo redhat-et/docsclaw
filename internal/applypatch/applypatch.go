@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -246,7 +245,7 @@ func parseRange(s string) (start, count int, err error) {
 		return 0, 0, fmt.Errorf("invalid range count: %q", countStr)
 	}
 	if start == 0 && count != 0 {
-		count = 0
+		return 0, 0, fmt.Errorf("invalid range: %s", s)
 	}
 	if start < 0 || count < 0 {
 		return 0, 0, fmt.Errorf("negative range: %s", s)
@@ -255,10 +254,6 @@ func parseRange(s string) (start, count int, err error) {
 }
 
 func applyHunks(original []string, hunks []hunk) ([]string, bool, error) {
-	sort.Slice(hunks, func(i, j int) bool {
-		return hunks[i].oldStart < hunks[j].oldStart
-	})
-
 	result := make([]string, 0, len(original))
 	origIdx := 0
 
@@ -269,7 +264,7 @@ func applyHunks(original []string, hunks []hunk) ([]string, bool, error) {
 		}
 
 		if insertAt < origIdx {
-			return nil, false, fmt.Errorf("hunk %d overlaps a previous hunk", i+1)
+			return nil, false, fmt.Errorf("hunk %d is out of order or overlaps a previous hunk", i+1)
 		}
 		if insertAt > len(original) {
 			return nil, false, fmt.Errorf("hunk %d starts beyond end of file", i+1)
