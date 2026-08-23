@@ -341,6 +341,87 @@ func TestApplyPatchRejectsOutOfOrderHunks(t *testing.T) {
 	}
 }
 
+func TestApplyPatchBlankContextLine(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "file.txt")
+
+	original := "line1\n\nline3\n"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	patch := strings.Join([]string{
+		"--- a/file.txt",
+		"+++ b/file.txt",
+		"@@ -1,3 +1,3 @@",
+		" line1",
+		" ",
+		"-line3",
+		"+line3modified",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	expected := "line1\n\nline3modified\n"
+	if string(data) != expected {
+		t.Fatalf("expected %q, got %q", expected, string(data))
+	}
+}
+
+func TestApplyPatchOldSideOnlyNoNewlineMarker(t *testing.T) {
+	dir := t.TempDir()
+	tool := NewApplyPatchTool(dir)
+	path := filepath.Join(dir, "file.txt")
+
+	// Original file has no trailing newline.
+	original := "line1\nline2"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Replace the last line; the no-newline marker follows the removed line, so
+	// it applies only to the old side. The added line should keep a trailing newline.
+	patch := strings.Join([]string{
+		"--- a/file.txt",
+		"+++ b/file.txt",
+		"@@ -1,2 +1,2 @@",
+		" line1",
+		"-line2",
+		"\\ No newline at end of file",
+		"+line2modified",
+		"",
+	}, "\n")
+
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  path,
+		"patch": patch,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	expected := "line1\nline2modified\n"
+	if string(data) != expected {
+		t.Fatalf("expected %q, got %q", expected, string(data))
+	}
+}
+
 func TestApplyPatchRejectsMalformedHunkHeader(t *testing.T) {
 	dir := t.TempDir()
 	tool := NewApplyPatchTool(dir)
