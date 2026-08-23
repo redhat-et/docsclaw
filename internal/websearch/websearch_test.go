@@ -8,10 +8,11 @@ import (
 )
 
 type fakeProvider struct {
-	query      string
-	numResults int
-	results    []Result
-	err        error
+	query       string
+	numResults  int
+	results     []Result
+	err         error
+	ignoreLimit bool
 }
 
 func (f *fakeProvider) Search(_ context.Context, query string, numResults int) ([]Result, error) {
@@ -19,6 +20,9 @@ func (f *fakeProvider) Search(_ context.Context, query string, numResults int) (
 	f.numResults = numResults
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.ignoreLimit {
+		return f.results, nil
 	}
 	if numResults > len(f.results) {
 		return f.results, nil
@@ -210,6 +214,73 @@ func TestWebSearchTool_OutputFormat(t *testing.T) {
 	want := "* [Example](https://example.com/): An example site."
 	if !strings.Contains(result.Output, want) {
 		t.Errorf("expected output to contain %q, got:\n%s", want, result.Output)
+	}
+}
+
+func TestWebSearchTool_MarkdownEscaping(t *testing.T) {
+	fake := &fakeProvider{results: []Result{{
+		Title:   "[A] B *C*",
+		Snippet: "See [link] and \\backslash.",
+		URL:     "https://example.com/",
+	}}}
+	tool := NewWebSearchTool(fake)
+	result := tool.Execute(context.Background(), map[string]any{
+		"query":       "example",
+		"num_results": 1,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	want := `* [\[A\] B \*C\*](https://example.com/)`
+	if !strings.Contains(result.Output, want) {
+		t.Errorf("expected escaped title %q, got:\n%s", want, result.Output)
+	}
+	wantSnippet := `See \[link\] and \\backslash.`
+	if !strings.Contains(result.Output, wantSnippet) {
+		t.Errorf("expected escaped snippet %q, got:\n%s", wantSnippet, result.Output)
+	}
+	if strings.Contains(result.Output, "See [link]") {
+		t.Errorf("expected snippet brackets to be escaped, got:\n%s", result.Output)
+	}
+}
+
+func TestWebSearchTool_SkipsNonHTTPSchemes(t *testing.T) {
+	fake := &fakeProvider{results: []Result{
+		{Title: "Bad", Snippet: "bad scheme", URL: "javascript:alert(1)"},
+		{Title: "Good", Snippet: "good scheme", URL: "https://example.com/"},
+		{Title: "FTP", Snippet: "ftp scheme", URL: "ftp://example.com/"},
+	}}
+	tool := NewWebSearchTool(fake)
+	result := tool.Execute(context.Background(), map[string]any{
+		"query":       "example",
+		"num_results": 10,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if strings.Contains(result.Output, "javascript") {
+		t.Errorf("expected javascript URL to be filtered, got:\n%s", result.Output)
+	}
+	if strings.Contains(result.Output, "ftp://") {
+		t.Errorf("expected ftp URL to be filtered, got:\n%s", result.Output)
+	}
+	if !strings.Contains(result.Output, "Good") {
+		t.Errorf("expected https URL to be included, got:\n%s", result.Output)
+	}
+}
+
+func TestWebSearchTool_ResultCapping(t *testing.T) {
+	fake := &fakeProvider{results: makeResults(10), ignoreLimit: true}
+	tool := NewWebSearchTool(fake)
+	result := tool.Execute(context.Background(), map[string]any{
+		"query":       "go",
+		"num_results": 3,
+	})
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if strings.Count(result.Output, "* [") != 3 {
+		t.Errorf("expected 3 markdown list items, got:\n%s", result.Output)
 	}
 }
 

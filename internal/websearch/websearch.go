@@ -3,6 +3,7 @@ package websearch
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/redhat-et/docsclaw/pkg/tools"
@@ -45,6 +46,16 @@ func (t *webSearchTool) Parameters() map[string]any {
 	}
 }
 
+// escapeMarkdown escapes characters that would otherwise be interpreted as
+// markdown formatting so the text renders as plain text.
+func escapeMarkdown(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "[", "\\[")
+	s = strings.ReplaceAll(s, "]", "\\]")
+	s = strings.ReplaceAll(s, "*", "\\*")
+	return s
+}
+
 func (t *webSearchTool) Execute(ctx context.Context, args map[string]any) *tools.ToolResult {
 	query, ok := args["query"].(string)
 	if !ok || strings.TrimSpace(query) == "" {
@@ -75,16 +86,20 @@ func (t *webSearchTool) Execute(ctx context.Context, args map[string]any) *tools
 	if err != nil {
 		return tools.Errorf("web search failed: %s", err)
 	}
+	if len(results) > numResults {
+		results = results[:numResults]
+	}
 	if len(results) == 0 {
 		return tools.OK("No results found.")
 	}
 
-	// Titles, URLs, and snippets are inserted raw into markdown. If they
-	// contain characters such as ']', ')', or '"', the resulting markdown may
-	// be malformed. A full markdown escaper is intentionally not included.
 	var b strings.Builder
 	for _, r := range results {
-		fmt.Fprintf(&b, "* [%s](%s): %s\n", r.Title, r.URL, r.Snippet)
+		u, err := url.Parse(r.URL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+			continue
+		}
+		fmt.Fprintf(&b, "* [%s](%s): %s\n", escapeMarkdown(r.Title), r.URL, escapeMarkdown(r.Snippet))
 	}
 	return tools.OK(strings.TrimSpace(b.String()))
 }
