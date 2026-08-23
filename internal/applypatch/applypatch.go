@@ -33,7 +33,7 @@ func (t *applyPatchTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "Path to the file to patch",
+				"description": "Path to the file to patch within the workspace. Relative paths are resolved against the workspace directory.",
 			},
 			"patch": map[string]any{
 				"type":        "string",
@@ -55,6 +55,10 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		return tools.Errorf("patch is required")
 	}
 
+	if t.workspaceDir != "" && !filepath.IsAbs(path) {
+		path = filepath.Join(t.workspaceDir, path)
+	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return tools.Errorf("failed to resolve path: %s", err)
@@ -74,14 +78,12 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		return tools.Errorf("no hunks found in patch")
 	}
 
-	original := []byte{}
-	if _, statErr := os.Stat(absPath); statErr == nil {
-		original, err = os.ReadFile(absPath)
-		if err != nil {
-			return tools.Errorf("failed to read file: %s", err)
+	original, err := os.ReadFile(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return tools.Errorf("file does not exist: %s", absPath)
 		}
-	} else if !os.IsNotExist(statErr) {
-		return tools.Errorf("failed to stat file: %s", statErr)
+		return tools.Errorf("failed to read file: %s", err)
 	}
 
 	originalLines := strings.Split(string(original), "\n")
@@ -98,16 +100,31 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		output = strings.Join(newLines, "\n")
 	}
 
-	dir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return tools.Errorf("failed to create directory: %s", err)
+	tmpFile, err := os.CreateTemp(filepath.Dir(absPath), filepath.Base(absPath)+".*.tmp")
+	if err != nil {
+		return tools.Errorf("failed to create temp file: %s", err)
 	}
+	tmpPath := tmpFile.Name()
 
-	if err := os.WriteFile(absPath, []byte(output), 0644); err != nil {
+	if _, err := tmpFile.WriteString(output); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 		return tools.Errorf("failed to write file: %s", err)
 	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return tools.Errorf("failed to close temp file: %s", err)
+	}
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		_ = os.Remove(tmpPath)
+		return tools.Errorf("failed to set file permissions: %s", err)
+	}
+	if err := os.Rename(tmpPath, absPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return tools.Errorf("failed to apply patch: %s", err)
+	}
 
-	return tools.OK(absPath)
+	return tools.OK("Patched " + absPath)
 }
 
 type diffOp int
