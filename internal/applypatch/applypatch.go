@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/redhat-et/docsclaw/internal/fileutil"
 	"github.com/redhat-et/docsclaw/internal/workspace"
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
@@ -109,27 +110,7 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		output = strings.TrimSuffix(output, "\n")
 	}
 
-	tmpFile, err := os.CreateTemp(filepath.Dir(absPath), filepath.Base(absPath)+".*.tmp")
-	if err != nil {
-		return tools.Errorf("failed to create temp file: %s", err)
-	}
-	tmpPath := tmpFile.Name()
-
-	if _, err := tmpFile.WriteString(output); err != nil {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpPath)
-		return tools.Errorf("failed to write file: %s", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return tools.Errorf("failed to close temp file: %s", err)
-	}
-	if err := os.Chmod(tmpPath, originalMode); err != nil {
-		_ = os.Remove(tmpPath)
-		return tools.Errorf("failed to set file permissions: %s", err)
-	}
-	if err := os.Rename(tmpPath, absPath); err != nil {
-		_ = os.Remove(tmpPath)
+	if err := fileutil.WriteFileAtomically(absPath, []byte(output), originalMode); err != nil {
 		return tools.Errorf("failed to apply patch: %s", err)
 	}
 

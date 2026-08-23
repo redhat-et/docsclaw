@@ -123,9 +123,6 @@ When Phase 2 mode is enabled (`toolRegistry != nil` block in
    `search_files`).
 3. Register new tools: `web_search`, `apply_patch`, `edit`.
 
-Registration of the new tools is intentionally batched in Task 7; `web_search`
-is not registered yet.
-
 ## Testing
 
 - Unit tests in each tool package (`internal/searchfiles`,

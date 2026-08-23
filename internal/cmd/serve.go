@@ -307,8 +307,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 			defer func() { _ = mcpMgr.Close() }()
 
 			for _, t := range mcpMgr.Tools() {
-				toolRegistry.RegisterAlwaysAllowed(t)
+				if err := toolRegistry.RegisterAlwaysAllowed(t); err != nil {
+					return fmt.Errorf("failed to register MCP tool %q: %w", t.Name(), err)
+				}
 			}
+
 		}
 	}
 
@@ -446,51 +449,75 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 
 		// Register existing tools
-		toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
+		if err := toolRegistry.Register(exec.NewExecTool(exec.ExecConfig{
 			Timeout:   agentCfg.Tools.Exec.Timeout,
 			MaxOutput: agentCfg.Tools.Exec.MaxOutput,
-		}))
-		toolRegistry.Register(webfetch.NewWebFetchTool(webfetch.WebFetchConfig{
+		})); err != nil {
+			return fmt.Errorf("failed to register exec tool: %w", err)
+		}
+		if err := toolRegistry.Register(webfetch.NewWebFetchTool(webfetch.WebFetchConfig{
 			AllowedHosts: agentCfg.Tools.WebFetch.AllowedHosts,
-		}))
-		toolRegistry.Register(readfile.NewReadFileTool(workspace))
-		toolRegistry.Register(writefile.NewWriteFileTool(workspace))
-		toolRegistry.Register(searchfiles.NewSearchFilesTool(workspace))
-		toolRegistry.Register(memorytool.NewRememberTool(
+		})); err != nil {
+			return fmt.Errorf("failed to register webfetch tool: %w", err)
+		}
+		if err := toolRegistry.Register(readfile.NewReadFileTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register readfile tool: %w", err)
+		}
+		if err := toolRegistry.Register(writefile.NewWriteFileTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register writefile tool: %w", err)
+		}
+		if err := toolRegistry.Register(searchfiles.NewSearchFilesTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register searchfiles tool: %w", err)
+		}
+		if err := toolRegistry.Register(memorytool.NewRememberTool(
 			memory.NewFileStore(filepath.Join(workspace, "MEMORY.md")),
-		))
+		)); err != nil {
+			return fmt.Errorf("failed to register remember tool: %w", err)
+		}
 
 		if agentCfg.RAG != nil {
 			ragClient, err := rag.NewClient(agentCfg.RAG)
 			if err != nil {
 				return fmt.Errorf("rag: %w", err)
 			}
-			toolRegistry.RegisterAlwaysAllowed(ragsearch.NewRAGSearchTool(
-				ragClient, agentCfg.RAG))
+			if err := toolRegistry.RegisterAlwaysAllowed(ragsearch.NewRAGSearchTool(
+				ragClient, agentCfg.RAG)); err != nil {
+				return fmt.Errorf("failed to register ragsearch tool: %w", err)
+			}
 			log.Info("RAG search enabled",
 				"backend", agentCfg.RAG.Backend,
 				"collection", agentCfg.RAG.Collection)
 		}
 
 		// Register fetch_document tool (uses delegation transport)
-		toolRegistry.Register(fetchdoc.NewFetchDocTool(
+		if err := toolRegistry.Register(fetchdoc.NewFetchDocTool(
 			func(ctx context.Context, docID, token string) (map[string]any, error) {
 				return fetchDocument(ctx, docID, token)
 			},
-		))
+		)); err != nil {
+			return fmt.Errorf("failed to register fetchdoc tool: %w", err)
+		}
 
 		// Register new tools after existing ones
-		toolRegistry.Register(websearch.NewWebSearchTool(websearch.NewDuckDuckGoProvider(httpClient)))
-		toolRegistry.Register(applypatch.NewApplyPatchTool(workspace))
-		toolRegistry.Register(edit.NewEditTool(workspace))
+		if err := toolRegistry.Register(websearch.NewWebSearchTool(websearch.NewDuckDuckGoProvider(httpClient))); err != nil {
+			return fmt.Errorf("failed to register websearch tool: %w", err)
+		}
+		if err := toolRegistry.Register(applypatch.NewApplyPatchTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register applypatch tool: %w", err)
+		}
+		if err := toolRegistry.Register(edit.NewEditTool(workspace)); err != nil {
+			return fmt.Errorf("failed to register edit tool: %w", err)
+		}
 
 		// Register skill loading tool in phase 2
 		if len(discoveredSkills) > 0 {
 			skillsSummary = skills.BuildSummary(discoveredSkills)
 
-			toolRegistry.RegisterAlwaysAllowed(&loadSkillTool{
+			if err := toolRegistry.RegisterAlwaysAllowed(&loadSkillTool{
 				skillsDir: skillsDir,
-			})
+			}); err != nil {
+				return fmt.Errorf("failed to register load_skill tool: %w", err)
+			}
 		}
 
 		log.Info("Tools enabled",

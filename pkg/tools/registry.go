@@ -31,17 +31,25 @@ func NewRegistry(allowedTools []string) *Registry {
 	return r
 }
 
-func (r *Registry) Register(t Tool) {
+func (r *Registry) Register(t Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, exists := r.aliases[t.Name()]; exists {
+		return fmt.Errorf("tool name %q conflicts with an existing alias", t.Name())
+	}
 	r.tools[t.Name()] = t
+	return nil
 }
 
-func (r *Registry) RegisterAlwaysAllowed(t Tool) {
+func (r *Registry) RegisterAlwaysAllowed(t Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, exists := r.aliases[t.Name()]; exists {
+		return fmt.Errorf("tool name %q conflicts with an existing alias", t.Name())
+	}
 	r.tools[t.Name()] = t
 	r.alwaysAllowed[t.Name()] = true
+	return nil
 }
 
 // RegisterAlias maps alias to canonical so that Get(alias) resolves to the
@@ -49,7 +57,8 @@ func (r *Registry) RegisterAlwaysAllowed(t Tool) {
 // filter is applied; therefore allowedTools must list the canonical tool
 // name, not the alias, for the alias to be usable. RegisterAlias returns an
 // error if alias or canonical are empty, or if alias matches a tool name
-// already registered in the registry.
+// already registered in the registry. Register and RegisterAlwaysAllowed
+// symmetrically reject a tool whose name matches an existing alias.
 func (r *Registry) RegisterAlias(alias, canonical string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

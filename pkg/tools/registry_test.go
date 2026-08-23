@@ -18,9 +18,23 @@ func (m *mockTool) Execute(_ context.Context, _ map[string]any) *ToolResult {
 	return &ToolResult{Output: m.output}
 }
 
+func mustRegister(t *testing.T, r *Registry, tool Tool) {
+	t.Helper()
+	if err := r.Register(tool); err != nil {
+		t.Fatalf("Register(%q) failed: %v", tool.Name(), err)
+	}
+}
+
+func mustRegisterAlwaysAllowed(t *testing.T, r *Registry, tool Tool) {
+	t.Helper()
+	if err := r.RegisterAlwaysAllowed(tool); err != nil {
+		t.Fatalf("RegisterAlwaysAllowed(%q) failed: %v", tool.Name(), err)
+	}
+}
+
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry(nil)
-	r.Register(&mockTool{name: "test_tool", output: "ok"})
+	mustRegister(t, r, &mockTool{name: "test_tool", output: "ok"})
 
 	tool, ok := r.Get("test_tool")
 	if !ok {
@@ -33,8 +47,8 @@ func TestRegistryRegisterAndGet(t *testing.T) {
 
 func TestRegistryAllowedFilter(t *testing.T) {
 	r := NewRegistry([]string{"allowed_tool"})
-	r.Register(&mockTool{name: "allowed_tool"})
-	r.Register(&mockTool{name: "blocked_tool"})
+	mustRegister(t, r, &mockTool{name: "allowed_tool"})
+	mustRegister(t, r, &mockTool{name: "blocked_tool"})
 
 	if _, ok := r.Get("allowed_tool"); !ok {
 		t.Fatal("allowed_tool should be accessible")
@@ -46,8 +60,8 @@ func TestRegistryAllowedFilter(t *testing.T) {
 
 func TestRegistryDefinitions(t *testing.T) {
 	r := NewRegistry(nil)
-	r.Register(&mockTool{name: "tool_a"})
-	r.Register(&mockTool{name: "tool_b"})
+	mustRegister(t, r, &mockTool{name: "tool_a"})
+	mustRegister(t, r, &mockTool{name: "tool_b"})
 
 	defs := r.Definitions()
 	if len(defs) != 2 {
@@ -57,8 +71,8 @@ func TestRegistryDefinitions(t *testing.T) {
 
 func TestRegistryAlwaysAllowed(t *testing.T) {
 	r := NewRegistry([]string{"only_this"})
-	r.Register(&mockTool{name: "only_this"})
-	r.RegisterAlwaysAllowed(&mockTool{name: "load_skill"})
+	mustRegister(t, r, &mockTool{name: "only_this"})
+	mustRegisterAlwaysAllowed(t, r, &mockTool{name: "load_skill"})
 
 	if _, ok := r.Get("load_skill"); !ok {
 		t.Fatal("load_skill should bypass allowed filter")
@@ -70,7 +84,7 @@ func TestRegistryAlwaysAllowed(t *testing.T) {
 
 func TestRegistryAliasLookup(t *testing.T) {
 	r := NewRegistry(nil)
-	r.Register(&mockTool{name: "read_file"})
+	mustRegister(t, r, &mockTool{name: "read_file"})
 	if err := r.RegisterAlias("read", "read_file"); err != nil {
 		t.Fatalf("RegisterAlias failed: %v", err)
 	}
@@ -86,7 +100,7 @@ func TestRegistryAliasLookup(t *testing.T) {
 
 func TestRegistryDefinitionsExcludeAliases(t *testing.T) {
 	r := NewRegistry(nil)
-	r.Register(&mockTool{name: "read_file"})
+	mustRegister(t, r, &mockTool{name: "read_file"})
 	if err := r.RegisterAlias("read", "read_file"); err != nil {
 		t.Fatalf("RegisterAlias failed: %v", err)
 	}
@@ -102,8 +116,8 @@ func TestRegistryDefinitionsExcludeAliases(t *testing.T) {
 
 func TestRegistryAllowedToolsWithAlias(t *testing.T) {
 	r := NewRegistry([]string{"read_file"})
-	r.Register(&mockTool{name: "read_file"})
-	r.Register(&mockTool{name: "write_file"})
+	mustRegister(t, r, &mockTool{name: "read_file"})
+	mustRegister(t, r, &mockTool{name: "write_file"})
 	if err := r.RegisterAlias("read", "read_file"); err != nil {
 		t.Fatalf("RegisterAlias read failed: %v", err)
 	}
@@ -121,7 +135,7 @@ func TestRegistryAllowedToolsWithAlias(t *testing.T) {
 
 func TestRegistryAllowedToolsUsesCanonicalName(t *testing.T) {
 	r := NewRegistry([]string{"read"})
-	r.Register(&mockTool{name: "read_file"})
+	mustRegister(t, r, &mockTool{name: "read_file"})
 	if err := r.RegisterAlias("read", "read_file"); err != nil {
 		t.Fatalf("RegisterAlias failed: %v", err)
 	}
@@ -141,7 +155,7 @@ func TestRegistryAllowedToolsUsesCanonicalName(t *testing.T) {
 
 func TestRegisterAliasValidation(t *testing.T) {
 	r := NewRegistry(nil)
-	r.Register(&mockTool{name: "existing_tool"})
+	mustRegister(t, r, &mockTool{name: "existing_tool"})
 
 	if err := r.RegisterAlias("", "read_file"); err == nil {
 		t.Fatal("expected error for empty alias")
@@ -151,5 +165,29 @@ func TestRegisterAliasValidation(t *testing.T) {
 	}
 	if err := r.RegisterAlias("existing_tool", "other"); err == nil {
 		t.Fatal("expected error when alias conflicts with existing tool name")
+	}
+}
+
+func TestRegisterRejectsAliasCollision(t *testing.T) {
+	r := NewRegistry(nil)
+	if err := r.RegisterAlias("read", "read_file"); err != nil {
+		t.Fatalf("RegisterAlias failed: %v", err)
+	}
+
+	if err := r.Register(&mockTool{name: "read"}); err == nil {
+		t.Fatal("expected error when registering a tool whose name matches an existing alias")
+	}
+	if err := r.RegisterAlwaysAllowed(&mockTool{name: "read"}); err == nil {
+		t.Fatal("expected error when RegisterAlwaysAllowed name matches an existing alias")
+	}
+
+	// The alias should still resolve to its canonical target once registered.
+	mustRegister(t, r, &mockTool{name: "read_file"})
+	tool, ok := r.Get("read")
+	if !ok {
+		t.Fatal("expected alias read to still resolve")
+	}
+	if tool.Name() != "read_file" {
+		t.Fatalf("expected read_file, got %q", tool.Name())
 	}
 }

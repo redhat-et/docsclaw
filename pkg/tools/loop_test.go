@@ -87,7 +87,7 @@ func TestRunToolLoopWithToolCall(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&mockTool{name: "test_tool", output: "ok"})
+	mustRegister(t, registry, &mockTool{name: "test_tool", output: "ok"})
 
 	messages := []llm.Message{
 		{Role: "user", Content: "Use the tool"},
@@ -117,7 +117,7 @@ func TestRunToolLoopMaxIterations(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&mockTool{name: "test_tool", output: "ok"})
+	mustRegister(t, registry, &mockTool{name: "test_tool", output: "ok"})
 
 	cfg := DefaultLoopConfig()
 	cfg.MaxIterations = 3
@@ -184,7 +184,7 @@ func TestRunToolLoopTruncatesLargeOutput(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&mockTool{name: "big_tool", output: largeOutput})
+	mustRegister(t, registry, &mockTool{name: "big_tool", output: largeOutput})
 
 	cfg := DefaultLoopConfig()
 	cfg.MaxResultBytes = 1000
@@ -275,9 +275,9 @@ func TestRunToolLoopParallelExecution(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&slowMockTool{name: "slow_a", output: "a", delay: delay})
-	registry.Register(&slowMockTool{name: "slow_b", output: "b", delay: delay})
-	registry.Register(&slowMockTool{name: "slow_c", output: "c", delay: delay})
+	mustRegister(t, registry, &slowMockTool{name: "slow_a", output: "a", delay: delay})
+	mustRegister(t, registry, &slowMockTool{name: "slow_b", output: "b", delay: delay})
+	mustRegister(t, registry, &slowMockTool{name: "slow_c", output: "c", delay: delay})
 
 	hook := &mockHook{}
 	cfg := DefaultLoopConfig()
@@ -365,7 +365,7 @@ func TestAfterToolCallHook(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&mockTool{name: "test_tool", output: "result_value"})
+	mustRegister(t, registry, &mockTool{name: "test_tool", output: "result_value"})
 
 	hook := &mockHook{}
 	cfg := DefaultLoopConfig()
@@ -409,7 +409,7 @@ func TestBeforeToolCallHookDenial(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&mockTool{name: "blocked_tool", output: "should not see this"})
+	mustRegister(t, registry, &mockTool{name: "blocked_tool", output: "should not see this"})
 
 	hook := &mockHook{denyTool: "blocked_tool"}
 	cfg := DefaultLoopConfig()
@@ -461,7 +461,7 @@ func TestRunToolLoopTracing(t *testing.T) {
 	}
 
 	registry := NewRegistry(nil)
-	registry.Register(&mockTool{name: "test_tool", output: "tool_result"})
+	mustRegister(t, registry, &mockTool{name: "test_tool", output: "tool_result"})
 
 	messages := []llm.Message{
 		{Role: "user", Content: "Use the tool"},
