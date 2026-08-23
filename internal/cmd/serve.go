@@ -436,13 +436,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if toolRegistry != nil {
 		// Register aliases first
 		if err := toolRegistry.RegisterAlias("read", "read_file"); err != nil {
-			slog.Warn("failed to register tool alias", "alias", "read", "error", err)
+			log.Warn("failed to register tool alias", "alias", "read", "error", err)
 		}
 		if err := toolRegistry.RegisterAlias("write", "write_file"); err != nil {
-			slog.Warn("failed to register tool alias", "alias", "write", "error", err)
+			log.Warn("failed to register tool alias", "alias", "write", "error", err)
 		}
 		if err := toolRegistry.RegisterAlias("terminal", "exec"); err != nil {
-			slog.Warn("failed to register tool alias", "alias", "terminal", "error", err)
+			log.Warn("failed to register tool alias", "alias", "terminal", "error", err)
 		}
 
 		// Register existing tools
