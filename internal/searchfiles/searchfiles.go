@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ func NewSearchFilesTool(workspaceDir string) tools.Tool {
 func (t *searchFilesTool) Name() string { return "search_files" }
 func (t *searchFilesTool) Description() string {
 	return "Search for a regular expression inside files within a directory. " +
+		"Relative paths are resolved against the workspace directory. " +
 		"Returns matches as file:line:match."
 }
 func (t *searchFilesTool) Parameters() map[string]any {
@@ -39,7 +41,7 @@ func (t *searchFilesTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"path": map[string]any{
 				"type":        "string",
-				"description": "Directory to search within the workspace",
+				"description": "Directory to search within the workspace. Relative paths are resolved against the workspace directory.",
 			},
 			"regex": map[string]any{
 				"type":        "string",
@@ -84,8 +86,13 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 		filePattern = v
 	}
 
+	searchPath := path
+	if t.workspaceDir != "" && !filepath.IsAbs(path) {
+		searchPath = filepath.Join(t.workspaceDir, path)
+	}
+
 	if t.workspaceDir != "" {
-		if !workspace.IsInsideWorkspace(path, t.workspaceDir) {
+		if !workspace.IsInsideWorkspace(searchPath, t.workspaceDir) {
 			return tools.Errorf("Access denied: path outside workspace")
 		}
 	}
@@ -101,35 +108,50 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 	if filePattern != "" {
 		rgArgs = append(rgArgs, "-g", filePattern)
 	}
-	rgArgs = append(rgArgs, "-e", regex, path)
+	rgArgs = append(rgArgs, "-e", regex, "--", searchPath)
 
 	cmd := exec.CommandContext(ctx, "rg", rgArgs...)
-	output, err := cmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	runErr := cmd.Run()
+
+	const maxScanTokenSize = 4 * 1024 * 1024
+	scannerBuf := make([]byte, 0, 64*1024)
 
 	var matches []string
-	if len(output) > 0 {
-		scanner := bufio.NewScanner(bytes.NewReader(output))
-		for scanner.Scan() {
-			var ev rgEvent
-			if json.Unmarshal(scanner.Bytes(), &ev) != nil {
-				continue
-			}
-			if ev.Type != "match" {
-				continue
-			}
-			line := strings.TrimSpace(ev.Data.Lines.Text)
-			matches = append(matches, fmt.Sprintf("%s:%d:%s", ev.Data.Path.Text, ev.Data.LineNumber, line))
+	scanner := bufio.NewScanner(&stdout)
+	scanner.Buffer(scannerBuf, maxScanTokenSize)
+	for scanner.Scan() {
+		var ev rgEvent
+		if json.Unmarshal(scanner.Bytes(), &ev) != nil {
+			continue
 		}
+		if ev.Type != "match" {
+			continue
+		}
+		line := strings.TrimSpace(ev.Data.Lines.Text)
+		matches = append(matches, fmt.Sprintf("%s:%d:%s", ev.Data.Path.Text, ev.Data.LineNumber, line))
+	}
+
+	if scanErr := scanner.Err(); scanErr != nil {
+		return tools.Errorf("search failed: reading rg output: %s", scanErr)
+	}
+
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(runErr, &exitErr) && exitErr.ExitCode() == 1 && stdout.Len() == 0 {
+			return tools.OK("No matches found.")
+		}
+		errMsg := runErr.Error()
+		if stderr.Len() > 0 {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, strings.TrimSpace(stderr.String()))
+		}
+		return tools.Errorf("search failed: %s", errMsg)
 	}
 
 	if len(matches) == 0 {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-			return tools.OK("No matches found.")
-		}
-		if err != nil {
-			return tools.Errorf("search failed: %s", err)
-		}
 		return tools.OK("No matches found.")
 	}
 

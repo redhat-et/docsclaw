@@ -75,6 +75,106 @@ func TestSearchFilesToolWorkspaceEscapeBlocked(t *testing.T) {
 	}
 }
 
+func TestSearchFilesToolInvalidRegex(t *testing.T) {
+	tool := NewSearchFilesTool(t.TempDir())
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  ".",
+		"regex": "[",
+	})
+
+	if !result.Error {
+		t.Fatal("expected error for invalid regex")
+	}
+	if !strings.Contains(result.Output, "invalid regex") {
+		t.Fatalf("expected invalid regex error, got %q", result.Output)
+	}
+}
+
+func TestSearchFilesToolFilePattern(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not installed")
+	}
+
+	tmpDir := t.TempDir()
+	if err := writeFile(filepath.Join(tmpDir, "a.go"), "foo\n"); err != nil {
+		t.Fatalf("failed to write go file: %v", err)
+	}
+	if err := writeFile(filepath.Join(tmpDir, "a.txt"), "foo\n"); err != nil {
+		t.Fatalf("failed to write txt file: %v", err)
+	}
+
+	tool := NewSearchFilesTool(tmpDir)
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":         tmpDir,
+		"regex":        "foo",
+		"file_pattern": "*.go",
+	})
+
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "a.go") {
+		t.Fatalf("expected a.go match, got %q", result.Output)
+	}
+	if strings.Contains(result.Output, "a.txt") {
+		t.Fatalf("did not expect a.txt match, got %q", result.Output)
+	}
+}
+
+func TestSearchFilesToolRelativePath(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not installed")
+	}
+
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+	if err := writeFile(filepath.Join(subDir, "test.go"), "helloWorld\n"); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	tool := NewSearchFilesTool(tmpDir)
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  "subdir",
+		"regex": "helloWorld",
+	})
+
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Output)
+	}
+	if !strings.Contains(result.Output, "test.go:1:helloWorld") {
+		t.Fatalf("expected relative path to resolve, got %q", result.Output)
+	}
+}
+
+func TestSearchFilesToolSymlinkEscapeBlocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	outsideDir := t.TempDir()
+	if err := writeFile(filepath.Join(outsideDir, "secret.txt"), "secret\n"); err != nil {
+		t.Fatalf("failed to write secret file: %v", err)
+	}
+
+	linkPath := filepath.Join(tmpDir, "escape")
+	if err := os.Symlink(outsideDir, linkPath); err != nil {
+		t.Fatalf("failed to create symlink: %v", err)
+	}
+
+	tool := NewSearchFilesTool(tmpDir)
+	result := tool.Execute(context.Background(), map[string]any{
+		"path":  linkPath,
+		"regex": "secret",
+	})
+
+	if !result.Error {
+		t.Fatal("expected error for symlink outside workspace")
+	}
+	if !strings.Contains(result.Output, "outside workspace") {
+		t.Fatalf("expected outside workspace error, got %q", result.Output)
+	}
+}
+
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
