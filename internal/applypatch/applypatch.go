@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -55,19 +54,9 @@ func (t *applyPatchTool) Execute(_ context.Context, args map[string]any) *tools.
 		return tools.Errorf("patch is required")
 	}
 
-	if t.workspaceDir != "" && !filepath.IsAbs(path) {
-		path = filepath.Join(t.workspaceDir, path)
-	}
-
-	absPath, err := filepath.Abs(path)
+	absPath, err := workspace.ResolveWorkspacePath(path, t.workspaceDir)
 	if err != nil {
-		return tools.Errorf("failed to resolve path: %s", err)
-	}
-
-	if t.workspaceDir != "" {
-		if !workspace.IsInsideWorkspace(absPath, t.workspaceDir) {
-			return tools.Errorf("Access denied: path outside workspace")
-		}
+		return tools.Errorf("%s", err)
 	}
 
 	hunks, err := parsePatch(patch)

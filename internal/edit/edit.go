@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/redhat-et/docsclaw/internal/fileutil"
@@ -69,19 +68,9 @@ func (t *editTool) Execute(_ context.Context, args map[string]any) *tools.ToolRe
 		return tools.Errorf("new_string is required")
 	}
 
-	if t.workspaceDir != "" && !filepath.IsAbs(path) {
-		path = filepath.Join(t.workspaceDir, path)
-	}
-
-	absPath, err := filepath.Abs(path)
+	absPath, err := workspace.ResolveWorkspacePath(path, t.workspaceDir)
 	if err != nil {
-		return tools.Errorf("failed to resolve path: %s", err)
-	}
-
-	if t.workspaceDir != "" {
-		if !workspace.IsInsideWorkspace(absPath, t.workspaceDir) {
-			return tools.Errorf("Access denied: path outside workspace")
-		}
+		return tools.Errorf("%s", err)
 	}
 
 	info, err := os.Stat(absPath)

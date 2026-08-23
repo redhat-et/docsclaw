@@ -186,6 +186,18 @@ func TestRegisterAliasRejectsOverwrite(t *testing.T) {
 	}
 }
 
+func TestRegisterRejectsDuplicateTool(t *testing.T) {
+	r := NewRegistry(nil)
+	mustRegister(t, r, &mockTool{name: "existing_tool"})
+
+	if err := r.Register(&mockTool{name: "existing_tool"}); err == nil {
+		t.Fatal("expected error when registering a duplicate tool")
+	}
+	if err := r.RegisterAlwaysAllowed(&mockTool{name: "existing_tool"}); err == nil {
+		t.Fatal("expected error when RegisterAlwaysAllowed a duplicate tool")
+	}
+}
+
 func TestRegisterRejectsAliasCollision(t *testing.T) {
 	r := NewRegistry(nil)
 	if err := r.RegisterAlias("read", "read_file"); err != nil {

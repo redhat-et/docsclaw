@@ -34,8 +34,8 @@ func NewRegistry(allowedTools []string) *Registry {
 func (r *Registry) Register(t Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, exists := r.aliases[t.Name()]; exists {
-		return fmt.Errorf("tool name %q conflicts with an existing alias", t.Name())
+	if err := r.registerCollisionLocked(t.Name()); err != nil {
+		return err
 	}
 	r.tools[t.Name()] = t
 	return nil
@@ -44,11 +44,21 @@ func (r *Registry) Register(t Tool) error {
 func (r *Registry) RegisterAlwaysAllowed(t Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, exists := r.aliases[t.Name()]; exists {
-		return fmt.Errorf("tool name %q conflicts with an existing alias", t.Name())
+	if err := r.registerCollisionLocked(t.Name()); err != nil {
+		return err
 	}
 	r.tools[t.Name()] = t
 	r.alwaysAllowed[t.Name()] = true
+	return nil
+}
+
+func (r *Registry) registerCollisionLocked(name string) error {
+	if _, exists := r.aliases[name]; exists {
+		return fmt.Errorf("tool name %q conflicts with an existing alias", name)
+	}
+	if _, exists := r.tools[name]; exists {
+		return fmt.Errorf("tool %q is already registered", name)
+	}
 	return nil
 }
 

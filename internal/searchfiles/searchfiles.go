@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -86,15 +85,9 @@ func (t *searchFilesTool) Execute(ctx context.Context, args map[string]any) *too
 		filePattern = v
 	}
 
-	searchPath := path
-	if t.workspaceDir != "" && !filepath.IsAbs(path) {
-		searchPath = filepath.Join(t.workspaceDir, path)
-	}
-
-	if t.workspaceDir != "" {
-		if !workspace.IsInsideWorkspace(searchPath, t.workspaceDir) {
-			return tools.Errorf("Access denied: path outside workspace")
-		}
+	searchPath, err := workspace.ResolveWorkspacePath(path, t.workspaceDir)
+	if err != nil {
+		return tools.Errorf("%s", err)
 	}
 
 	if _, err := regexp.Compile(regex); err != nil {
