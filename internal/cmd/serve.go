@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -160,8 +161,6 @@ func init() {
 		"Directory containing system-prompt.txt, agent-card.json, and optional prompts.json")
 	serveCmd.Flags().String("skills-dir", "",
 		"Directory containing skill subdirectories (default: <config-dir>/skills)")
-	serveCmd.Flags().String("document-service-url", "http://localhost:8080",
-		"Document service URL")
 	serveCmd.Flags().String("llm-provider", "", "LLM provider (anthropic, openai, litellm)")
 	serveCmd.Flags().String("llm-api-key", "", "LLM API key")
 	serveCmd.Flags().String("llm-base-url", "", "Base URL for OpenAI-compatible APIs")
@@ -179,7 +178,6 @@ func init() {
 	_ = v.BindPFlag("workspace", serveCmd.Flags().Lookup("workspace"))
 	_ = v.BindPFlag("workspace_profile", serveCmd.Flags().Lookup("workspace-profile"))
 	_ = v.BindPFlag("skills_dir", serveCmd.Flags().Lookup("skills-dir"))
-	_ = v.BindPFlag("document_service_url", serveCmd.Flags().Lookup("document-service-url"))
 	_ = v.BindPFlag("llm.provider", serveCmd.Flags().Lookup("llm-provider"))
 	_ = v.BindPFlag("llm.api_key", serveCmd.Flags().Lookup("llm-api-key"))
 	_ = v.BindPFlag("llm.base_url", serveCmd.Flags().Lookup("llm-base-url"))
@@ -196,7 +194,6 @@ type Config struct {
 	SkillsDir           string     `mapstructure:"skills_dir"`
 	Workspace           string     `mapstructure:"workspace"`
 	WorkspaceProfile    string     `mapstructure:"workspace_profile"`
-	DocumentServiceURL  string     `mapstructure:"document_service_url"`
 	LLM                 llm.Config `mapstructure:"llm"`
 	SessionDB           string     `mapstructure:"session_db"`
 }
@@ -229,9 +226,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	if cfg.ConfigDir == "" {
 		cfg.ConfigDir = "/config/agent"
-	}
-	if cfg.DocumentServiceURL == "" {
-		cfg.DocumentServiceURL = "http://localhost:8080"
 	}
 
 	// Load LLM env var fallbacks (same pattern as existing agents)
@@ -354,10 +348,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Info("loaded OS tool inventory", "tools", names, "risk_score", tj.RiskScore)
 	}
 
-	// HTTP client for document-service requests. It keeps the default
-	// transport so proxy environment variables still apply inside a sandbox.
-	httpClient := egress.NewClient(30 * time.Second)
-
 	// Initialize LLM provider
 	var llmProvider llm.Provider
 	if cfg.LLM.APIKey != "" {
@@ -381,38 +371,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize OpenTelemetry: %w", err)
-	}
-
-	// Document fetcher (same as existing agents)
-	fetchDocument := func(ctx context.Context, documentID string) (map[string]any, error) {
-		url := fmt.Sprintf("%s/documents/%s", cfg.DocumentServiceURL, documentID)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
-		}
-		req.Header.Set("Accept", "application/json")
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("document service request failed: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode == http.StatusForbidden {
-			return nil, fmt.Errorf("access denied")
-		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("document service returned status %d", resp.StatusCode)
-		}
-
-		var result map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
-		}
-		if doc, ok := result["document"].(map[string]any); ok {
-			return doc, nil
-		}
-		return result, nil
 	}
 
 	// Discover skills (runs in both phase 1 and phase 2)
@@ -451,8 +409,21 @@ func runServe(cmd *cobra.Command, args []string) error {
 				"collection", agentCfg.RAG.Collection)
 		}
 
-		// Register fetch_document tool
-		toolRegistry.Register(fetchdoc.NewFetchDocTool(fetchDocument))
+		// Register fetch_document tool for configured services
+		if len(agentCfg.DocumentServices) > 0 {
+			services := make([]string, 0, len(agentCfg.DocumentServices))
+			for name := range agentCfg.DocumentServices {
+				services = append(services, name)
+			}
+			sort.Strings(services)
+
+			toolRegistry.Register(fetchdoc.New(
+				agentCfg.DocumentServices,
+				egress.NewClient(30*time.Second),
+				log.Logger,
+			))
+			log.Info("fetch_document enabled", "services", services)
+		}
 
 		// Register skill loading tool in phase 2
 		if len(discoveredSkills) > 0 {
@@ -622,7 +593,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 	log.Info("Agent", "name", agentCard.Name)
 	log.Info("Listening", "addr", cfg.Service.Addr())
 	log.Info("Health server", "addr", cfg.Service.HealthAddr())
-	log.Info("Document service", "url", cfg.DocumentServiceURL)
 	log.Info("Config dir", "path", cfg.ConfigDir)
 	if len(promptVariants) > 0 {
 		keys := make([]string, 0, len(promptVariants))
