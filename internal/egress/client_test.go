@@ -17,9 +17,9 @@ func TestMain(m *testing.M) {
 		"NO_PROXY", "no_proxy",
 		"ALL_PROXY", "all_proxy",
 	} {
-		os.Unsetenv(key)
+		_ = os.Unsetenv(key)
 	}
-	os.Setenv("HTTPS_PROXY", "http://proxy.test:3128")
+	_ = os.Setenv("HTTPS_PROXY", "http://proxy.test:3128")
 	os.Exit(m.Run())
 }
 
