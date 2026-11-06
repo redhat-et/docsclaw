@@ -12,12 +12,11 @@ import (
 
 // ServiceConfig holds common service configuration
 type ServiceConfig struct {
-	Port           int    `mapstructure:"port"`
-	HealthPort     int    `mapstructure:"health_port"`
-	Host           string `mapstructure:"host"`
-	MockSPIFFE     bool   `mapstructure:"mock_spiffe"`
-	ListenPlainHTTP bool  `mapstructure:"listen_plain_http"`
-	LogLevel       string `mapstructure:"log_level"`
+	Port            int    `mapstructure:"port"`
+	HealthPort      int    `mapstructure:"health_port"`
+	Host            string `mapstructure:"host"`
+	ListenPlainHTTP bool   `mapstructure:"listen_plain_http"`
+	LogLevel        string `mapstructure:"log_level"`
 }
 
 // HealthAddr returns the health check listen address (plain HTTP)
@@ -25,28 +24,11 @@ func (c ServiceConfig) HealthAddr() string {
 	return fmt.Sprintf("%s:%d", c.Host, c.HealthPort)
 }
 
-// SPIFFEConfig holds SPIFFE-related configuration
-type SPIFFEConfig struct {
-	SocketPath  string `mapstructure:"socket_path"`
-	TrustDomain string `mapstructure:"trust_domain"`
-}
-
 // OTelConfig holds OpenTelemetry configuration
 type OTelConfig struct {
 	Enabled           bool   `mapstructure:"enabled"`
 	CollectorEndpoint string `mapstructure:"collector_endpoint"`
 	StdoutExporter    bool   `mapstructure:"stdout_exporter"`
-}
-
-// OPAConfig holds OPA service configuration
-type OPAConfig struct {
-	Host string `mapstructure:"host"`
-	Port int    `mapstructure:"port"`
-}
-
-// Addr returns the OPA service address
-func (c OPAConfig) Addr() string {
-	return fmt.Sprintf("http://%s:%d", c.Host, c.Port)
 }
 
 // StorageConfig holds S3-compatible object storage configuration
@@ -63,8 +45,6 @@ type StorageConfig struct {
 // CommonConfig holds configuration common to all services
 type CommonConfig struct {
 	Service ServiceConfig `mapstructure:"service"`
-	SPIFFE  SPIFFEConfig  `mapstructure:"spiffe"`
-	OPA     OPAConfig     `mapstructure:"opa"`
 	OTel    OTelConfig    `mapstructure:"otel"`
 }
 
@@ -99,7 +79,6 @@ func InitViper(serviceName string) *viper.Viper {
 func setDefaults(v *viper.Viper, serviceName string) {
 	// Service defaults
 	v.SetDefault("service.host", "0.0.0.0")
-	v.SetDefault("service.mock_spiffe", true)
 	v.SetDefault("service.listen_plain_http", true)
 	v.SetDefault("service.log_level", "info")
 
@@ -113,14 +92,6 @@ func setDefaults(v *viper.Viper, serviceName string) {
 		v.SetDefault("service.port", 8080)
 		v.SetDefault("service.health_port", 8180)
 	}
-
-	// SPIFFE defaults
-	v.SetDefault("spiffe.socket_path", "/run/spire/sockets/agent.sock")
-	v.SetDefault("spiffe.trust_domain", "demo.example.com")
-
-	// OPA defaults
-	v.SetDefault("opa.host", "localhost")
-	v.SetDefault("opa.port", 8080)
 
 	// OTel defaults
 	v.SetDefault("otel.enabled", false)
@@ -167,23 +138,17 @@ func Load(v *viper.Viper, cfg any) error {
 func BindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.PersistentFlags().IntP("port", "p", 0, "Port to listen on")
 	cmd.PersistentFlags().String("host", "", "Host to bind to")
-	cmd.PersistentFlags().Bool("mock-spiffe", true, "Use mock SPIFFE mode (no SPIRE required)")
 	cmd.PersistentFlags().Bool("listen-plain-http", true, "Listen on plain HTTP (default; set to false when TLS is configured)")
 	cmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
-	cmd.PersistentFlags().String("opa-host", "", "OPA service host")
-	cmd.PersistentFlags().Int("opa-port", 0, "OPA service port")
 
 	_ = v.BindPFlag("service.port", cmd.PersistentFlags().Lookup("port"))
 	_ = v.BindPFlag("service.host", cmd.PersistentFlags().Lookup("host"))
-	_ = v.BindPFlag("service.mock_spiffe", cmd.PersistentFlags().Lookup("mock-spiffe"))
 	_ = v.BindPFlag("service.listen_plain_http", cmd.PersistentFlags().Lookup("listen-plain-http"))
 	_ = v.BindPFlag("service.log_level", cmd.PersistentFlags().Lookup("log-level"))
 	cmd.PersistentFlags().Bool("otel-enabled", false, "Enable OpenTelemetry tracing")
 	cmd.PersistentFlags().String("otel-collector-endpoint", "", "OpenTelemetry collector gRPC endpoint (e.g. localhost:4317)")
 	cmd.PersistentFlags().Bool("otel-stdout", false, "Export OTel traces as JSON to stdout (for K8s log pipelines)")
 
-	_ = v.BindPFlag("opa.host", cmd.PersistentFlags().Lookup("opa-host"))
-	_ = v.BindPFlag("opa.port", cmd.PersistentFlags().Lookup("opa-port"))
 	_ = v.BindPFlag("otel.enabled", cmd.PersistentFlags().Lookup("otel-enabled"))
 	_ = v.BindPFlag("otel.collector_endpoint", cmd.PersistentFlags().Lookup("otel-collector-endpoint"))
 	_ = v.BindPFlag("otel.stdout_exporter", cmd.PersistentFlags().Lookup("otel-stdout"))
@@ -196,7 +161,6 @@ func GetServiceEndpoints() map[string]string {
 		"user":        "http://localhost:8080",
 		"agent":       "http://localhost:8080",
 		"document":    "http://localhost:8080",
-		"opa":         "http://localhost:8080",
 		"summarizer":  "http://localhost:8000",
 		"reviewer":    "http://localhost:8000",
 		"spire-agent": "unix:///run/spire/sockets/agent.sock",

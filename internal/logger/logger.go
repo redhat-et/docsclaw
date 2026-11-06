@@ -18,12 +18,8 @@ const (
 	ComponentUserService Component = "USER-SERVICE"
 	ComponentAgentSvc    Component = "AGENT-SERVICE"
 	ComponentDocService  Component = "DOC-SERVICE"
-	ComponentOPAService  Component = "OPA-SERVICE"
 	ComponentDashboard   Component = "DASHBOARD"
 	ComponentMTLS        Component = "mTLS"
-	ComponentOPAQuery    Component = "OPA-QUERY"
-	ComponentOPAEval     Component = "OPA-EVAL"
-	ComponentOPADecision Component = "OPA-DECISION"
 	ComponentSummarizer  Component = "SUMMARIZER"
 	ComponentReviewer    Component = "REVIEWER"
 	ComponentCredGateway Component = "CRED-GATEWAY"
@@ -40,7 +36,6 @@ const (
 	colorCyan    = "\033[36m"
 	colorWhite   = "\033[37m"
 	colorRed     = "\033[31m"
-	colorOrange  = "\033[38;5;208m"
 )
 
 // componentColors maps components to their display colors
@@ -50,12 +45,8 @@ var componentColors = map[Component]string{
 	ComponentUserService: colorBlue,
 	ComponentAgentSvc:    colorMagenta,
 	ComponentDocService:  colorYellow,
-	ComponentOPAService:  colorCyan,
 	ComponentDashboard:   colorWhite,
 	ComponentMTLS:        colorYellow,
-	ComponentOPAQuery:    colorOrange,
-	ComponentOPAEval:     colorOrange,
-	ComponentOPADecision: colorGreen,
 	ComponentSummarizer:  colorCyan,
 	ComponentReviewer:    colorMagenta,
 	ComponentCredGateway: colorGreen,
@@ -259,12 +250,7 @@ func (l *Logger) Section(title string) {
 
 // Document logs document-related info
 func (l *Logger) Document(docID string, msg string) {
-	l.Info("\U0001F4C4 ["+docID+"] "+msg)
-}
-
-// SVID logs SVID-related info
-func (l *Logger) SVID(spiffeID string, msg string) {
-	l.Info("\U0001F4DC [SVID] "+msg, "spiffe_id", spiffeID)
+	l.Info("\U0001F4C4 [" + docID + "] " + msg)
 }
 
 // Policy logs policy evaluation info
