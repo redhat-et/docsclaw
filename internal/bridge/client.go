@@ -28,15 +28,12 @@ func NewA2AClient(httpClient *http.Client, log *slog.Logger) *A2AClient {
 
 // InvokeRequest holds the parameters for invoking an A2A agent.
 type InvokeRequest struct {
-	AgentURL      string
-	Card          *a2a.AgentCard
-	DocumentID    string // Legacy: used by Go agents
-	MessageText   string // New: used by gateway mode (e.g., "Summarize s3://...")
-	ReviewType    string
-	SessionID     string // Server-side session continuity (sent as x-session-id header)
-	BearerToken   string // Optional JWT forwarded from the caller (user delegation)
-	UserSPIFFEID  string // User SPIFFE ID — sent as X-Delegation-User header
-	AgentSPIFFEID string // Agent SPIFFE ID — sent as X-Delegation-Agent header
+	AgentURL    string
+	Card        *a2a.AgentCard
+	DocumentID  string // Legacy: used by Go agents
+	MessageText string // New: used by gateway mode (e.g., "Summarize s3://...")
+	ReviewType  string
+	SessionID   string // Server-side session continuity (sent as x-session-id header)
 }
 
 // InvokeResult holds the response from an A2A agent invocation.
@@ -71,20 +68,12 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 		a2aclient.WithJSONRPCTransport(c.httpClient),
 	}
 
-	// Forward the bearer token and delegation context as HTTP headers
-	// via a CallInterceptor that injects ServiceParams.
+	// Forward the session ID as an HTTP header via a CallInterceptor that
+	// injects ServiceParams. No bearer token is sent: the sandbox supervisor
+	// injects credentials at the network boundary.
 	sp := a2aclient.ServiceParams{}
 	if req.SessionID != "" {
 		sp.Append("x-session-id", req.SessionID)
-	}
-	if req.BearerToken != "" {
-		sp.Append("authorization", "Bearer "+req.BearerToken)
-	}
-	if req.UserSPIFFEID != "" {
-		sp.Append("x-delegation-user", req.UserSPIFFEID)
-	}
-	if req.AgentSPIFFEID != "" {
-		sp.Append("x-delegation-agent", req.AgentSPIFFEID)
 	}
 
 	// Inject W3C trace context so downstream agents continue the trace.
