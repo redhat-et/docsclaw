@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -353,6 +356,23 @@ func TestMiddleware(t *testing.T) {
 			wantNext:   true,
 		},
 		{
+			name: "exempt path strips a supplied token",
+			request: func(ti *testIssuer) *http.Request {
+				r := httptest.NewRequest(http.MethodGet, "/health", nil)
+				r.Header.Set("Authorization", "Bearer "+ti.mint("ES256", nil))
+				return r
+			},
+			wantStatus: http.StatusOK,
+			wantNext:   true,
+		},
+		{
+			name:       "configured exempt entry is not cleaned",
+			configure:  func(c *Config) { c.ExemptPaths = []string{"/health/"} },
+			request:    func(*testIssuer) *http.Request { return noTokenRequest("/health") },
+			wantStatus: http.StatusUnauthorized,
+			wantCode:   "missing_token",
+		},
+		{
 			name:       "exempt path does not cover healthz",
 			request:    func(*testIssuer) *http.Request { return noTokenRequest("/healthz") },
 			wantStatus: http.StatusUnauthorized,
@@ -431,7 +451,9 @@ func containsScope(scopes []string, want string) bool {
 func TestJWKS_RefreshOnUnknownKid(t *testing.T) {
 	ti := newTestIssuer(t)
 	cfg := baseConfig(ti)
-	cfg.MinRefreshInterval = time.Millisecond
+	// A negative interval disables rate limiting deterministically; the
+	// in-flight flag still serializes concurrent refreshes.
+	cfg.MinRefreshInterval = -1
 	h := mustMiddleware(t, cfg, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -446,7 +468,6 @@ func TestJWKS_RefreshOnUnknownKid(t *testing.T) {
 	}
 
 	ti.rotate()
-	time.Sleep(2 * time.Millisecond)
 
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, requestWithToken(ti.mint("ES256", nil)))
@@ -455,6 +476,96 @@ func TestJWKS_RefreshOnUnknownKid(t *testing.T) {
 	}
 	if got := ti.hitCount(); got != 2 {
 		t.Fatalf("JWKS hits = %d, want 2", got)
+	}
+}
+
+// TestCachedKidServedDuringRefresh proves the JWKS mutex is not held across
+// the network call: an unauthenticated unknown-kid request cannot stall
+// verification for callers whose key is already cached.
+func TestCachedKidServedDuringRefresh(t *testing.T) {
+	ti := newTestIssuer(t)
+
+	resp, err := http.Get(ti.jwksURL())
+	if err != nil {
+		t.Fatalf("fetch test JWKS: %v", err)
+	}
+	jwks, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read test JWKS: %v", err)
+	}
+
+	var hits atomic.Int64
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	var signalOnce sync.Once
+	jwksServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if hits.Add(1) > 1 {
+			signalOnce.Do(func() { close(blocked) })
+			<-release
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(jwks)
+	}))
+	defer jwksServer.Close()
+
+	cfg := Config{
+		Issuer:             testIssuerURL,
+		JWKSURL:            jwksServer.URL,
+		Audience:           testAudience,
+		MinRefreshInterval: -1,
+	}
+	h := mustMiddleware(t, cfg, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Prime the cache with es-1.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, requestWithToken(ti.mint("ES256", nil)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("priming request status = %d, want 200", rec.Code)
+	}
+
+	// An unknown kid starts a refresh that blocks inside the JWKS handler.
+	unknownDone := make(chan int, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, requestWithToken(ti.mintWithKid("ES256", "unknown-kid", nil)))
+		unknownDone <- rec.Code
+	}()
+
+	select {
+	case <-blocked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("unknown-kid request never started a JWKS refresh")
+	}
+
+	// A cached kid must be served while that refresh is in flight.
+	cachedDone := make(chan int, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, requestWithToken(ti.mint("ES256", nil)))
+		cachedDone <- rec.Code
+	}()
+
+	select {
+	case code := <-cachedDone:
+		if code != http.StatusOK {
+			t.Fatalf("cached-kid request status = %d, want 200", code)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cached-kid request blocked behind an in-flight refresh")
+	}
+
+	close(release)
+
+	select {
+	case code := <-unknownDone:
+		if code != http.StatusUnauthorized {
+			t.Fatalf("unknown-kid request status = %d, want 401", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("unknown-kid request did not finish after the refresh was released")
 	}
 }
 

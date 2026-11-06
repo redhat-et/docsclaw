@@ -17,6 +17,9 @@ func Middleware(cfg Config, next http.Handler) (http.Handler, error) {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isExempt(r.URL.Path, cfg.ExemptPaths) {
+			// Exempt endpoints skip verification, but the raw token must
+			// still not reach the handler.
+			r.Header.Del("Authorization")
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -50,10 +53,12 @@ func Middleware(cfg Config, next http.Handler) (http.Handler, error) {
 	}), nil
 }
 
+// isExempt compares the cleaned request path against each configured entry
+// verbatim, so an entry "/health/" does not match the path "/health".
 func isExempt(requestPath string, exempt []string) bool {
 	clean := path.Clean(requestPath)
 	for _, entry := range exempt {
-		if path.Clean(entry) == clean {
+		if entry == clean {
 			return true
 		}
 	}

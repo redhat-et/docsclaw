@@ -14,8 +14,13 @@
 //
 // On success the verified claims are stored in the request context with
 // [ContextWithClaims] and the Authorization header is deleted before the next
-// handler runs. The raw token never reaches the LLM, tools, logs, or session
+// handler runs. Exempt paths skip verification, but their Authorization header
+// is deleted too. The raw token never reaches the LLM, tools, logs, or session
 // store. This package never logs the token value, at any level.
+//
+// A token must carry a kid header. Tokens without one are rejected with
+// invalid_token even when the issuer's JWKS contains a single key, because
+// selecting a key by position would make key rotation unsafe.
 //
 // # Deny codes
 //
