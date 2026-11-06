@@ -1,8 +1,11 @@
 # workspace-prompt-injection Specification
 
 ## Purpose
+
 TBD - created by archiving change rename-spiffe-and-fix-workspace. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Workspace path injected into system prompt
 
 The system SHALL append the configured workspace directory path to the
@@ -67,4 +70,3 @@ The legacy log format env var SHALL be renamed from
 
 - **WHEN** `DOCSCLAW_LOG_FORMAT=json` is set
 - **THEN** the logger SHALL output JSON format
-

@@ -1,18 +1,21 @@
 # workspace-context-loading Specification
 
 ## Purpose
+
 TBD - created by archiving change openclaw-workspace-compat. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Load OpenClaw bootstrap files from workspace
 
 The system SHALL discover and read the following files from the
 workspace directory at session start, in this order:
 
 1. `AGENTS.md` -- operating instructions
-2. `SOUL.md` -- persona and tone
-3. `USER.md` -- user context
-4. `IDENTITY.md` -- agent name and role
-5. `TOOLS.md` -- tool guidance (advisory, not enforcement)
+1. `SOUL.md` -- persona and tone
+1. `USER.md` -- user context
+1. `IDENTITY.md` -- agent name and role
+1. `TOOLS.md` -- tool guidance (advisory, not enforcement)
 
 All files are optional. Missing files SHALL be skipped silently.
 
@@ -48,7 +51,7 @@ a markdown header identifying its source.
   contains "Pavel, OCTO team"
 - **THEN** the system prompt SHALL contain a section like:
 
-  ```
+  ```text
   ## Project Context
 
   ### SOUL
@@ -99,4 +102,3 @@ the total character count, at INFO level.
 - **WHEN** SOUL.md (500 chars) and USER.md (300 chars) are loaded
 - **THEN** the system SHALL log a message like:
   `"loaded workspace context" files=["SOUL.md","USER.md"] total_chars=800`
-

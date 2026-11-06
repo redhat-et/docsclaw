@@ -1,8 +1,11 @@
 # workspace-cli-config Specification
 
 ## Purpose
+
 TBD - created by archiving change configurable-workspace-path. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Workspace path configurable via CLI flag
 
 The `serve` command SHALL accept a `--workspace` flag that sets
@@ -65,4 +68,3 @@ context loading, system prompt injection, and directory creation.
   `/data/agent` as their root, OpenClaw files SHALL be loaded from
   `/data/agent`, and the system prompt SHALL reference
   `/data/agent`
-
