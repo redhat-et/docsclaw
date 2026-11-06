@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/../demo/batch/data"
 
 usage() {
-    echo "Usage: $0 --scenario <hr|security|finance|all> --url <document-service-url>"
+    echo "Usage: $0 --scenario <hr|security|finance|all> --url <document-service-base-url>"
     echo ""
     echo "Load demo data into document-service."
     echo ""

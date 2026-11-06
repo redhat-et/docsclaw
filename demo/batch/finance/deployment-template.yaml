@@ -29,8 +29,6 @@ spec:
           image: ghcr.io/redhat-et/docsclaw:latest
           args:
             - serve
-            - --document-service-url
-            - http://document-service.NAMESPACE.svc:8080
           ports:
             - containerPort: 8000
               name: http

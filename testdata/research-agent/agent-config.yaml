@@ -14,5 +14,8 @@ tools:
       - ".svc.cluster.local"
   workspace: /workspace
 
+document_services:
+  research: http://localhost:8080
+
 loop:
   max_iterations: 10

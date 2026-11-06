@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 
@@ -12,12 +14,16 @@ import (
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
 
+// documentServiceName matches the allowed document_services keys.
+var documentServiceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
 // AgentConfig holds the agent-config.yaml configuration.
 type AgentConfig struct {
-	Tools     ToolsConfig `yaml:"tools"`
-	Loop      LoopCfg     `yaml:"loop"`
-	RAG       *rag.Config `yaml:"rag"`
-	SkillsDir string      `yaml:"skills_dir"`
+	Tools            ToolsConfig       `yaml:"tools"`
+	Loop             LoopCfg           `yaml:"loop"`
+	RAG              *rag.Config       `yaml:"rag"`
+	SkillsDir        string            `yaml:"skills_dir"`
+	DocumentServices map[string]string `yaml:"document_services"`
 }
 
 // ToolsConfig configures tool availability and behavior.
@@ -61,8 +67,27 @@ func loadAgentConfig(configDir string) (*AgentConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse agent config: %w", err)
 	}
+	if err := validateDocumentServices(cfg.DocumentServices); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
+}
+
+func validateDocumentServices(services map[string]string) error {
+	for name, rawURL := range services {
+		if !documentServiceName.MatchString(name) {
+			return fmt.Errorf("document_services[%q]: name must match %s", name, documentServiceName)
+		}
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return fmt.Errorf("document_services[%q]: invalid URL: %w", name, err)
+		}
+		if !u.IsAbs() || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("document_services[%q]: must be an absolute http or https URL", name)
+		}
+	}
+	return nil
 }
 
 // toLoopConfig converts AgentConfig to the tools.LoopConfig.
