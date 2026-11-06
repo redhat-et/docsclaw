@@ -1,4 +1,10 @@
-## ADDED Requirements
+# workspace-cli-config Specification
+
+## Purpose
+
+TBD - created by archiving change configurable-workspace-path. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: Workspace path configurable via CLI flag
 
@@ -39,8 +45,8 @@ as the `--workspace` flag.
 
 ### Requirement: Default workspace unchanged
 
-When neither the flag, env var, nor config file sets a workspace,
-the system SHALL use `/workspace` as the default.
+The system SHALL use `/workspace` as the default workspace when
+neither the flag, env var, nor config file sets one.
 
 #### Scenario: No workspace configuration
 
