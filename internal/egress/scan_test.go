@@ -89,6 +89,11 @@ func TestNoRawTransportsOrDialers(t *testing.T) {
 	}
 }
 
+// isHTTPTransport matches the selector http.Transport. It does not resolve
+// import aliases, so a file importing net/http under another name (for
+// example stdhttp "net/http") would evade the scan. This repo does not use
+// aliased net/http imports; treat this as a guard against the common case,
+// not a proof of absence.
 func isHTTPTransport(expr ast.Expr) bool {
 	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {

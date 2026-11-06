@@ -78,16 +78,19 @@ client := egress.NewClient(30 * time.Second)
 ```
 
 The package returns a clone of `http.DefaultTransport`, so the stock dialer
-and `Proxy: http.ProxyFromEnvironment` are preserved. A source-scan test fails
-the build if production code under `internal/` or `pkg/` contains a raw
-`http.Transport` literal or assigns `Dial`, `DialContext`, or
-`DialTLSContext`. A custom dialer bypasses the namespace redirect; a raw
-transport silently drops `Proxy`.
+and connection pool are preserved. A source-scan test fails the build if
+production code under `internal/` or `pkg/` contains a raw `http.Transport`
+literal or assigns `Dial`, `DialContext`, or `DialTLSContext`. A raw
+transport silently drops `Proxy`; a custom dialer changes DNS and TLS
+behavior and diverges from the stock connection pool.
 
-If an operator configures an upstream corporate proxy on the supervisor
-(`--upstream-proxy`), `ProxyFromEnvironment` still applies. Do not set
-`NO_PROXY` for a destination you need to reach: it bypasses the supervisor,
-and the connection is then blocked by network policy.
+Inside a sandbox, `ProxyFromEnvironment` is effectively a no-op: the
+supervisor strips `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, and their
+lowercase variants from the workload, and an operator-configured upstream
+proxy (`--upstream-proxy`) is applied by the supervisor independently of the
+workload's environment. Keeping `Proxy: http.ProxyFromEnvironment` in the
+constructor matters for deployments that are not sandboxed, where the process
+environment is the only proxy signal.
 
 ## Files
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -51,7 +52,15 @@ func TestNewClient_NoCustomDialer(t *testing.T) {
 		t.Fatal("DialContext is nil; the stock dialer is required")
 	}
 	if tr.DialTLSContext != nil {
-		t.Fatal("DialTLSContext is set; custom TLS dialing bypasses the supervisor")
+		t.Fatal("DialTLSContext is set; it diverges from the stock transport")
+	}
+
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok || base.DialContext == nil {
+		t.Skip("http.DefaultTransport is not a stock *http.Transport")
+	}
+	if got, want := reflect.ValueOf(tr.DialContext).Pointer(), reflect.ValueOf(base.DialContext).Pointer(); got != want {
+		t.Fatal("DialContext differs from http.DefaultTransport; a custom dialer was installed")
 	}
 }
 
