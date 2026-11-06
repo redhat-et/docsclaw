@@ -56,7 +56,7 @@ oc new-project docsclaw
 oc apply -f secrets/anthropic.yaml   # or openai.yaml / maas.yaml
 ```
 
-2. Deploy the agent:
+1. Deploy the agent:
 
 ```bash
 oc apply -f standalone-agent.yaml        # basic agent
@@ -73,3 +73,34 @@ oc apply -f agent-with-skills.yaml       # agent with skills
 | `secrets/*.yaml` | No | Your real secrets (gitignored) |
 | `standalone-agent.yaml` | Yes | Basic agent (ConfigMap + Deployment + Service + Route) |
 | `agent-with-skills.yaml` | Yes | Agent with skills (adds skill ConfigMaps) |
+
+## OpenShell sandbox image
+
+The `-openshell` image variant is built for the v2 zero-trust demo and is
+not the same image as the default agent image.
+
+| Property | Value |
+|----------|-------|
+| Tag | `ghcr.io/redhat-et/docsclaw:<version>-openshell` |
+| Binary | `/usr/local/bin/docsclaw` (no symlink) |
+| User | UID 1001, GID 0 |
+| Working directory | `/workspace` (writable) |
+| Base | UBI 10 minimal (includes `bash` and `sleep`) |
+
+OpenShell's `sandbox exec` runs commands through `bash -lc`, and the
+harness keeps the sandbox alive with `sleep infinity`, so the image ships
+both. Provider profiles bind credentials to the binary path, so the
+binary must stay at `/usr/local/bin/docsclaw`.
+
+`serve` defaults to `/workspace`. OpenShell treats a `WORKDIR` other than
+`/` or `/sandbox` as the sandbox workspace, so it must exist and be
+writable; the image creates it for UID 1001.
+
+Build it locally:
+
+```bash
+make image-openshell
+podman run -d --name dc-os docsclaw:dev-openshell
+podman exec dc-os docsclaw --version
+podman rm -f dc-os
+```

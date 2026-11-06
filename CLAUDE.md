@@ -33,9 +33,12 @@ container images on `ghcr.io/redhat-et/docsclaw`, and a Homebrew
 formula. Version is injected via ldflags into
 `internal/cmd.version`.
 
-Two Dockerfiles:
+Three Dockerfiles:
+
 - `Dockerfile` — local dev builds (multi-stage with Go builder)
 - `Dockerfile.release` — GoReleaser builds (scratch, pre-built binary)
+- `Containerfile.openshell` — OpenShell sandbox image (`-openshell` tag;
+  UBI minimal, non-root, `bash` and `sleep`)
 
 Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 `pavelanni/homebrew-tap`).
@@ -78,6 +81,7 @@ manages allowed tools and generates LLM tool definitions.
 ## Configuration
 
 The agent reads personality from a config directory:
+
 - `system-prompt.txt` (required)
 - `agent-card.json` (optional, fallback provided)
 - `prompts.json` (optional prompt variants)
