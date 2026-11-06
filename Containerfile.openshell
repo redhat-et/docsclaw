@@ -1,0 +1,24 @@
+FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:602a6643e552ed429d7d64d3e409b3c4d0b42c1c8f965af9b44d4a3f842ad874
+
+LABEL org.opencontainers.image.source="https://github.com/redhat-et/docsclaw" \
+      org.opencontainers.image.description="DocsClaw agent runtime for NVIDIA OpenShell sandboxes" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+USER root
+
+# OpenShell provider profiles bind credentials to this exact binary path and
+# pin the first observed digest, so copy to the real path with no symlink.
+COPY --chmod=0755 --chown=root:root docsclaw /usr/local/bin/docsclaw
+
+# serve defaults to /workspace. OpenShell treats a non-/sandbox WORKDIR as the
+# sandbox workspace, so it must exist and be writable by the runtime user.
+RUN mkdir -p /workspace \
+    && chown 1001:0 /workspace \
+    && chmod 0775 /workspace
+
+USER 1001:0
+WORKDIR /workspace
+
+# OpenShell replaces CMD/ENTRYPOINT when it starts the sandbox. This default
+# keeps the container alive for the harness's `-- sleep infinity` pattern.
+CMD ["sleep", "infinity"]

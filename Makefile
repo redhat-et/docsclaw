@@ -18,7 +18,7 @@ OUTDIR ?= deploy/generated/$(NAME)
 NAMESPACE ?=
 KUBECTL ?= oc
 
-.PHONY: build build-skill-puller test lint fmt clean image image-push image-security image-security-push agent-build agent-image agent-push configmap-gen configmap-apply
+.PHONY: build build-skill-puller test lint fmt clean image image-push image-security image-security-push image-openshell agent-build agent-image agent-push configmap-gen configmap-apply
 
 build:
 	go build -o $(BINDIR)/$(BINARY) ./cmd/docsclaw
@@ -55,6 +55,19 @@ image-security:
 
 image-security-push: image-security
 	$(CONTAINER_ENGINE) push $(REGISTRY):$(DEV_TAG)-security
+
+# --- OpenShell sandbox image ---
+# A linux binary plus a shell and `sleep`, which the OpenShell harness needs
+# for `sandbox exec` and `-- sleep infinity`.
+OPEN_TAG ?= docsclaw:dev-openshell
+OPENARCH ?= $(shell go env GOARCH)
+
+image-openshell:
+	@mkdir -p build/openshell
+	@trap 'rm -rf build/openshell' EXIT; \
+	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/docsclaw ./cmd/docsclaw && \
+	cp Containerfile.openshell build/openshell/Containerfile && \
+	$(CONTAINER_ENGINE) build -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
 
 # --- Agent image from manifest ---
 # Build a custom agent image from an agent manifest.

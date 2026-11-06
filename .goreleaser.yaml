@@ -75,6 +75,20 @@ dockers:
     build_flag_templates:
       - "--platform=linux/arm64"
     goarch: arm64
+  - image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-amd64"
+    use: buildx
+    dockerfile: Containerfile.openshell
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    goarch: amd64
+  - image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-arm64"
+    use: buildx
+    dockerfile: Containerfile.openshell
+    build_flag_templates:
+      - "--platform=linux/arm64"
+    goarch: arm64
 
 docker_manifests:
   - name_template: "ghcr.io/redhat-et/docsclaw:{{ .Version }}"
@@ -85,3 +99,7 @@ docker_manifests:
     image_templates:
       - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
       - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell"
+    image_templates:
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-amd64"
+      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-arm64"
