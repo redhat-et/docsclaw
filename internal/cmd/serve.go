@@ -353,11 +353,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Info("loaded OS tool inventory", "tools", names, "risk_score", tj.RiskScore)
 	}
 
-	// HTTP client with delegation transport
-	httpClient := &http.Client{
-		Transport: &bridge.DelegationTransport{Base: http.DefaultTransport},
-		Timeout:   30 * time.Second,
-	}
+	// HTTP client for document-service requests. It keeps the default
+	// transport so proxy environment variables still apply inside a sandbox.
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 
 	// Initialize LLM provider
 	var llmProvider llm.Provider
@@ -385,16 +383,13 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Document fetcher (same as existing agents)
-	fetchDocument := func(ctx context.Context, documentID, bearerToken string) (map[string]any, error) {
+	fetchDocument := func(ctx context.Context, documentID string) (map[string]any, error) {
 		url := fmt.Sprintf("%s/documents/%s", cfg.DocumentServiceURL, documentID)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 		req.Header.Set("Accept", "application/json")
-		if bearerToken != "" {
-			req.Header.Set("Authorization", "Bearer "+bearerToken)
-		}
 
 		resp, err := httpClient.Do(req)
 		if err != nil {
@@ -455,12 +450,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 				"collection", agentCfg.RAG.Collection)
 		}
 
-		// Register fetch_document tool (uses delegation transport)
-		toolRegistry.Register(fetchdoc.NewFetchDocTool(
-			func(ctx context.Context, docID, token string) (map[string]any, error) {
-				return fetchDocument(ctx, docID, token)
-			},
-		))
+		// Register fetch_document tool
+		toolRegistry.Register(fetchdoc.NewFetchDocTool(fetchDocument))
 
 		// Register skill loading tool in phase 2
 		if len(discoveredSkills) > 0 {
@@ -474,57 +465,6 @@ func runServe(cmd *cobra.Command, args []string) error {
 		log.Info("Tools enabled",
 			"allowed", len(toolRegistry.Definitions()),
 			"max_iterations", loopCfg.MaxIterations)
-	}
-
-	// LLM processor with prompt selection
-	processLLM := func(ctx context.Context, title, content string) (string, error) {
-		selectedPrompt := selectPrompt(systemPrompt, promptVariants, title+" "+content) + skillsSummary
-
-		// Phase 1: single-shot mode (no tools)
-		if toolRegistry == nil {
-			if llmProvider == nil {
-				return fmt.Sprintf("## Result\n\n**Document:** %s\n\nMock response. "+
-					"Configure LLM_API_KEY to enable AI processing.\n\n"+
-					"### Document Preview\n\n%s",
-					title, truncate(content, 500)), nil
-			}
-
-			userPrompt := "Please process the following document:\n\n" +
-				"**Title:** " + title + "\n\n" +
-				"**Content:**\n" + content
-
-			log.Info("Processing document with LLM", "document", title)
-			result, err := llmProvider.Complete(ctx, selectedPrompt, userPrompt)
-			if err != nil {
-				return "", fmt.Errorf("LLM request failed: %w", err)
-			}
-			log.Success("LLM processing completed")
-			return result, nil
-		}
-
-		// Phase 2: agentic tool-use loop
-		if llmProvider == nil {
-			return "", fmt.Errorf("LLM provider required for tool-use mode")
-		}
-
-		log.Info("Starting agentic loop", "document", title,
-			"tools", len(toolRegistry.Definitions()))
-
-		messages := []llm.Message{
-			{Role: "system", Content: selectedPrompt},
-			{Role: "user", Content: fmt.Sprintf(
-				"Process the following document:\n\n"+
-					"**Title:** %s\n\n**Content:**\n%s",
-				title, content)},
-		}
-
-		result, err := tools.RunToolLoop(ctx, llmProvider, messages,
-			toolRegistry, loopCfg)
-		if err != nil {
-			return "", fmt.Errorf("agentic loop failed: %w", err)
-		}
-		log.Success("Agentic processing completed")
-		return result, nil
 	}
 
 	// Build HTTP mux
@@ -546,9 +486,24 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 	}
 	executor := &bridge.AgentExecutor{
-		Log:           log,
-		FetchDocument: fetchDocument,
-		ProcessLLM:    processLLM,
+		Log:          log,
+		SystemPrompt: systemPrompt + skillsSummary,
+	}
+
+	// Phase 1: one LLM completion per message. Phase 2 replaces this with
+	// the agentic tool loop below.
+	executor.ProcessMessage = func(ctx context.Context, messages []llm.Message) (string, error) {
+		userText := lastUserContent(messages)
+		if llmProvider == nil {
+			return "## Result\n\nMock response. Configure LLM_API_KEY to enable AI processing.", nil
+		}
+		selectedPrompt := selectPrompt(systemPrompt, promptVariants, userText) + skillsSummary
+		result, err := llmProvider.Complete(ctx, selectedPrompt, userText)
+		if err != nil {
+			return "", fmt.Errorf("LLM request failed: %w", err)
+		}
+		log.Success("LLM processing completed")
+		return result, nil
 	}
 
 	// In phase 2 mode, enable free-form message handling with sessions
@@ -710,11 +665,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
+// lastUserContent returns the text of the most recent user message.
+func lastUserContent(messages []llm.Message) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			return messages[i].Content
+		}
 	}
-	return s[:maxLen] + "..."
+	return ""
 }
 
 // loadSkillTool implements the load_skill tool.

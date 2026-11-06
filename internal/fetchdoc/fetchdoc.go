@@ -8,7 +8,7 @@ import (
 )
 
 // DocumentFetcher is a function that fetches a document by ID.
-type DocumentFetcher func(ctx context.Context, documentID, bearerToken string) (map[string]any, error)
+type DocumentFetcher func(ctx context.Context, documentID string) (map[string]any, error)
 
 type fetchDocTool struct {
 	fetcher DocumentFetcher
@@ -22,8 +22,7 @@ func NewFetchDocTool(fetcher DocumentFetcher) tools.Tool {
 func (t *fetchDocTool) Name() string { return "fetch_document" }
 func (t *fetchDocTool) Description() string {
 	return "Fetch a document from the document service by ID (e.g., DOC-001). " +
-		"Returns the document title and content. " +
-		"Subject to the same delegation and OPA authorization as the initial request."
+		"Returns the document title and content."
 }
 func (t *fetchDocTool) Parameters() map[string]any {
 	return map[string]any{
@@ -44,7 +43,7 @@ func (t *fetchDocTool) Execute(ctx context.Context, args map[string]any) *tools.
 		return tools.Errorf("document_id is required")
 	}
 
-	doc, err := t.fetcher(ctx, docID, "")
+	doc, err := t.fetcher(ctx, docID)
 	if err != nil {
 		return tools.Errorf("Failed to fetch document %s: %s", docID, err)
 	}
