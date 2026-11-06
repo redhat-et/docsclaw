@@ -4,7 +4,8 @@
 
 The published OpenShell image SHALL place the binary at
 `/usr/local/bin/docsclaw` with no symlink, run as a non-root user, and
-provide a writable workspace at `/sandbox`. The image SHALL include
+provide a writable workspace at the path `serve` defaults to, currently
+`/workspace`. The image SHALL include
 `bash` and a `sleep` implementation that accepts `infinity`.
 
 #### Scenario: Harness can exec into the image

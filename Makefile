@@ -64,10 +64,10 @@ OPENARCH ?= $(shell go env GOARCH)
 
 image-openshell:
 	@mkdir -p build/openshell
-	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/docsclaw ./cmd/docsclaw
-	@cp Containerfile.openshell build/openshell/Containerfile
+	@trap 'rm -rf build/openshell' EXIT; \
+	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/docsclaw ./cmd/docsclaw && \
+	cp Containerfile.openshell build/openshell/Containerfile && \
 	$(CONTAINER_ENGINE) build -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
-	@rm -rf build/openshell
 
 # --- Agent image from manifest ---
 # Build a custom agent image from an agent manifest.

@@ -96,6 +96,12 @@ binary must stay at `/usr/local/bin/docsclaw`.
 `/` or `/sandbox` as the sandbox workspace, so it must exist and be
 writable; the image creates it for UID 1001.
 
+For a read-only root filesystem, mount a volume at the workspace path:
+
+```bash
+podman run -d --name dc-os -v docsclaw-ws:/workspace docsclaw:dev-openshell
+```
+
 Build it locally:
 
 ```bash

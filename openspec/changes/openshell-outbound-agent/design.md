@@ -161,7 +161,7 @@ UBI micro has no shell. The image provides:
 | --- | --- |
 | Binary | `/usr/local/bin/docsclaw`, mode 0755, root-owned, no symlink |
 | User | UID 1001 |
-| Workspace | `/sandbox`, writable by UID 1001 |
+| Workspace | `/workspace`, the path `serve` defaults to, writable by UID 1001 |
 | Command | `sleep infinity` |
 | Labels | OCI `source`, `description`, `licenses` |
 
