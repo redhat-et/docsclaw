@@ -53,6 +53,20 @@ func TestFetchDocument(t *testing.T) {
 			wantReqs:   0,
 		},
 		{
+			name:       "dot document id",
+			args:       map[string]any{"service": "finance", "document_id": "."},
+			wantErr:    true,
+			wantOutput: `invalid document_id "."`,
+			wantReqs:   0,
+		},
+		{
+			name:       "dotdot document id",
+			args:       map[string]any{"service": "finance", "document_id": ".."},
+			wantErr:    true,
+			wantOutput: `invalid document_id ".."`,
+			wantReqs:   0,
+		},
+		{
 			name: "application denial is preserved",
 			args: map[string]any{"service": "finance", "document_id": "DOC-001"},
 			handler: func(w http.ResponseWriter, r *http.Request) {

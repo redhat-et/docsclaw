@@ -62,6 +62,8 @@ data:
       allowed:
         - fetch_document
       workspace: /workspace
+    document_services:
+      security: http://document-service.panni-docsclaw.svc:8080
     loop:
       max_iterations: 10
 

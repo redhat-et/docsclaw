@@ -62,6 +62,9 @@ func (t *fetchDocTool) Execute(ctx context.Context, args map[string]any) *tools.
 	if !ok || docID == "" {
 		return tools.Errorf("document_id is required")
 	}
+	if docID == "." || docID == ".." {
+		return tools.Errorf("invalid document_id %q: must name a document", docID)
+	}
 
 	base, ok := t.services[service]
 	if !ok {

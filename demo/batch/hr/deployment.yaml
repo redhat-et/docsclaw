@@ -49,6 +49,8 @@ data:
       allowed:
         - fetch_document
       workspace: /workspace
+    document_services:
+      hr: http://document-service.demo-hr.svc:8080
     loop:
       max_iterations: 25
 
