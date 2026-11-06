@@ -1,0 +1,37 @@
+# markdownlint-cli2 configuration
+# Run: markdownlint-cli2 "**/*.md"
+config:
+  default: true
+  # Line length: 120 for prose; tables, code blocks, and headings are exempt
+  # because they cannot be wrapped without breaking rendering.
+  MD013:
+    line_length: 120
+    tables: false
+    code_blocks: false
+    headings: false
+  # Ordered lists use "1." for every item.
+  MD029:
+    style: one
+  # Allow repeated headings in different sections (e.g. "Task 1" per WP).
+  MD024:
+    siblings_only: true
+  # Allow a few inline HTML elements commonly used in READMEs.
+  MD033:
+    allowed_elements: [br, details, summary, img, sup, sub]
+  # Go snippets keep gofmt tabs.
+  MD010:
+    code_blocks: false
+  # Table pipe alignment is cosmetic and churns on every edit.
+  MD060: false
+  # Fenced code blocks only.
+  MD046:
+    style: fenced
+  # Files such as openspec specs and agent prompts may not start with an H1.
+  MD041: false
+
+ignores:
+  - "node_modules/**"
+  - "vendor/**"
+  - ".worktrees/**"
+  - "openspec/changes/archive/**"
+  - "CHANGELOG.md"
