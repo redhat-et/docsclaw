@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/redhat-et/docsclaw/internal/egress"
 	"github.com/redhat-et/docsclaw/pkg/tools"
 )
 
@@ -75,16 +76,15 @@ func (t *webFetchTool) Execute(ctx context.Context, args map[string]any) *tools.
 	}
 
 	// Use custom client that validates redirects against allowed hosts
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(t.config.AllowedHosts) > 0 && !t.isHostAllowed(req.URL.Hostname()) {
-				return fmt.Errorf("redirect to non-allowed host: %s", req.URL.Hostname())
-			}
-			if len(via) >= 10 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
+	client := egress.NewClient(0)
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(t.config.AllowedHosts) > 0 && !t.isHostAllowed(req.URL.Hostname()) {
+			return fmt.Errorf("redirect to non-allowed host: %s", req.URL.Hostname())
+		}
+		if len(via) >= 10 {
+			return fmt.Errorf("too many redirects")
+		}
+		return nil
 	}
 
 	resp, err := client.Do(req)

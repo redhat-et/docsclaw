@@ -21,6 +21,7 @@ import (
 
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/config"
+	"github.com/redhat-et/docsclaw/internal/egress"
 	"github.com/redhat-et/docsclaw/internal/exec"
 	"github.com/redhat-et/docsclaw/internal/fetchdoc"
 	"github.com/redhat-et/docsclaw/internal/logger"
@@ -355,7 +356,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	// HTTP client for document-service requests. It keeps the default
 	// transport so proxy environment variables still apply inside a sandbox.
-	httpClient := &http.Client{Timeout: 30 * time.Second}
+	httpClient := egress.NewClient(30 * time.Second)
 
 	// Initialize LLM provider
 	var llmProvider llm.Provider

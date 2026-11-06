@@ -5,6 +5,8 @@ import (
 	"os/exec"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/redhat-et/docsclaw/internal/egress"
 )
 
 // MCPServerConfig defines an MCP server connection in agent-config.yaml.
@@ -40,7 +42,8 @@ func (c *MCPServerConfig) newTransport() mcp.Transport {
 	switch c.Transport {
 	case "streamable_http":
 		return &mcp.StreamableClientTransport{
-			Endpoint: c.URL,
+			Endpoint:   c.URL,
+			HTTPClient: egress.NewClient(0),
 		}
 	case "stdio":
 		cmd := exec.Command(c.Command, c.Args...)

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/redhat-et/docsclaw/internal/egress"
 	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
@@ -178,7 +179,7 @@ func NewOpenAICompatProvider(cfg llm.Config) (*OpenAICompatProvider, error) {
 		model:        cfg.Model,
 		maxTokens:    cfg.MaxTokens,
 		timeout:      time.Duration(cfg.Timeout) * time.Second,
-		client:       &http.Client{},
+		client:       egress.NewClient(0),
 		providerName: providerName,
 	}, nil
 }
