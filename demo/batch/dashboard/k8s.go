@@ -56,7 +56,7 @@ func newInCluster(namespace string) (*K8sClient, error) {
 		baseURL: "https://kubernetes.default.svc",
 		token:   string(token),
 		httpClient: &http.Client{
-			Timeout:   30 * time.Second,
+			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{RootCAs: pool},
 			},
@@ -76,10 +76,10 @@ func newFromKubeconfig(namespace, path string) (*K8sClient, error) {
 		Clusters       []struct {
 			Name    string `yaml:"name"`
 			Cluster struct {
-				Server                string `yaml:"server"`
-				CertificateAuthority  string `yaml:"certificate-authority"`
+				Server                   string `yaml:"server"`
+				CertificateAuthority     string `yaml:"certificate-authority"`
 				CertificateAuthorityData string `yaml:"certificate-authority-data"`
-				InsecureSkipVerify    bool   `yaml:"insecure-skip-tls-verify"`
+				InsecureSkipVerify       bool   `yaml:"insecure-skip-tls-verify"`
 			} `yaml:"cluster"`
 		} `yaml:"clusters"`
 		Contexts []struct {
@@ -199,8 +199,11 @@ func (c *K8sClient) do(method, path string, body io.Reader) ([]byte, int, error)
 }
 
 // CreateAgentDeployment creates a Deployment and Service for an agent instance.
-func (c *K8sClient) CreateAgentDeployment(name, configMap, docServiceURL string, llmTimeout int) error {
-	dep := buildDeploymentJSON(name, c.namespace, configMap, docServiceURL, llmTimeout)
+func (c *K8sClient) CreateAgentDeployment(name, configMap, serviceName, docServiceURL string, llmTimeout int) error {
+	if err := c.setDocumentService(configMap, serviceName, docServiceURL); err != nil {
+		return err
+	}
+	dep := buildDeploymentJSON(name, c.namespace, configMap, llmTimeout)
 	data, err := json.Marshal(dep)
 	if err != nil {
 		return fmt.Errorf("marshal deployment: %w", err)
@@ -333,9 +336,9 @@ func (c *K8sClient) DeleteAgent(name string) error {
 
 // PodInfo holds basic pod status information.
 type PodInfo struct {
-	Name   string
-	Phase  string
-	Ready  bool
+	Name  string
+	Phase string
+	Ready bool
 }
 
 // ListPods returns pods matching a label selector.
@@ -355,7 +358,7 @@ func (c *K8sClient) ListPods(labelSelector string) ([]PodInfo, error) {
 				Name string `json:"name"`
 			} `json:"metadata"`
 			Status struct {
-				Phase            string `json:"phase"`
+				Phase             string `json:"phase"`
 				ContainerStatuses []struct {
 					Ready bool `json:"ready"`
 				} `json:"containerStatuses"`
@@ -506,12 +509,63 @@ func parseCPU(s string) float64 {
 	return f * 1000
 }
 
-// buildDeploymentJSON constructs the K8s Deployment object.
-func buildDeploymentJSON(name, namespace, configMap, docServiceURL string, llmTimeout int) map[string]any {
-	args := []any{
-		"serve",
-		"--document-service-url", docServiceURL,
+// setDocumentService adds the document service to the agent ConfigMap so the
+// agent can resolve it by name. It is idempotent and keeps the existing data.
+func (c *K8sClient) setDocumentService(configMap, serviceName, docServiceURL string) error {
+	path := fmt.Sprintf("/api/v1/namespaces/%s/configmaps/%s", c.namespace, configMap)
+	data, code, err := c.do(http.MethodGet, path, nil)
+	if err != nil {
+		return fmt.Errorf("get configmap %s: %w", configMap, err)
 	}
+	if code != http.StatusOK {
+		return fmt.Errorf("get configmap %s: HTTP %d", configMap, code)
+	}
+
+	var cm map[string]any
+	if err := json.Unmarshal(data, &cm); err != nil {
+		return fmt.Errorf("decode configmap %s: %w", configMap, err)
+	}
+	cmData, ok := cm["data"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("configmap %s has no data", configMap)
+	}
+
+	agentCfg := map[string]any{}
+	if raw, _ := cmData["agent-config.yaml"].(string); raw != "" {
+		if err := yaml.Unmarshal([]byte(raw), &agentCfg); err != nil {
+			return fmt.Errorf("parse agent-config.yaml in %s: %w", configMap, err)
+		}
+	}
+	services, _ := agentCfg["document_services"].(map[string]any)
+	if services == nil {
+		services = map[string]any{}
+	}
+	services[serviceName] = docServiceURL
+	agentCfg["document_services"] = services
+
+	updated, err := yaml.Marshal(agentCfg)
+	if err != nil {
+		return fmt.Errorf("marshal agent-config.yaml: %w", err)
+	}
+	cmData["agent-config.yaml"] = string(updated)
+
+	body, err := json.Marshal(cm)
+	if err != nil {
+		return fmt.Errorf("marshal configmap %s: %w", configMap, err)
+	}
+	_, code, err = c.do(http.MethodPut, path, strings.NewReader(string(body)))
+	if err != nil {
+		return fmt.Errorf("update configmap %s: %w", configMap, err)
+	}
+	if code >= 300 {
+		return fmt.Errorf("update configmap %s: HTTP %d", configMap, code)
+	}
+	return nil
+}
+
+// buildDeploymentJSON constructs the K8s Deployment object.
+func buildDeploymentJSON(name, namespace, configMap string, llmTimeout int) map[string]any {
+	args := []any{"serve"}
 	if llmTimeout > 0 {
 		args = append(args, "--llm-timeout", fmt.Sprintf("%d", llmTimeout))
 	}

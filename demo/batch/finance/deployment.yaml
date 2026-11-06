@@ -104,8 +104,6 @@ spec:
           image: ghcr.io/redhat-et/docsclaw:latest
           args:
             - serve
-            - --document-service-url
-            - http://document-service.panni-docsclaw.svc:8080
           ports:
             - containerPort: 8000
               name: http

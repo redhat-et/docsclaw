@@ -43,13 +43,13 @@ type ScenarioState struct {
 }
 
 type server struct {
-	k8s        *K8sClient
-	a2a        *A2AClient
-	namespace  string
-	inCluster  bool
-	scenarios  map[string]Scenario
-	mu         sync.Mutex
-	states     map[string]*scenarioRuntime
+	k8s       *K8sClient
+	a2a       *A2AClient
+	namespace string
+	inCluster bool
+	scenarios map[string]Scenario
+	mu        sync.Mutex
+	states    map[string]*scenarioRuntime
 }
 
 type scenarioRuntime struct {
@@ -182,7 +182,7 @@ func (s *server) runScenario(name string, scenario Scenario, rt *scenarioRuntime
 		rt.agents[i].status = "deploying"
 		s.mu.Unlock()
 
-		err := s.k8s.CreateAgentDeployment(a.Name, scenario.ConfigMap, scenario.DocService, scenario.LLMTimeout)
+		err := s.k8s.CreateAgentDeployment(a.Name, scenario.ConfigMap, scenario.Name, scenario.DocService, scenario.LLMTimeout)
 		if err != nil {
 			slog.Error("deploy failed", "agent", a.Name, "error", err)
 			s.mu.Lock()
