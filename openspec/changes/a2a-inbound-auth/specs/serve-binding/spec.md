@@ -3,8 +3,11 @@
 ### Requirement: Inbound auth protects both public endpoints
 
 When `inbound_auth.enabled` is true, the middleware SHALL wrap the A2A
-JSON-RPC endpoint and the OpenAI-compatible `/v1` endpoint. Only the agent card
-and health endpoints SHALL be exempt.
+JSON-RPC endpoint and the OpenAI-compatible `/v1` endpoint. Only
+`/.well-known/agent-card.json` and `/health` SHALL be exempt. Exemption SHALL
+match the request path exactly after `path.Clean`, so `/healthz` and
+`/health/../a2a` SHALL require authentication. `/v1` SHALL be protected by the
+same middleware, not disabled.
 
 #### Scenario: A2A request without a token is rejected
 
@@ -18,7 +21,8 @@ and health endpoints SHALL be exempt.
 
 #### Scenario: Agent card and health are exempt
 
-- **WHEN** a request targets the agent card or the health endpoint with no token
+- **WHEN** a request targets `/.well-known/agent-card.json` or `/health` with
+  no token
 - **THEN** the request SHALL be served without authentication
 
 ### Requirement: Loopback is the default when authentication is enabled
@@ -40,8 +44,10 @@ SHALL always win, and the health server SHALL use the same host.
 ### Requirement: Sessions are isolated by caller
 
 When inbound auth is enabled, the session key SHALL be
-`sub|azp|x-session-id`. When it is disabled, the existing session key SHALL be
-unchanged.
+`sub|azp|x-session-id`. The raw `x-session-id` SHALL be truncated to 64
+characters before composition. An absent or empty `x-session-id` SHALL yield an
+empty session key and stateless handling for that request. When inbound auth is
+disabled, the existing session key SHALL be unchanged.
 
 #### Scenario: Two callers with the same session id do not share a session
 
@@ -54,6 +60,16 @@ unchanged.
 - **WHEN** the same verified identity sends two requests with the same
   `x-session-id`
 - **THEN** the agent SHALL reuse the session
+
+#### Scenario: Absent session id is stateless
+
+- **WHEN** an authenticated request has no `x-session-id`
+- **THEN** the agent SHALL handle it without a session
+
+#### Scenario: Long session id is truncated before composition
+
+- **WHEN** `x-session-id` is longer than 64 characters
+- **THEN** only the first 64 characters SHALL be composed into the session key
 
 ### Requirement: Verified identity is logged without secrets
 

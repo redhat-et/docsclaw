@@ -17,11 +17,11 @@ unique `name`, an absolute `url`, and an optional `description`. The
 `a2a_call` MUST NOT set an `Authorization` header. The OpenShell supervisor
 injects the outbound token at the network boundary.
 
-#### Scenario: Outbound request has no authorization header
+#### Scenario: Request built by the tool has no authorization header
 
 - **WHEN** `a2a_call` invokes a configured peer
-- **THEN** the request observed by the peer SHALL contain no `Authorization`
-  header contributed by the agent
+- **THEN** the request built by `a2a_call` SHALL contain no `Authorization`
+  header; any header the peer observes is injected by the OpenShell supervisor
 
 ### Requirement: Results and task states are surfaced
 

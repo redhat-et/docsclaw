@@ -109,9 +109,10 @@ demo's value is showing why a call was refused.
 - Refresh is rate-limited by `MinRefreshInterval` (default 60s). The
   rate-limit decision and the attempt timestamp are updated in the same
   critical section, so concurrent unknown-`kid` callers cannot both fetch.
-- While a refresh is in flight, an unknown `kid` that hits the rate-limit
-  branch fails closed with `401 invalid_token` instead of waiting. This keeps
-  an unauthenticated caller from turning the JWKS into a latency lever.
+- **Confirmed decision**: while a refresh is in flight, an unknown `kid` that
+  hits the rate-limit branch fails closed with `401 invalid_token` instead of
+  waiting. This keeps an unauthenticated caller from turning the JWKS into a
+  latency lever.
 - If the fetch fails and no cached key matches, the response is
   `503 jwks_unavailable`. Construction never fails because the issuer is
   unreachable.
@@ -133,10 +134,12 @@ demo's value is showing why a call was refused.
 ### Token stripping
 
 On success the middleware deletes `Authorization`, stores the verified claims
-in the request context, and calls the next handler. Exempt paths (agent card
-and health) skip verification but still delete `Authorization`. The token is
-never logged, never placed in `Claims.Raw`, and never passed to the LLM, tools,
-or session store.
+in the request context, and calls the next handler. The only exempt paths are
+`/.well-known/agent-card.json` and `/health`; matching is exact after
+`path.Clean`, so `/healthz` and `/health/../a2a` are protected. Exempt paths
+skip verification but still delete `Authorization`. The token is never logged,
+never placed in `Claims.Raw`, and never passed to the LLM, tools, or session
+store.
 
 WP12 proves the guarantee with a fake LLM provider that records every message
 it receives; the test asserts the raw token string does not appear in that
@@ -156,8 +159,11 @@ inbound_auth:
 ```
 
 The middleware wraps the A2A JSON-RPC endpoint and the OpenAI-compatible `/v1`
-endpoint. Only the agent card and health endpoints are exempt. When inbound
-auth is on, `/v1` is protected too; it is not left as an unauthenticated side
+endpoint. Only `/.well-known/agent-card.json` and `/health` are exempt, matched
+exactly after `path.Clean`.
+
+**Confirmed decision**: when inbound auth is enabled, `/v1` is protected by the
+same middleware rather than disabled. It is not left as an unauthenticated side
 door.
 
 The verified identity (`sub`, `azp`, `scope`, `aud`) is logged at info level
@@ -166,7 +172,10 @@ per request. This is the line the demo shows on screen.
 ### Session isolation
 
 When inbound auth is on, the session key becomes `sub|azp|x-session-id`.
-Without it, one authorized caller could read another caller's conversation by
+The raw `x-session-id` is truncated to 64 characters first, then composed with
+the verified identity. An absent or empty `x-session-id` yields an empty
+session key and stateless handling for that request. Without the caller
+components, one authorized caller could read another caller's conversation by
 guessing a session ID. The executor reads identity from `ClaimsFrom(ctx)`
 instead of extracting the `Authorization` header, which Phase 1 removed.
 
