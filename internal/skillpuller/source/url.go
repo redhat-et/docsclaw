@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/redhat-et/docsclaw/internal/egress"
 )
 
 const maxSkillSize = 1 << 20 // 1 MiB
@@ -21,7 +23,7 @@ type URLSource struct {
 func (s *URLSource) Pull(ctx context.Context, ref string, _ PullOptions) (*Skill, error) {
 	client := s.Client
 	if client == nil {
-		client = http.DefaultClient
+		client = egress.NewClient(0)
 	}
 
 	parsed, err := url.Parse(ref)

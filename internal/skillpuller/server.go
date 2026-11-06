@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redhat-et/docsclaw/internal/egress"
 	"github.com/redhat-et/docsclaw/internal/skillpuller/source"
 )
 
@@ -24,7 +25,7 @@ type Server struct {
 }
 
 func NewServer(skillsDir string, port int) *Server {
-	httpClient := &http.Client{Timeout: 30 * time.Second}
+	httpClient := egress.NewClient(30 * time.Second)
 	return &Server{
 		skillsDir: skillsDir,
 		port:      port,

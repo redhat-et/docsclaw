@@ -63,6 +63,35 @@ oc apply -f standalone-agent.yaml        # basic agent
 oc apply -f agent-with-skills.yaml       # agent with skills
 ```
 
+## Egress in OpenShell sandboxes
+
+OpenShell mediates egress transparently: the sandbox runs in its own
+network namespace, every connection is routed through the supervisor's
+proxy, and the supervisor strips `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`,
+and their lowercase variants from the workload. A stock `http.Transport`
+therefore reaches the supervisor with no code change.
+
+Build outbound clients with `internal/egress`:
+
+```go
+client := egress.NewClient(30 * time.Second)
+```
+
+The package returns a clone of `http.DefaultTransport`, so the stock dialer
+and connection pool are preserved. A source-scan test fails the build if
+production code under `internal/` or `pkg/` contains a raw `http.Transport`
+literal or assigns `Dial`, `DialContext`, or `DialTLSContext`. A raw
+transport silently drops `Proxy`; a custom dialer changes DNS and TLS
+behavior and diverges from the stock connection pool.
+
+Inside a sandbox, `ProxyFromEnvironment` is effectively a no-op: the
+supervisor strips `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, and their
+lowercase variants from the workload, and an operator-configured upstream
+proxy (`--upstream-proxy`) is applied by the supervisor independently of the
+workload's environment. Keeping `Proxy: http.ProxyFromEnvironment` in the
+constructor matters for deployments that are not sandboxed, where the process
+environment is the only proxy signal.
+
 ## Files
 
 | Path | Tracked | Purpose |

@@ -30,6 +30,8 @@ func NewWeaviateClient(baseURL, collection, textField string) (*WeaviateClient, 
 		baseURL:    baseURL,
 		collection: collection,
 		textField:  textField,
+		// pkg/rag is public and must not import internal/egress; a nil
+		// Transport means http.DefaultTransport, which is proxy-aware.
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/redhat-et/docsclaw/internal/egress"
 	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
@@ -48,6 +49,7 @@ func NewAnthropicProvider(cfg llm.Config) (*AnthropicProvider, error) {
 
 	client := anthropic.NewClient(
 		option.WithAPIKey(cfg.APIKey),
+		option.WithHTTPClient(egress.NewClient(0)),
 	)
 
 	return &AnthropicProvider{
