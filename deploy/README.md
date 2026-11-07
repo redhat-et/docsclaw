@@ -139,3 +139,31 @@ podman run -d --name dc-os docsclaw:dev-openshell
 podman exec dc-os docsclaw --version
 podman rm -f dc-os
 ```
+
+## Running in an OpenShell sandbox
+
+The supervisor resolves provider credentials at the network boundary. The
+workload only sees an opaque placeholder, so DocsClaw validates that the key
+is non-empty and nothing else.
+
+| Variable | Value in a sandbox |
+|----------|--------------------|
+| `LLM_PROVIDER` | `openai` (MaaS) or `anthropic` |
+| `LLM_API_KEY` | `openshell:resolve:env:...` placeholder; the proxy substitutes the real key |
+| `LLM_BASE_URL` | The MaaS or provider endpoint allowed by policy |
+| `LLM_MODEL` | Model name served by that endpoint |
+
+Do not set `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, or their lowercase
+variants for the workload: the supervisor strips them. The per-sandbox CA is
+injected through `SSL_CERT_FILE`, which Go reads automatically.
+
+Run a single prompt without starting a server:
+
+```bash
+docsclaw ask --config-dir /config/agent --trace "Summarize DOC-001 from engineering"
+```
+
+The answer goes to stdout and every log line and trace entry goes to stderr,
+so `answer=$(docsclaw ask ...)` captures only the answer. `--trace` prints
+`→ fetch_document {...}` before the call and `← fetch_document ok: ...` after
+it.
