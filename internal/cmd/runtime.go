@@ -17,6 +17,7 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 
+	"github.com/redhat-et/docsclaw/internal/a2acall"
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/config"
 	"github.com/redhat-et/docsclaw/internal/egress"
@@ -278,6 +279,38 @@ func buildRuntime(ctx context.Context, cfg Config, opts runtimeOptions) (rt *age
 				log.Logger,
 			))
 			log.Info("fetch_document enabled", "services", services)
+		}
+
+		// Register a2a_call only when the tool is allowed and peers exist.
+		a2aAllowed := false
+		for _, name := range agentCfg.Tools.Allowed {
+			if name == "a2a_call" {
+				a2aAllowed = true
+				break
+			}
+		}
+		if a2aAllowed && len(agentCfg.A2APeers) > 0 {
+			peers := make([]a2acall.Peer, 0, len(agentCfg.A2APeers))
+			for _, p := range agentCfg.A2APeers {
+				timeout := 120 * time.Second
+				if p.TimeoutSeconds > 0 {
+					timeout = time.Duration(p.TimeoutSeconds) * time.Second
+				}
+				peers = append(peers, a2acall.Peer{
+					Name:        p.Name,
+					URL:         p.URL,
+					Description: p.Description,
+					Timeout:     timeout,
+				})
+			}
+			toolRegistry.Register(a2acall.New(
+				peers,
+				bridge.NewA2AClient(egress.NewClient(0), log.Logger),
+				log.Logger,
+			))
+			log.Info("a2a_call enabled", "peers", a2acallPeerNames(agentCfg.A2APeers))
+		} else if a2aAllowed {
+			log.Warn("a2a_call allowed but no a2a_peers configured")
 		}
 
 		// Register skill loading tool in phase 2
@@ -552,6 +585,15 @@ func (t *loadSkillTool) Execute(_ context.Context, args map[string]any) *tools.T
 		return tools.Errorf("%s", err)
 	}
 	return tools.OK(content)
+}
+
+func a2acallPeerNames(peers []A2APeer) []string {
+	names := make([]string, 0, len(peers))
+	for _, p := range peers {
+		names = append(names, p.Name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func skillNames(discovered []skills.SkillMeta) string {

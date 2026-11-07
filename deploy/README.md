@@ -200,3 +200,25 @@ every request fails closed with `503 jwks_unavailable`.
 
 The deny codes, token-stripping guarantee, and JWKS refresh behavior are
 documented in `pkg/inboundauth/doc.go`.
+
+## Calling peer agents
+
+The `a2a_call` tool lets the LLM call another agent by name. Configure the
+peers in `agent-config.yaml` and list the tool in `tools.allowed`:
+
+```yaml
+tools:
+  allowed: [fetch_document, a2a_call]
+
+a2a_peers:
+  - name: engineering-analyst
+    url: https://default--alice--engineering.svc.openshell.internal/
+    description: Analyzes engineering documents
+    timeout_seconds: 120
+```
+
+The agent sends no credentials; the OpenShell supervisor injects the bearer
+token at the network boundary. The same peer list is enforced again by the
+sandbox network policy, which is deliberate defense in depth: a typo in
+`a2a_peers` fails with a policy denial rather than reaching an unintended
+agent.
