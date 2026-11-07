@@ -167,3 +167,36 @@ The answer goes to stdout and every log line and trace entry goes to stderr,
 so `answer=$(docsclaw ask ...)` captures only the answer. `--trace` prints
 `→ fetch_document {...}` before the call and `← fetch_document ok: ...` after
 it.
+
+## Inbound authentication
+
+OpenShell's `bearer-passthrough` forwards one bearer token but also admits
+requests without one, so DocsClaw verifies the token itself when
+`inbound_auth` is enabled:
+
+```yaml
+inbound_auth:
+  enabled: true
+  issuer: https://token-issuer.zt-demo.svc:8080
+  jwks_url: https://token-issuer.zt-demo.svc:8080/.well-known/jwks.json
+  audience: engineering-analyst
+  required_scopes: [engineering]
+  allowed_callers:
+    - spiffe://openshell.local/openshell/sandbox/
+```
+
+With this block the A2A endpoints and the whole `/v1` tree require a valid
+token; only `/.well-known/agent-card.json` and `/health` are exempt. `serve`
+binds to `127.0.0.1` by default when inbound auth is enabled, because OpenShell
+reaches the service through the sandbox loopback. Set `service.host`
+explicitly to override the bind address.
+
+Sessions are keyed by verified identity and the caller's `x-session-id`, so
+two callers that reuse the same session ID cannot read each other's history.
+
+The JWKS fetch is ordinary egress and goes through the supervisor: the issuer
+host must be allowed by the sandbox network policy, or startup succeeds but
+every request fails closed with `503 jwks_unavailable`.
+
+The deny codes, token-stripping guarantee, and JWKS refresh behavior are
+documented in `pkg/inboundauth/doc.go`.

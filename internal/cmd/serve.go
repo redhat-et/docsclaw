@@ -221,6 +221,14 @@ func runServe(_ *cobra.Command, _ []string) error {
 	defer func() { _ = rt.Close() }()
 	log := rt.Log
 
+	// Resolve the bind host once both the config and agent config are known.
+	// Inbound auth defaults to loopback; without it the historical default of
+	// all interfaces is preserved.
+	authEnabled := rt.AgentCfg != nil && rt.AgentCfg.InboundAuth != nil &&
+		rt.AgentCfg.InboundAuth.Enabled
+	cfg.Service.Host = resolveHost(cfg.Service.Host, authEnabled)
+	rt.Cfg.Service.Host = cfg.Service.Host
+
 	// Initialize OpenTelemetry tracing (no-op when disabled)
 	otelShutdown, err := telemetry.Init(context.Background(), telemetry.Config{
 		Enabled:           cfg.OTel.Enabled,

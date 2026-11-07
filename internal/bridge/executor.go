@@ -13,8 +13,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/redhat-et/docsclaw/internal/logger"
-	"github.com/redhat-et/docsclaw/internal/telemetry"
 	"github.com/redhat-et/docsclaw/internal/session"
+	"github.com/redhat-et/docsclaw/internal/telemetry"
+	"github.com/redhat-et/docsclaw/pkg/inboundauth"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
@@ -27,9 +28,9 @@ type MessageProcessor func(ctx context.Context, messages []llm.Message) (string,
 // to an in-process message processor (optionally an agentic tool loop).
 type AgentExecutor struct {
 	Log            *logger.Logger
-	ProcessMessage MessageProcessor    // required
+	ProcessMessage MessageProcessor     // required
 	Sessions       session.SessionStore // optional: server-side conversation state
-	SystemPrompt   string              // system prompt for new sessions
+	SystemPrompt   string               // system prompt for new sessions
 }
 
 // Execute handles an incoming A2A message by processing it with the
@@ -88,6 +89,7 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 		if len(sessionID) > 64 {
 			sessionID = sessionID[:64]
 		}
+		sessionID = sessionKey(ctx, sessionID)
 
 		var messages []llm.Message
 		if e.Sessions != nil && sessionID != "" {
@@ -138,6 +140,18 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 		// Mark completed
 		yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCompleted, nil), nil)
 	}
+}
+
+// sessionKey isolates conversations per verified caller. Without claims it
+// falls back to the caller-provided ID; an empty ID means stateless.
+func sessionKey(ctx context.Context, sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	if claims, ok := inboundauth.ClaimsFrom(ctx); ok {
+		return claims.Subject + "|" + claims.AZP + "|" + sessionID
+	}
+	return sessionID
 }
 
 // Cancel handles task cancellation.

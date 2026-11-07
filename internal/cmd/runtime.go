@@ -32,6 +32,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/webfetch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
 	"github.com/redhat-et/docsclaw/pkg/agentcontext"
+	"github.com/redhat-et/docsclaw/pkg/inboundauth"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 	"github.com/redhat-et/docsclaw/pkg/memory"
 	"github.com/redhat-et/docsclaw/pkg/rag"
@@ -461,7 +462,47 @@ func newServeHandler(rt *agentRuntime) (http.Handler, func() error, error) {
 		return firstErr
 	}
 
-	return mux, closeHandler, nil
+	var handler http.Handler = mux
+	if auth := rt.AgentCfg; auth != nil && auth.InboundAuth != nil && auth.InboundAuth.Enabled {
+		authCfg, err := auth.InboundAuth.toInboundAuth(
+			[]string{"/.well-known/agent-card.json", "/health"},
+			egress.NewClient(10*time.Second),
+			rt.Log.Logger,
+		)
+		if err != nil {
+			_ = closeHandler()
+			return nil, nil, fmt.Errorf("inbound auth: %w", err)
+		}
+		// Log identity below the middleware so it covers A2A and the whole
+		// /v1 tree; exempt paths carry no claims and stay silent.
+		handler = identityLoggingHandler(rt.Log, mux)
+		handler, err = inboundauth.Middleware(authCfg, handler)
+		if err != nil {
+			_ = closeHandler()
+			return nil, nil, fmt.Errorf("inbound auth: %w", err)
+		}
+		rt.Log.Info("inbound auth enabled",
+			"issuer", authCfg.Issuer, "audience", authCfg.Audience)
+	} else {
+		rt.Log.Warn("inbound auth disabled")
+	}
+
+	return handler, closeHandler, nil
+}
+
+// identityLoggingHandler logs the verified caller for every authenticated
+// request, whichever endpoint it hits.
+func identityLoggingHandler(log *logger.Logger, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if claims, ok := inboundauth.ClaimsFrom(r.Context()); ok {
+			log.Info("request authenticated",
+				"sub", claims.Subject,
+				"azp", claims.AZP,
+				"scope", strings.Join(claims.Scopes, " "),
+				"aud", strings.Join(claims.Audience, " "))
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
