@@ -301,6 +301,7 @@ func buildRuntime(ctx context.Context, cfg Config, opts runtimeOptions) (rt *age
 					URL:         p.URL,
 					Description: p.Description,
 					Timeout:     timeout,
+					CardKey:     p.CardKey,
 				})
 			}
 			toolRegistry.Register(a2acall.New(

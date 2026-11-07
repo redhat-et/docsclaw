@@ -3,6 +3,7 @@ package a2acall
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,6 +24,9 @@ type Peer struct {
 	URL         string
 	Description string
 	Timeout     time.Duration
+	// CardKey verifies the peer's signed agent card before the first call.
+	// Nil skips verification.
+	CardKey crypto.PublicKey
 }
 
 // New creates the a2a_call tool for a set of configured peers. The client
@@ -41,7 +45,13 @@ func New(peers []Peer, client *bridge.A2AClient, log *slog.Logger) tools.Tool {
 	for _, p := range peers {
 		byName[p.Name] = p
 	}
-	return &a2aCallTool{peers: peers, byName: byName, client: client, log: log}
+	return &a2aCallTool{
+		peers:        peers,
+		byName:       byName,
+		client:       client,
+		log:          log,
+		cardVerified: make(map[string]bool, len(peers)),
+	}
 }
 
 type a2aCallTool struct {
@@ -49,6 +59,9 @@ type a2aCallTool struct {
 	byName map[string]Peer
 	client *bridge.A2AClient
 	log    *slog.Logger
+
+	cardMu       sync.Mutex
+	cardVerified map[string]bool
 }
 
 func (t *a2aCallTool) Name() string { return "a2a_call" }
@@ -114,6 +127,14 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 	callCtx, cancel := context.WithTimeout(ctx, peer.timeout())
 	defer cancel()
 
+	if peer.CardKey != nil && !t.cardOK(peer.Name) {
+		if err := verifyCard(callCtx, t.client.HTTPClient(), peer.URL, peer.CardKey); err != nil {
+			t.log.Warn("agent card verification failed", "peer", peer.Name, "error", err)
+			return tools.Errorf("peer %s: agent card signature invalid", peerName)
+		}
+		t.markCardOK(peer.Name)
+	}
+
 	// Copy the injected client so the per-call capture wraps its transport
 	// instead of replacing it: the agent's egress settings (proxy, TLS trust,
 	// connection pool) must still apply to peer calls.
@@ -144,6 +165,20 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 
 	egress.LogCall(t.log, "a2a_call", host, http.StatusOK, result.State)
 	return formatResult(result.State, result.Text)
+}
+
+// cardOK reports whether the peer's card already verified in this process.
+// Only successes are recorded; a failed verification is retried next call.
+func (t *a2aCallTool) cardOK(name string) bool {
+	t.cardMu.Lock()
+	defer t.cardMu.Unlock()
+	return t.cardVerified[name]
+}
+
+func (t *a2aCallTool) markCardOK(name string) {
+	t.cardMu.Lock()
+	defer t.cardMu.Unlock()
+	t.cardVerified[name] = true
 }
 
 func (t *a2aCallTool) peerNames() []string {

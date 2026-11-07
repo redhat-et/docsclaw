@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/redhat-et/docsclaw/internal/a2acall"
 	"github.com/redhat-et/docsclaw/internal/mcpclient"
 	"github.com/redhat-et/docsclaw/pkg/inboundauth"
 	"github.com/redhat-et/docsclaw/pkg/rag"
@@ -39,6 +41,11 @@ type A2APeer struct {
 	URL            string `yaml:"url"`
 	Description    string `yaml:"description"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	// CardPublicKey is an optional PEM file path. When set, the peer's signed
+	// agent card must verify against it before a2a_call will invoke the peer.
+	CardPublicKey string `yaml:"card_public_key"`
+	// CardKey is the parsed form of CardPublicKey; not read from YAML.
+	CardKey crypto.PublicKey `yaml:"-"`
 }
 
 // InboundAuthCfg configures verification of incoming bearer tokens.
@@ -162,8 +169,33 @@ func loadAgentConfig(configDir string) (*AgentConfig, error) {
 	if err := validateA2APeers(cfg.A2APeers); err != nil {
 		return nil, err
 	}
+	if err := loadA2APeerCardKeys(&cfg, configDir); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
+}
+
+// loadA2APeerCardKeys parses each configured card public key so a bad path or
+// key fails at startup rather than on the first a2a_call. Relative paths are
+// resolved against the config directory.
+func loadA2APeerCardKeys(cfg *AgentConfig, configDir string) error {
+	for i := range cfg.A2APeers {
+		peer := &cfg.A2APeers[i]
+		if peer.CardPublicKey == "" {
+			continue
+		}
+		path := peer.CardPublicKey
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(configDir, path)
+		}
+		key, err := a2acall.LoadCardPublicKey(path)
+		if err != nil {
+			return fmt.Errorf("a2a_peers[%q]: card_public_key: %w", peer.Name, err)
+		}
+		peer.CardKey = key
+	}
+	return nil
 }
 
 func validateA2APeers(peers []A2APeer) error {
