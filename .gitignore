@@ -38,6 +38,7 @@ demo/batch/dashboard/dashboard
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
 
 # PDF files
 *.pdf

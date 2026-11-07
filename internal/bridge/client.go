@@ -37,7 +37,6 @@ type InvokeRequest struct {
 	Card        *a2a.AgentCard
 	DocumentID  string // Legacy: used by Go agents
 	MessageText string // New: used by gateway mode (e.g., "Summarize s3://...")
-	ReviewType  string
 	SessionID   string // Server-side session continuity (sent as x-session-id header)
 }
 
@@ -56,9 +55,6 @@ func (c *A2AClient) Invoke(ctx context.Context, req *InvokeRequest) (*InvokeResu
 		// Legacy mode: send structured DataPart
 		data := map[string]any{
 			"document_id": req.DocumentID,
-		}
-		if req.ReviewType != "" {
-			data["review_type"] = req.ReviewType
 		}
 		msg = a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(data))
 	}

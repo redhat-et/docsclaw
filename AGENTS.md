@@ -11,7 +11,7 @@ ANTHROPIC_API_KEY=sk-... ./bin/docsclaw serve \
   --listen-plain-http
 ```
 
-- `--listen-plain-http` disables TLS/SPIFFE expectations; omit only when SPIRE/SPIFFE is wired.
+- `--listen-plain-http` disables TLS and serves plain HTTP; omit it to serve HTTPS.
 - Default ports: main `8000`, health/metrics `8100`.
 - Main endpoints: `/.well-known/agent-card.json`, `/a2a`, `/v1/chat/completions`, `/v1/models`, `/v1/skills`.
 - Health/metrics: `/health`, `/ready`, `/metrics` on the health port.
@@ -146,4 +146,4 @@ When a workspace directory (default `/workspace`) contains Markdown files, they 
 - Adding a new LLM provider: register it in `pkg/llm/factory.go` and blank-import it in `cmd/docsclaw/main.go`.
 - Adding a new tool: implement the `tools.Tool` interface and register it in `internal/cmd/serve.go` inside the `toolRegistry != nil` block.
 - Running `make lint` without `golangci-lint` installed; there is no repo-local linter config.
-- Forgetting `--listen-plain-http` in local dev and wondering why TLS/SPIFFE fails.
+- Forgetting `--listen-plain-http` in local dev and wondering why the server expects TLS.

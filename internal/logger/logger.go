@@ -13,8 +13,6 @@ import (
 type Component string
 
 const (
-	ComponentSPIREServer Component = "SPIRE-SERVER"
-	ComponentSPIREAgent  Component = "SPIRE-AGENT"
 	ComponentUserService Component = "USER-SERVICE"
 	ComponentAgentSvc    Component = "AGENT-SERVICE"
 	ComponentDocService  Component = "DOC-SERVICE"
@@ -40,8 +38,6 @@ const (
 
 // componentColors maps components to their display colors
 var componentColors = map[Component]string{
-	ComponentSPIREServer: colorGreen,
-	ComponentSPIREAgent:  colorGreen,
 	ComponentUserService: colorBlue,
 	ComponentAgentSvc:    colorMagenta,
 	ComponentDocService:  colorYellow,

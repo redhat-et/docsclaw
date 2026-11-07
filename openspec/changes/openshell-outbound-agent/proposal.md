@@ -33,7 +33,7 @@ adds inbound A2A authentication.
   `serve`.
 - Add `Containerfile.openshell` and a GoReleaser image variant
   `ghcr.io/redhat-et/docsclaw:<version>-openshell`: non-root, writable
-  `/sandbox`, `bash` and `sleep`, binary at `/usr/local/bin/docsclaw`.
+  `/workspace`, `bash` and `sleep`, binary at `/usr/local/bin/docsclaw`.
 
 ## Capabilities
 
