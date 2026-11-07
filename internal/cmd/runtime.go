@@ -32,6 +32,7 @@ import (
 	"github.com/redhat-et/docsclaw/internal/webfetch"
 	"github.com/redhat-et/docsclaw/internal/writefile"
 	"github.com/redhat-et/docsclaw/pkg/agentcontext"
+	"github.com/redhat-et/docsclaw/pkg/inboundauth"
 	"github.com/redhat-et/docsclaw/pkg/llm"
 	"github.com/redhat-et/docsclaw/pkg/memory"
 	"github.com/redhat-et/docsclaw/pkg/rag"
@@ -461,7 +462,27 @@ func newServeHandler(rt *agentRuntime) (http.Handler, func() error, error) {
 		return firstErr
 	}
 
-	return mux, closeHandler, nil
+	var handler http.Handler = mux
+	if auth := rt.AgentCfg; auth != nil && auth.InboundAuth != nil && auth.InboundAuth.Enabled {
+		authCfg, err := auth.InboundAuth.toInboundAuth(
+			[]string{"/.well-known/agent-card.json", "/health"},
+			egress.NewClient(10*time.Second),
+			rt.Log.Logger,
+		)
+		if err != nil {
+			return nil, nil, fmt.Errorf("inbound auth: %w", err)
+		}
+		handler, err = inboundauth.Middleware(authCfg, mux)
+		if err != nil {
+			return nil, nil, fmt.Errorf("inbound auth: %w", err)
+		}
+		rt.Log.Info("inbound auth enabled",
+			"issuer", authCfg.Issuer, "audience", authCfg.Audience)
+	} else {
+		rt.Log.Warn("inbound auth disabled")
+	}
+
+	return handler, closeHandler, nil
 }
 
 func healthHandler(w http.ResponseWriter, _ *http.Request) {
