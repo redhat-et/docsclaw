@@ -134,11 +134,15 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 	defer cancel()
 
 	if peer.CardKey != nil && !t.cardOK(peer.Name) {
+		// The shared fetch must not be cancelled by whichever caller leads the
+		// singleflight group; bound it by the peer timeout instead.
+		fetchCtx, cancelFetch := context.WithTimeout(context.WithoutCancel(callCtx), peer.timeout())
+		defer cancelFetch()
 		_, err, _ := t.cardGroup.Do(peer.Name, func() (any, error) {
 			if t.cardOK(peer.Name) {
 				return nil, nil
 			}
-			if err := verifyCard(callCtx, t.client.HTTPClient(), peer.URL, peer.CardKey); err != nil {
+			if err := verifyCard(fetchCtx, t.client.HTTPClient(), peer.URL, peer.CardKey); err != nil {
 				return nil, err
 			}
 			t.markCardOK(peer.Name)

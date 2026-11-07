@@ -77,9 +77,27 @@ func signCard(t *testing.T, card map[string]any, priv crypto.Signer, alg string)
 		t.Fatalf("canonicalize card: %v", err)
 	}
 
-	protected := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"` + alg + `","typ":"JOSE"}`))
-	payload := base64.RawURLEncoding.EncodeToString(canonical)
-	sum := sha256.Sum256([]byte(protected + "." + payload))
+	protected, signature := signDetached(t, canonical, priv, alg)
+
+	signed := maps.Clone(card)
+	signed["signatures"] = []any{map[string]any{
+		"protected": protected,
+		"signature": signature,
+	}}
+	body, err := json.Marshal(signed)
+	if err != nil {
+		t.Fatalf("marshal signed card: %v", err)
+	}
+	return body
+}
+
+// signDetached signs an already-canonical payload, returning the base64url
+// protected header and signature. The header carries alg, typ, and kid as the
+// A2A specification requires.
+func signDetached(t *testing.T, payload []byte, priv crypto.Signer, alg string) (string, string) {
+	t.Helper()
+	protected := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"` + alg + `","typ":"JOSE","kid":"test-key"}`))
+	sum := sha256.Sum256([]byte(protected + "." + base64.RawURLEncoding.EncodeToString(payload)))
 
 	var signature []byte
 	switch key := priv.(type) {
@@ -92,6 +110,7 @@ func signCard(t *testing.T, card map[string]any, priv crypto.Signer, alg string)
 		r.FillBytes(signature[:32])
 		s.FillBytes(signature[32:])
 	case *rsa.PrivateKey:
+		var err error
 		signature, err = rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sum[:])
 		if err != nil {
 			t.Fatalf("sign with RSA key: %v", err)
@@ -99,17 +118,7 @@ func signCard(t *testing.T, card map[string]any, priv crypto.Signer, alg string)
 	default:
 		t.Fatalf("unsupported signer %T", priv)
 	}
-
-	signed := maps.Clone(card)
-	signed["signatures"] = []any{map[string]any{
-		"protected": protected,
-		"signature": base64.RawURLEncoding.EncodeToString(signature),
-	}}
-	body, err := json.Marshal(signed)
-	if err != nil {
-		t.Fatalf("marshal signed card: %v", err)
-	}
-	return body
+	return protected, base64.RawURLEncoding.EncodeToString(signature)
 }
 
 func tamperCard(t *testing.T, signed []byte) []byte {
@@ -194,6 +203,84 @@ func TestVerifyCard(t *testing.T) {
 				t.Fatalf("err = %v, want %v", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+// canonicalSpecCard is the hand-written JCS canonical form of the card below,
+// following the A2A specification's worked example: explicitly-set false
+// capability flags are kept, while the empty extensions array is omitted.
+// Signing this literal (rather than re-canonicalizing in the test) anchors the
+// fixture to the spec instead of mirroring the verifier.
+const canonicalSpecCard = `{"capabilities":{"pushNotifications":false,"streaming":false},` +
+	`"defaultInputModes":["text/plain"],"defaultOutputModes":["text/plain"],` +
+	`"description":"An example agent","name":"Example Agent",` +
+	`"skills":[{"description":"Echoes input","id":"echo","name":"Echo","tags":["echo"]}],` +
+	`"supportedInterfaces":[{"transport":"JSONRPC","url":"https://example.com/a2a/v1"}],` +
+	`"version":"1.0.0"}`
+
+const servedSpecCard = `{
+  "version": "1.0.0",
+  "name": "Example Agent",
+  "description": "An example agent",
+  "capabilities": {"streaming": false, "pushNotifications": false, "extensions": []},
+  "defaultInputModes": ["text/plain"],
+  "defaultOutputModes": ["text/plain"],
+  "supportedInterfaces": [{"url": "https://example.com/a2a/v1", "transport": "JSONRPC"}],
+  "skills": [{"id": "echo", "name": "Echo", "description": "Echoes input", "tags": ["echo"]}]
+}`
+
+func TestVerifyCard_SpecWorkedExample(t *testing.T) {
+	priv, pub := newECKey(t)
+	protected, signature := signDetached(t, []byte(canonicalSpecCard), priv, "ES256")
+
+	var served map[string]any
+	if err := json.Unmarshal([]byte(servedSpecCard), &served); err != nil {
+		t.Fatalf("unmarshal served card: %v", err)
+	}
+	served["signatures"] = []any{map[string]any{
+		"protected": protected,
+		"signature": signature,
+	}}
+	body, err := json.Marshal(served)
+	if err != nil {
+		t.Fatalf("marshal served card: %v", err)
+	}
+
+	srv := cardOnlyServer(t, body)
+	if err := verifyCard(context.Background(), egress.NewClient(5*time.Second), srv.URL, pub); err != nil {
+		t.Fatalf("spec example card rejected: %v", err)
+	}
+}
+
+// A server that re-marshals through a struct can emit capability defaults the
+// signer omitted. The verifier must still accept the card, and must still
+// reject a tampered one.
+func TestVerifyCard_ReEmittedCapabilitiesDefaults(t *testing.T) {
+	priv, pub := newECKey(t)
+	base := testCardMap()
+	base["capabilities"] = map[string]any{} // signer omitted the flags
+	signed := signCard(t, base, priv, "ES256")
+
+	var served map[string]any
+	if err := json.Unmarshal(signed, &served); err != nil {
+		t.Fatalf("unmarshal signed card: %v", err)
+	}
+	served["capabilities"] = map[string]any{"streaming": false, "pushNotifications": false}
+	body, err := json.Marshal(served)
+	if err != nil {
+		t.Fatalf("marshal served card: %v", err)
+	}
+
+	srv := cardOnlyServer(t, body)
+	if err := verifyCard(context.Background(), egress.NewClient(5*time.Second), srv.URL, pub); err != nil {
+		t.Fatalf("re-emitted defaults rejected: %v", err)
+	}
+
+	served["name"] = "evil"
+	tampered, _ := json.Marshal(served)
+	srvTampered := cardOnlyServer(t, tampered)
+	if err := verifyCard(context.Background(), egress.NewClient(5*time.Second), srvTampered.URL, pub); !errors.Is(err, ErrCardSignature) {
+		t.Fatalf("tampered card err = %v, want %v", err, ErrCardSignature)
 	}
 }
 

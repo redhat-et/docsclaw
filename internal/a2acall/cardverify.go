@@ -1,6 +1,7 @@
 package a2acall
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -120,7 +121,7 @@ func verifyCard(ctx context.Context, client *http.Client, peerURL string, pub cr
 	if err := json.Unmarshal(body, &card); err != nil {
 		return fmt.Errorf("%w: %v", ErrCardFormat, err)
 	}
-	canonical, err := canonicalCard(body)
+	payloads, err := cardPayloads(body)
 	if err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func verifyCard(ctx context.Context, client *http.Client, peerURL string, pub cr
 	sawFormatErr := false
 	sawSignatureMismatch := false
 	for _, sig := range card.Signatures {
-		ok, err := verifySignature(sig, alg, pub, canonical)
+		ok, err := verifySignature(sig, alg, pub, payloads)
 		if err != nil {
 			sawFormatErr = true
 			continue
@@ -198,15 +199,63 @@ func fetchCard(ctx context.Context, client *http.Client, peer *url.URL) ([]byte,
 	return body, nil
 }
 
-// canonicalCard produces the JCS canonical form of the card with the
-// "signatures" field removed. json.RawMessage preserves nested values exactly,
-// so numbers are not reformatted between the wire and the canonical form.
-func canonicalCard(body []byte) ([]byte, error) {
+// cardPayloads returns the canonical payload candidates a signature may cover.
+//
+// The A2A specification keeps optional fields that were explicitly set, even
+// at their default value, so the as-served form is the first candidate. But a
+// server that re-marshals a card through a struct can emit defaults the signer
+// never set; the second candidate therefore strips default-valued optional
+// fields (and empty non-required arrays/objects) before canonicalization.
+// Accepting either form cannot weaken the binding: a signature must still
+// verify over the exact byte string that was signed.
+func cardPayloads(body []byte) ([][]byte, error) {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCardFormat, err)
 	}
 	delete(raw, "signatures")
+
+	var candidates [][]byte
+	for _, form := range []map[string]json.RawMessage{
+		raw,
+		stripEmptyCollections(raw),
+		stripAllDefaults(raw),
+		dropEmptyRequired(stripAllDefaults(raw)),
+	} {
+		canonical, err := canonicalize(form)
+		if err != nil {
+			return nil, err
+		}
+		duplicate := false
+		for _, existing := range candidates {
+			if bytes.Equal(existing, canonical) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			candidates = append(candidates, canonical)
+		}
+	}
+	return candidates, nil
+}
+
+// dropEmptyRequired removes required properties that arrive empty. It is a
+// compatibility form for servers whose Go marshaling re-emits required
+// struct fields (capabilities, skills, modes) that the signer omitted; the
+// signature still has to verify over the exact bytes that were signed.
+func dropEmptyRequired(raw map[string]json.RawMessage) map[string]json.RawMessage {
+	out := make(map[string]json.RawMessage, len(raw))
+	for key, value := range raw {
+		if requiredCardFields[key] && isZeroJSON(value) {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func canonicalize(raw map[string]json.RawMessage) ([]byte, error) {
 	trimmed, err := json.Marshal(raw)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCardFormat, err)
@@ -218,16 +267,115 @@ func canonicalCard(body []byte) ([]byte, error) {
 	return canonical, nil
 }
 
-// verifySignature checks one AgentCardSignature. It returns (false, nil) when
-// the entry is well-formed but does not verify, and an error only when the
-// entry itself is malformed.
-func verifySignature(sig a2a.AgentCardSignature, alg jwa.SignatureAlgorithm, pub crypto.PublicKey, canonical []byte) (bool, error) {
+// requiredCardFields are always kept, even when empty, per A2A §8.4.
+var requiredCardFields = map[string]bool{
+	"name":                true,
+	"description":         true,
+	"version":             true,
+	"capabilities":        true,
+	"skills":              true,
+	"supportedInterfaces": true,
+	"defaultInputModes":   true,
+	"defaultOutputModes":  true,
+}
+
+// stripEmptyCollections removes empty strings, arrays, and objects, but keeps
+// explicitly-present false booleans and zero numbers. This is the form the
+// A2A worked example signs: it drops an empty capabilities.extensions array
+// while keeping explicitly-set streaming/pushNotifications false flags.
+func stripEmptyCollections(raw map[string]json.RawMessage) map[string]json.RawMessage {
+	return stripValues(raw, isZeroCollection)
+}
+
+// stripAllDefaults additionally removes false booleans and zero numbers. It is
+// the form a signer produces when it strips every default-valued property, and
+// the form a struct-based server can diverge from by re-emitting them.
+func stripAllDefaults(raw map[string]json.RawMessage) map[string]json.RawMessage {
+	return stripValues(raw, isZeroJSON)
+}
+
+func stripValues(raw map[string]json.RawMessage, zero func(json.RawMessage) bool) map[string]json.RawMessage {
+	out := make(map[string]json.RawMessage, len(raw))
+	for key, value := range raw {
+		if requiredCardFields[key] {
+			out[key] = value
+			continue
+		}
+		if !zero(value) {
+			out[key] = value
+		}
+	}
+
+	if capRaw, ok := out["capabilities"]; ok {
+		var caps map[string]json.RawMessage
+		if err := json.Unmarshal(capRaw, &caps); err == nil {
+			for key, value := range caps {
+				if zero(value) {
+					delete(caps, key)
+				}
+			}
+			if encoded, err := json.Marshal(caps); err == nil {
+				out["capabilities"] = encoded
+			}
+		}
+	}
+	return out
+}
+
+func isZeroCollection(raw json.RawMessage) bool {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return false
+	}
+	switch v := value.(type) {
+	case nil:
+		return true
+	case string:
+		return v == ""
+	case []any:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
+
+func isZeroJSON(raw json.RawMessage) bool {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return false
+	}
+	switch v := value.(type) {
+	case nil:
+		return true
+	case bool:
+		return !v
+	case string:
+		return v == ""
+	case float64:
+		return v == 0
+	case []any:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
+
+// verifySignature checks one AgentCardSignature against each payload candidate.
+// It returns (false, nil) when the entry is well-formed but does not verify,
+// and an error only when the entry itself is malformed.
+func verifySignature(sig a2a.AgentCardSignature, alg jwa.SignatureAlgorithm, pub crypto.PublicKey, payloads [][]byte) (bool, error) {
 	headerJSON, err := base64.RawURLEncoding.DecodeString(sig.Protected)
 	if err != nil {
 		return false, fmt.Errorf("%w: protected header is not base64url: %v", ErrCardFormat, err)
 	}
 	var header struct {
 		Alg string `json:"alg"`
+		Typ string `json:"typ"`
+		Kid string `json:"kid"`
 	}
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
 		return false, fmt.Errorf("%w: protected header is not JSON: %v", ErrCardFormat, err)
@@ -236,15 +384,23 @@ func verifySignature(sig a2a.AgentCardSignature, alg jwa.SignatureAlgorithm, pub
 		// An algorithm we cannot use with this key (including none/HS*).
 		return false, fmt.Errorf("%w: unsupported alg %q", ErrCardFormat, header.Alg)
 	}
+	if header.Typ != "JOSE" {
+		return false, fmt.Errorf("%w: protected header typ %q, want JOSE", ErrCardFormat, header.Typ)
+	}
+	if header.Kid == "" {
+		return false, fmt.Errorf("%w: protected header has no kid", ErrCardFormat)
+	}
 	if _, err := base64.RawURLEncoding.DecodeString(sig.Signature); err != nil {
 		return false, fmt.Errorf("%w: signature is not base64url: %v", ErrCardFormat, err)
 	}
 
-	compact := sig.Protected + "." + base64.RawURLEncoding.EncodeToString(canonical) + "." + sig.Signature
-	if _, err := jws.Verify([]byte(compact), jws.WithKey(alg, pub)); err != nil {
-		return false, nil
+	for _, payload := range payloads {
+		compact := sig.Protected + "." + base64.RawURLEncoding.EncodeToString(payload) + "." + sig.Signature
+		if _, err := jws.Verify([]byte(compact), jws.WithKey(alg, pub)); err == nil {
+			return true, nil
+		}
 	}
-	return true, nil
+	return false, nil
 }
 
 // verifyAlgorithm maps the configured key type to the only algorithm accepted
