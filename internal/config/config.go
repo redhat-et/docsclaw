@@ -154,19 +154,6 @@ func BindFlags(cmd *cobra.Command, v *viper.Viper) {
 	_ = v.BindPFlag("otel.stdout_exporter", cmd.PersistentFlags().Lookup("otel-stdout"))
 }
 
-// GetServiceEndpoints returns the default service endpoints for local development
-func GetServiceEndpoints() map[string]string {
-	return map[string]string{
-		"dashboard":   "http://localhost:8080",
-		"user":        "http://localhost:8080",
-		"agent":       "http://localhost:8080",
-		"document":    "http://localhost:8080",
-		"summarizer":  "http://localhost:8000",
-		"reviewer":    "http://localhost:8000",
-		"spire-agent": "unix:///run/spire/sockets/agent.sock",
-	}
-}
-
 // LoadStorageConfigFromEnv loads storage configuration from OBC-style environment variables.
 // This supplements the viper config by checking for BUCKET_HOST, BUCKET_PORT, BUCKET_NAME
 // which are set by OpenShift OBC ConfigMaps.
