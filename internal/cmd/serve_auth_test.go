@@ -267,10 +267,46 @@ func TestServeAuth_LogsIdentity(t *testing.T) {
 		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
 	}
 	out := buf.String()
-	for _, want := range []string{"A2A request authenticated", "alice", "engineering"} {
+	for _, want := range []string{
+		"request authenticated",
+		"sub=alice",
+		"azp=" + authTestAZPPrefix,
+		"scope=engineering read",
+		"aud=" + authTestAudience,
+	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("log output missing %q; body=%s; log=%s", want, rec.Body.String(), out)
 		}
+	}
+	if strings.Contains(out, token) {
+		t.Fatal("raw token appeared in the log output")
+	}
+}
+
+// The OpenAI-compatible tree must log the same identity line as A2A.
+func TestServeAuth_V1LogsIdentity(t *testing.T) {
+	issuer := newAuthTestIssuer(t)
+	buf := &syncBuffer{}
+	rt := newAuthRuntime(t, issuer, true, buf)
+	handler, closeHandler, err := newServeHandler(rt)
+	if err != nil {
+		t.Fatalf("newServeHandler: %v", err)
+	}
+	t.Cleanup(func() { _ = closeHandler() })
+
+	token := issuer.mint(t, nil)
+	req := httptest.NewRequest("GET", "/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "request authenticated") ||
+		!strings.Contains(out, "sub=alice") {
+		t.Fatalf("identity line missing from /v1 request:\n%s", out)
 	}
 	if strings.Contains(out, token) {
 		t.Fatal("raw token appeared in the log output")

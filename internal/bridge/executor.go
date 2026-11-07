@@ -86,16 +86,6 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 		userText := extractTextContent(execCtx.Message)
 		e.Log.Info("A2A request received", "text_length", len(userText))
 
-		// Identity comes only from verified claims. The middleware stripped
-		// the raw token before this handler ran.
-		if claims, ok := inboundauth.ClaimsFrom(ctx); ok {
-			e.Log.Info("A2A request authenticated",
-				"sub", claims.Subject,
-				"azp", claims.AZP,
-				"scope", strings.Join(claims.Scopes, " "),
-				"aud", strings.Join(claims.Audience, " "))
-		}
-
 		if len(sessionID) > 64 {
 			sessionID = sessionID[:64]
 		}
@@ -152,7 +142,6 @@ func (e *AgentExecutor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorCon
 	}
 }
 
-// Cancel handles task cancellation.
 // sessionKey isolates conversations per verified caller. Without claims it
 // falls back to the caller-provided ID; an empty ID means stateless.
 func sessionKey(ctx context.Context, sessionID string) string {
@@ -165,6 +154,7 @@ func sessionKey(ctx context.Context, sessionID string) string {
 	return sessionID
 }
 
+// Cancel handles task cancellation.
 func (e *AgentExecutor) Cancel(_ context.Context, execCtx *a2asrv.ExecutorContext) iter.Seq2[a2a.Event, error] {
 	return func(yield func(a2a.Event, error) bool) {
 		yield(a2a.NewStatusUpdateEvent(execCtx, a2a.TaskStateCanceled, nil), nil)

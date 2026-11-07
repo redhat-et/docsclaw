@@ -182,6 +182,9 @@ func TestExecute_SessionsIsolatedByCaller(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
+	if len(captured["bob-msg"]) == 0 {
+		t.Fatal("bob's ProcessMessage never ran")
+	}
 	for _, m := range captured["bob-msg"] {
 		if strings.Contains(m.Content, "alice-msg") {
 			t.Fatalf("bob's session contains alice's message: %q", m.Content)
