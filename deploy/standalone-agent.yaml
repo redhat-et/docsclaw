@@ -1,5 +1,5 @@
-# Standalone docsclaw deployment — no SPIRE, no Kagenti, no OPA.
-# Just a ConfigMap-driven agentic runtime with tool-use capabilities.
+# Standalone docsclaw deployment — a ConfigMap-driven agentic runtime.
+# No external identity or policy sidecars.
 #
 # Prerequisites:
 #   oc new-project docsclaw   (or use any namespace)
