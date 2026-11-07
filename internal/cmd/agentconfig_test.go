@@ -200,3 +200,93 @@ func TestLoadAgentConfig_DocumentServices(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadAgentConfig_A2APeers(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		wantErr string
+		want    []A2APeer
+	}{
+		{
+			name: "valid peers",
+			config: `a2a_peers:
+  - name: engineering-analyst
+    url: https://engineering.example/a2a
+    description: Analyzes engineering documents
+    timeout_seconds: 30
+  - name: finance-analyst
+    url: http://finance.example:8080
+`,
+			want: []A2APeer{
+				{Name: "engineering-analyst", URL: "https://engineering.example/a2a",
+					Description: "Analyzes engineering documents", TimeoutSeconds: 30},
+				{Name: "finance-analyst", URL: "http://finance.example:8080"},
+			},
+		},
+		{name: "no peers", config: "tools:\n  allowed: []\n"},
+		{
+			name: "duplicate name",
+			config: `a2a_peers:
+  - name: analyst
+    url: http://a.example
+  - name: analyst
+    url: http://b.example
+`,
+			wantErr: "duplicate",
+		},
+		{
+			name: "bad name",
+			config: `a2a_peers:
+  - name: Analyst
+    url: http://a.example
+`,
+			wantErr: "Analyst",
+		},
+		{
+			name: "relative url",
+			config: `a2a_peers:
+  - name: analyst
+    url: /a2a
+`,
+			wantErr: "analyst",
+		},
+		{
+			name: "negative timeout",
+			config: `a2a_peers:
+  - name: analyst
+    url: http://a.example
+    timeout_seconds: -1
+`,
+			wantErr: "timeout_seconds",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "agent-config.yaml"), []byte(tt.config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err := loadAgentConfig(dir)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(cfg.A2APeers) != len(tt.want) {
+				t.Fatalf("peers = %+v, want %+v", cfg.A2APeers, tt.want)
+			}
+			for i := range tt.want {
+				if cfg.A2APeers[i] != tt.want[i] {
+					t.Fatalf("peer[%d] = %+v, want %+v", i, cfg.A2APeers[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
