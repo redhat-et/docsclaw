@@ -102,6 +102,88 @@ func TestBuildRuntime_ToolMode(t *testing.T) {
 	}
 }
 
+func TestNewRuntimeLogger_NilUsesFormatDetection(t *testing.T) {
+	t.Setenv("LOG_FORMAT", "json")
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	log := newRuntimeLogger(nil)
+	log.Info("hello", "key", "value")
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+	t.Cleanup(func() { os.Stdout = oldStdout })
+
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read pipe: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(string(raw))), &parsed); err != nil {
+		t.Fatalf("serve logger did not emit JSON with LOG_FORMAT=json: %q", raw)
+	}
+	if parsed["msg"] != "hello" {
+		t.Fatalf("unexpected log message: %v", parsed["msg"])
+	}
+}
+
+type blockingProvider struct {
+	started chan struct{}
+}
+
+func (p *blockingProvider) Complete(ctx context.Context, _, _ string) (string, error) {
+	close(p.started)
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func (p *blockingProvider) CompleteWithTools(ctx context.Context,
+	_ []llm.Message, _ []llm.ToolDefinition) (*llm.Response, error) {
+
+	close(p.started)
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (p *blockingProvider) StreamWithTools(ctx context.Context,
+	messages []llm.Message, tools []llm.ToolDefinition,
+	_ func(llm.StreamEvent)) (*llm.Response, error) {
+
+	return p.CompleteWithTools(ctx, messages, tools)
+}
+
+func (p *blockingProvider) Model() string        { return "blocking" }
+func (p *blockingProvider) ProviderName() string { return "blocking" }
+
+func TestRuntime_RunContextCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	provider := &blockingProvider{started: make(chan struct{})}
+
+	rt, err := buildRuntime(ctx, Config{
+		ConfigDir: testConfigDir(t, "summarizer-hr"),
+		Workspace: t.TempDir(),
+	}, runtimeOptions{Provider: provider, LogWriter: io.Discard})
+	if err != nil {
+		t.Fatalf("buildRuntime: %v", err)
+	}
+	t.Cleanup(func() { _ = rt.Close() })
+
+	go func() {
+		<-provider.started
+		cancel()
+	}()
+
+	_, err = rt.Run(ctx, []llm.Message{{Role: "user", Content: "hi"}}, nil)
+	if err == nil {
+		t.Fatal("expected an error after the context was canceled")
+	}
+}
+
 func TestNewServeHandler_Routes(t *testing.T) {
 	rt, err := buildRuntime(context.Background(), Config{
 		ConfigDir: testConfigDir(t, "summarizer-hr"),

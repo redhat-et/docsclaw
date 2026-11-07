@@ -7,9 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
-
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
 
@@ -28,6 +25,11 @@ func TestProvider_AcceptsPlaceholderKey(t *testing.T) {
 	}))
 	defer server.Close()
 
+	// The SDK reads ANTHROPIC_BASE_URL by default; the constructor sets
+	// only the API key and an HTTP client, so this exercises the real
+	// constructor path.
+	t.Setenv("ANTHROPIC_BASE_URL", server.URL)
+
 	provider, err := NewAnthropicProvider(llm.Config{
 		APIKey: key,
 		Model:  "claude-test",
@@ -35,11 +37,6 @@ func TestProvider_AcceptsPlaceholderKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("constructor rejected placeholder key: %v", err)
 	}
-	provider.client = anthropic.NewClient(
-		option.WithAPIKey(key),
-		option.WithBaseURL(server.URL),
-		option.WithHTTPClient(server.Client()),
-	)
 
 	text, err := provider.Complete(context.Background(), "system", "hi")
 	if err != nil {

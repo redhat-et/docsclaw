@@ -23,7 +23,7 @@ func newAskCmd() *cobra.Command {
 		Short: "Run one prompt through the agent and print the answer",
 		Long: "Run one prompt through the same agent setup as serve, print the\n" +
 			"final answer to stdout, and exit non-zero on failure.",
-		Args:         cobra.ExactArgs(1),
+		Args:         exactArgs(1),
 		SilenceUsage: true,
 		RunE:         runAsk,
 	}
@@ -35,6 +35,16 @@ func newAskCmd() *cobra.Command {
 
 func init() {
 	rootCmd.AddCommand(newAskCmd())
+}
+
+// exactArgs wraps cobra.ExactArgs so arg-count mistakes map to exit code 2.
+func exactArgs(n int) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := cobra.ExactArgs(n)(cmd, args); err != nil {
+			return &usageError{err: err}
+		}
+		return nil
+	}
 }
 
 func runAsk(cmd *cobra.Command, args []string) error {

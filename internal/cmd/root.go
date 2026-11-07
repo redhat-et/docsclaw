@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -8,6 +9,15 @@ import (
 
 	"github.com/redhat-et/docsclaw/internal/config"
 )
+
+// usageError marks a command-line usage mistake so Execute can map it to
+// exit code 2.
+type usageError struct {
+	err error
+}
+
+func (e *usageError) Error() string { return e.err.Error() }
+func (e *usageError) Unwrap() error { return e.err }
 
 var (
 	cfgFile string
@@ -24,8 +34,18 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(exitCodeFor(err))
 	}
+}
+
+// exitCodeFor maps errors to process exit codes: 2 for usage mistakes,
+// 1 for everything else.
+func exitCodeFor(err error) int {
+	var usage *usageError
+	if errors.As(err, &usage) {
+		return 2
+	}
+	return 1
 }
 
 func init() {

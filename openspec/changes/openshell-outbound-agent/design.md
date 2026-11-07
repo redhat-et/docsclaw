@@ -147,8 +147,9 @@ func (r *agentRuntime) Run(ctx context.Context, messages []llm.Message, hook too
 func newServeHandler(rt *agentRuntime) (http.Handler, func() error, error)
 ```
 
-`executor.ProcessMessage` and `openaiapi.Handler` both call `rt.Run`, so
-the tool loop has one implementation. `ask` uses an injected provider in
+`executor.ProcessMessage` calls `rt.Run`. `openaiapi.Handler` keeps its
+existing fields (`Provider`, `SystemPrompt`, `Registry`, `LoopConfig`) and
+shares `tools.RunToolLoop`, so the tool loop has one implementation. `ask` uses an injected provider in
 tests, prints only the answer to stdout, sends logs and `--trace` output
 to stderr, and returns an error when no provider is configured.
 

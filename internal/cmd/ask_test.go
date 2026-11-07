@@ -146,8 +146,12 @@ func TestAsk_ArgCount(t *testing.T) {
 	setAskProvider(t, &fakeProvider{})
 
 	for _, args := range [][]string{{}, {"one", "two"}} {
-		if _, _, err := executeAsk(t, args); err == nil {
+		_, _, err := executeAsk(t, args)
+		if err == nil {
 			t.Fatalf("expected usage error for args %v", args)
+		}
+		if code := exitCodeFor(err); code != 2 {
+			t.Fatalf("exit code for args %v = %d, want 2", args, code)
 		}
 	}
 }

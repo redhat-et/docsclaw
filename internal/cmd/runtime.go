@@ -98,7 +98,15 @@ func loadConfig() (Config, error) {
 }
 
 // buildRuntime loads the agent personality, tools, skills, and provider.
-func buildRuntime(ctx context.Context, cfg Config, opts runtimeOptions) (*agentRuntime, error) {
+func buildRuntime(ctx context.Context, cfg Config, opts runtimeOptions) (rt *agentRuntime, err error) {
+	var closers []func() error
+	defer func() {
+		if err != nil && rt == nil {
+			for i := len(closers) - 1; i >= 0; i-- {
+				_ = closers[i]()
+			}
+		}
+	}()
 	systemPrompt, err := loadSystemPrompt(cfg.ConfigDir)
 	if err != nil {
 		return nil, err
@@ -130,7 +138,6 @@ func buildRuntime(ctx context.Context, cfg Config, opts runtimeOptions) (*agentR
 	var toolRegistry *tools.Registry
 	var loopCfg tools.LoopConfig
 	var skillsSummary string
-	var closers []func() error
 
 	if agentCfg != nil {
 		toolRegistry = tools.NewRegistry(agentCfg.Tools.Allowed)

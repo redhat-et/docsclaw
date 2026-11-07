@@ -214,9 +214,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	rt, err := buildRuntime(context.Background(), cfg, runtimeOptions{
-		LogWriter: os.Stdout,
-	})
+	rt, err := buildRuntime(context.Background(), cfg, runtimeOptions{})
 	if err != nil {
 		return err
 	}
