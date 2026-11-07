@@ -1,6 +1,11 @@
 package cmd
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"os"
 	"path/filepath"
 	"strings"
@@ -298,4 +303,62 @@ func TestLoadAgentConfig_A2APeers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadAgentConfig_CardPublicKey(t *testing.T) {
+	writeKey := func(t *testing.T, dir, name string) {
+		t.Helper()
+		priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatalf("generate key: %v", err)
+		}
+		der, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+		if err != nil {
+			t.Fatalf("marshal key: %v", err)
+		}
+		data := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatalf("write key: %v", err)
+		}
+	}
+	writeConfig := func(t *testing.T, dir, keyPath string) {
+		t.Helper()
+		cfg := "a2a_peers:\n  - name: peer\n    url: http://peer.example\n    card_public_key: " + keyPath + "\n"
+		if err := os.WriteFile(filepath.Join(dir, "agent-config.yaml"), []byte(cfg), 0o600); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+	}
+
+	t.Run("relative path resolves against config dir", func(t *testing.T) {
+		dir := t.TempDir()
+		writeKey(t, dir, "peer.pub")
+		writeConfig(t, dir, "peer.pub")
+
+		cfg, err := loadAgentConfig(dir)
+		if err != nil {
+			t.Fatalf("load config: %v", err)
+		}
+		if len(cfg.A2APeers) != 1 || cfg.A2APeers[0].CardKey == nil {
+			t.Fatalf("card key not loaded: %+v", cfg.A2APeers)
+		}
+	})
+
+	t.Run("missing key file fails at load", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, "missing.pub")
+		if _, err := loadAgentConfig(dir); err == nil || !strings.Contains(err.Error(), "card_public_key") {
+			t.Fatalf("err = %v, want a card_public_key error", err)
+		}
+	})
+
+	t.Run("invalid PEM fails at load", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "bad.pub"), []byte("nope"), 0o600); err != nil {
+			t.Fatalf("write bad key: %v", err)
+		}
+		writeConfig(t, dir, "bad.pub")
+		if _, err := loadAgentConfig(dir); err == nil || !strings.Contains(err.Error(), "card_public_key") {
+			t.Fatalf("err = %v, want a card_public_key error", err)
+		}
+	})
 }

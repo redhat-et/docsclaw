@@ -3,6 +3,8 @@ package a2acall
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/egress"
@@ -23,6 +27,9 @@ type Peer struct {
 	URL         string
 	Description string
 	Timeout     time.Duration
+	// CardKey verifies the peer's signed agent card before the first call.
+	// Nil skips verification.
+	CardKey crypto.PublicKey
 }
 
 // New creates the a2a_call tool for a set of configured peers. The client
@@ -41,7 +48,13 @@ func New(peers []Peer, client *bridge.A2AClient, log *slog.Logger) tools.Tool {
 	for _, p := range peers {
 		byName[p.Name] = p
 	}
-	return &a2aCallTool{peers: peers, byName: byName, client: client, log: log}
+	return &a2aCallTool{
+		peers:        peers,
+		byName:       byName,
+		client:       client,
+		log:          log,
+		cardVerified: make(map[string]bool, len(peers)),
+	}
 }
 
 type a2aCallTool struct {
@@ -49,6 +62,12 @@ type a2aCallTool struct {
 	byName map[string]Peer
 	client *bridge.A2AClient
 	log    *slog.Logger
+
+	cardMu       sync.Mutex
+	cardVerified map[string]bool
+	// cardGroup collapses concurrent first calls for the same peer into one
+	// card fetch; the verification result (success or failure) is shared.
+	cardGroup singleflight.Group
 }
 
 func (t *a2aCallTool) Name() string { return "a2a_call" }
@@ -114,6 +133,29 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 	callCtx, cancel := context.WithTimeout(ctx, peer.timeout())
 	defer cancel()
 
+	if peer.CardKey != nil && !t.cardOK(peer.Name) {
+		// The shared fetch must not be cancelled by whichever caller leads the
+		// singleflight group; bound it by the peer timeout instead.
+		fetchCtx, cancelFetch := context.WithTimeout(context.WithoutCancel(callCtx), peer.timeout())
+		defer cancelFetch()
+		_, err, _ := t.cardGroup.Do(peer.Name, func() (any, error) {
+			if t.cardOK(peer.Name) {
+				return nil, nil
+			}
+			if err := verifyCard(fetchCtx, t.client.HTTPClient(), peer.URL, peer.CardKey); err != nil {
+				return nil, err
+			}
+			t.markCardOK(peer.Name)
+			return nil, nil
+		})
+		if err != nil {
+			reason := cardErrorReason(err)
+			t.log.Warn("agent card verification failed", "peer", peer.Name, "reason", reason, "error", err)
+			egress.LogCall(t.log, "a2a_call", host, cardHTTPStatus(err), reason)
+			return tools.Errorf("peer %s: %s", peerName, reason)
+		}
+	}
+
 	// Copy the injected client so the per-call capture wraps its transport
 	// instead of replacing it: the agent's egress settings (proxy, TLS trust,
 	// connection pool) must still apply to peer calls.
@@ -144,6 +186,50 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 
 	egress.LogCall(t.log, "a2a_call", host, http.StatusOK, result.State)
 	return formatResult(result.State, result.Text)
+}
+
+// cardOK reports whether the peer's card already verified in this process.
+// Only successes are recorded; a failed verification is retried next call.
+func (t *a2aCallTool) cardOK(name string) bool {
+	t.cardMu.Lock()
+	defer t.cardMu.Unlock()
+	return t.cardVerified[name]
+}
+
+func (t *a2aCallTool) markCardOK(name string) {
+	t.cardMu.Lock()
+	defer t.cardMu.Unlock()
+	t.cardVerified[name] = true
+}
+
+// cardErrorReason turns a card verification failure into the text the LLM
+// sees: an HTTP denial keeps the supervisor/service vocabulary, a malformed
+// card says format, a forged card says signature, and anything else is a
+// transport failure.
+func cardErrorReason(err error) string {
+	var httpErr *cardHTTPError
+	if errors.As(err, &httpErr) {
+		return egress.DescribeResponse(&http.Response{
+			StatusCode: httpErr.status,
+			Body:       io.NopCloser(bytes.NewReader(httpErr.body)),
+		})
+	}
+	switch {
+	case errors.Is(err, ErrCardFormat):
+		return "agent card format invalid"
+	case errors.Is(err, ErrCardSignature):
+		return "agent card signature invalid"
+	default:
+		return egress.DescribeError(err)
+	}
+}
+
+func cardHTTPStatus(err error) int {
+	var httpErr *cardHTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.status
+	}
+	return 0
 }
 
 func (t *a2aCallTool) peerNames() []string {
