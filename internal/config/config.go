@@ -78,7 +78,7 @@ func InitViper(serviceName string) *viper.Viper {
 // setDefaults sets default configuration values
 func setDefaults(v *viper.Viper, serviceName string) {
 	// Service defaults
-	v.SetDefault("service.host", "0.0.0.0")
+	v.SetDefault("service.host", "")
 	v.SetDefault("service.listen_plain_http", true)
 	v.SetDefault("service.log_level", "info")
 
