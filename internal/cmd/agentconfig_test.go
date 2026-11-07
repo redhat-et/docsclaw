@@ -260,6 +260,15 @@ func TestLoadAgentConfig_A2APeers(t *testing.T) {
 `,
 			wantErr: "timeout_seconds",
 		},
+		{
+			name: "oversized timeout",
+			config: `a2a_peers:
+  - name: analyst
+    url: http://a.example
+    timeout_seconds: 3601
+`,
+			wantErr: "timeout_seconds",
+		},
 	}
 
 	for _, tt := range tests {

@@ -178,7 +178,7 @@ func TestA2ACall(t *testing.T) {
 		}
 	})
 
-	t.Run("large reply is not dropped", func(t *testing.T) {
+	t.Run("large reply is returned intact", func(t *testing.T) {
 		big := strings.Repeat("x", 100*1024)
 		srv := newA2AServer(t, &scriptedExecutor{state: a2a.TaskStateCompleted, text: big})
 		res := newTool(t, []Peer{{Name: "peer", URL: srv.URL}}).Execute(context.Background(),
@@ -190,13 +190,13 @@ func TestA2ACall(t *testing.T) {
 }
 
 func TestA2ACall_SendsNoAuthorization(t *testing.T) {
-	var gotAuth string
+	var gotAuth atomic.Value
 	var hits atomic.Int32
 	inner := a2asrv.NewJSONRPCHandler(a2asrv.NewHandler(
 		&scriptedExecutor{state: a2a.TaskStateCompleted, text: "ok"}))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
-		gotAuth = r.Header.Get("Authorization")
+		gotAuth.Store(r.Header.Get("Authorization"))
 		inner.ServeHTTP(w, r)
 	}))
 	t.Cleanup(srv.Close)
@@ -213,7 +213,35 @@ func TestA2ACall_SendsNoAuthorization(t *testing.T) {
 	if hits.Load() == 0 {
 		t.Fatal("peer was never called")
 	}
-	if gotAuth != "" {
-		t.Fatalf("Authorization header leaked to peer: %q", gotAuth)
+	if got, _ := gotAuth.Load().(string); got != "" {
+		t.Fatalf("Authorization header leaked to peer: %q", got)
 	}
+}
+
+// TestA2ACall_UsesInjectedClient proves the tool wraps the injected client's
+// transport instead of falling back to http.DefaultTransport.
+func TestA2ACall_UsesInjectedClient(t *testing.T) {
+	srv := newA2AServer(t, &scriptedExecutor{state: a2a.TaskStateCompleted, text: "ok"})
+	var hits atomic.Int32
+	rec := &recordingTransport{next: http.DefaultTransport, hits: &hits}
+	client := bridge.NewA2AClient(&http.Client{Transport: rec}, slog.Default())
+
+	res := New([]Peer{{Name: "peer", URL: srv.URL}}, client, slog.Default()).Execute(
+		context.Background(), map[string]any{"peer": "peer", "message": "hi"})
+	if res.Error {
+		t.Fatalf("unexpected error: %s", res.Output)
+	}
+	if hits.Load() == 0 {
+		t.Fatal("injected client transport was not used")
+	}
+}
+
+type recordingTransport struct {
+	next http.RoundTripper
+	hits *atomic.Int32
+}
+
+func (r *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.hits.Add(1)
+	return r.next.RoundTrip(req)
 }

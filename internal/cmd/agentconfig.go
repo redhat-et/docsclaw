@@ -186,6 +186,9 @@ func validateA2APeers(peers []A2APeer) error {
 		if peer.TimeoutSeconds < 0 {
 			return fmt.Errorf("a2a_peers[%q]: timeout_seconds must not be negative", peer.Name)
 		}
+		if peer.TimeoutSeconds > 3600 {
+			return fmt.Errorf("a2a_peers[%q]: timeout_seconds must not exceed 3600", peer.Name)
+		}
 	}
 	return nil
 }

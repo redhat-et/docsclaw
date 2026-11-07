@@ -26,11 +26,16 @@ type Peer struct {
 }
 
 // New creates the a2a_call tool for a set of configured peers. The client
-// carries the agent's egress-configured HTTP client; a per-call wrapper adds
-// denial capture without changing its behavior.
+// carries the agent's egress-configured HTTP client, so every call keeps the
+// agent's proxy, TLS, and timeout settings. Peer names must be unique; a later
+// entry with the same name replaces an earlier one. A nil client falls back to
+// an egress-configured default.
 func New(peers []Peer, client *bridge.A2AClient, log *slog.Logger) tools.Tool {
 	if log == nil {
 		log = slog.Default()
+	}
+	if client == nil {
+		client = bridge.NewA2AClient(egress.NewClient(0), log)
 	}
 	byName := make(map[string]Peer, len(peers))
 	for _, p := range peers {
@@ -109,8 +114,16 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 	callCtx, cancel := context.WithTimeout(ctx, peer.timeout())
 	defer cancel()
 
-	capture := &captureTransport{}
-	callClient := bridge.NewA2AClient(&http.Client{Transport: capture}, t.log)
+	// Copy the injected client so the per-call capture wraps its transport
+	// instead of replacing it: the agent's egress settings (proxy, TLS trust,
+	// connection pool) must still apply to peer calls.
+	base := *t.client.HTTPClient()
+	capture := &captureTransport{base: base.Transport}
+	if capture.base == nil {
+		capture.base = http.DefaultTransport
+	}
+	base.Transport = capture
+	callClient := bridge.NewA2AClient(&base, t.log)
 	result, err := callClient.Invoke(callCtx, &bridge.InvokeRequest{
 		AgentURL:    peer.URL,
 		MessageText: message,
