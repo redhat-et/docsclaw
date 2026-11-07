@@ -222,3 +222,20 @@ token at the network boundary. The same peer list is enforced again by the
 sandbox network policy, which is deliberate defense in depth: a typo in
 `a2a_peers` fails with a policy denial rather than reaching an unintended
 agent.
+
+## Local two-agent demo
+
+`internal/cmd/e2e_a2a_test.go` is the authoritative local setup: agent B
+behind inbound auth, a stand-in supervisor that injects a test-issuer token,
+and agent A calling B through `a2a_call`.
+
+Run it with:
+
+```bash
+go test -race -run TestE2E -v ./internal/cmd
+```
+
+For a manual version, start B with `inbound_auth` enabled, start A with an
+`a2a_peers` entry, and put a proxy that injects `Authorization: Bearer
+$TOKEN` in front of B. The deny-code table in the test shows the token
+mutations that produce each failure.
