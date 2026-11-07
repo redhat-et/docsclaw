@@ -30,6 +30,15 @@ type AgentConfig struct {
 	SkillsDir        string            `yaml:"skills_dir"`
 	DocumentServices map[string]string `yaml:"document_services"`
 	InboundAuth      *InboundAuthCfg   `yaml:"inbound_auth"`
+	A2APeers         []A2APeer         `yaml:"a2a_peers"`
+}
+
+// A2APeer configures one peer agent the a2a_call tool may invoke.
+type A2APeer struct {
+	Name           string `yaml:"name"`
+	URL            string `yaml:"url"`
+	Description    string `yaml:"description"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
 // InboundAuthCfg configures verification of incoming bearer tokens.
@@ -150,8 +159,38 @@ func loadAgentConfig(configDir string) (*AgentConfig, error) {
 	if err := cfg.InboundAuth.validate(); err != nil {
 		return nil, err
 	}
+	if err := validateA2APeers(cfg.A2APeers); err != nil {
+		return nil, err
+	}
 
 	return &cfg, nil
+}
+
+func validateA2APeers(peers []A2APeer) error {
+	seen := make(map[string]bool, len(peers))
+	for _, peer := range peers {
+		if !documentServiceName.MatchString(peer.Name) {
+			return fmt.Errorf("a2a_peers[%q]: name must match %s", peer.Name, documentServiceName)
+		}
+		if seen[peer.Name] {
+			return fmt.Errorf("a2a_peers[%q]: duplicate name", peer.Name)
+		}
+		seen[peer.Name] = true
+		u, err := url.Parse(peer.URL)
+		if err != nil {
+			return fmt.Errorf("a2a_peers[%q]: invalid URL: %w", peer.Name, err)
+		}
+		if !u.IsAbs() || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("a2a_peers[%q]: must be an absolute http or https URL", peer.Name)
+		}
+		if peer.TimeoutSeconds < 0 {
+			return fmt.Errorf("a2a_peers[%q]: timeout_seconds must not be negative", peer.Name)
+		}
+		if peer.TimeoutSeconds > 3600 {
+			return fmt.Errorf("a2a_peers[%q]: timeout_seconds must not exceed 3600", peer.Name)
+		}
+	}
+	return nil
 }
 
 func validateDocumentServices(services map[string]string) error {

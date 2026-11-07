@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -99,6 +100,75 @@ func TestBuildRuntime_ToolMode(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("fetch_document not registered; definitions: %+v", rt.Registry.Definitions())
+	}
+}
+
+func TestBuildRuntime_A2ACallRegistration(t *testing.T) {
+	tests := []struct {
+		name     string
+		allowed  string
+		peers    string
+		wantTool bool
+		wantLog  string
+	}{
+		{
+			name:     "peers and allowed",
+			allowed:  "    - a2a_call\n",
+			peers:    "a2a_peers:\n  - name: engineering-analyst\n    url: http://127.0.0.1:1234\n    description: test peer\n",
+			wantTool: true,
+			wantLog:  "a2a_call enabled",
+		},
+		{
+			name:    "peers but not allowed",
+			allowed: "",
+			peers:   "a2a_peers:\n  - name: engineering-analyst\n    url: http://127.0.0.1:1234\n",
+		},
+		{
+			name:    "allowed but no peers",
+			allowed: "    - a2a_call\n",
+			peers:   "",
+			wantLog: "a2a_call allowed but no a2a_peers configured",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configDir := filepath.Join(dir, "agent")
+			if err := os.CopyFS(configDir, os.DirFS(testConfigDir(t, "summarizer-hr"))); err != nil {
+				t.Fatalf("copy testdata: %v", err)
+			}
+			workspace := filepath.Join(dir, "workspace")
+			agentCfg := "tools:\n  allowed:\n" + tt.allowed +
+				"  workspace: " + workspace + "\n" + tt.peers
+			if err := os.WriteFile(filepath.Join(configDir, "agent-config.yaml"), []byte(agentCfg), 0600); err != nil {
+				t.Fatalf("write agent config: %v", err)
+			}
+
+			var logBuf bytes.Buffer
+			rt, err := buildRuntime(context.Background(), Config{
+				ConfigDir: configDir,
+				Workspace: workspace,
+			}, runtimeOptions{Provider: &fakeProvider{}, LogWriter: &logBuf})
+			if err != nil {
+				t.Fatalf("buildRuntime: %v", err)
+			}
+			t.Cleanup(func() { _ = rt.Close() })
+
+			var found bool
+			for _, def := range rt.Registry.Definitions() {
+				if def.Name == "a2a_call" {
+					found = true
+				}
+			}
+			if found != tt.wantTool {
+				t.Fatalf("a2a_call registered = %v, want %v; defs: %+v",
+					found, tt.wantTool, rt.Registry.Definitions())
+			}
+			if tt.wantLog != "" && !strings.Contains(logBuf.String(), tt.wantLog) {
+				t.Fatalf("log does not contain %q:\n%s", tt.wantLog, logBuf.String())
+			}
+		})
 	}
 }
 
