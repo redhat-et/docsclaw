@@ -26,6 +26,11 @@ func NewA2AClient(httpClient *http.Client, log *slog.Logger) *A2AClient {
 	}
 }
 
+// HTTPClient returns the underlying HTTP client so callers can wrap its
+// transport (for example to capture denial responses) without changing the
+// client's own behavior.
+func (c *A2AClient) HTTPClient() *http.Client { return c.httpClient }
+
 // InvokeRequest holds the parameters for invoking an A2A agent.
 type InvokeRequest struct {
 	AgentURL    string
