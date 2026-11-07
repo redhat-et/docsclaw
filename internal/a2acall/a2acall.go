@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 
 	"github.com/redhat-et/docsclaw/internal/bridge"
 	"github.com/redhat-et/docsclaw/internal/egress"
@@ -62,6 +65,9 @@ type a2aCallTool struct {
 
 	cardMu       sync.Mutex
 	cardVerified map[string]bool
+	// cardGroup collapses concurrent first calls for the same peer into one
+	// card fetch; the verification result (success or failure) is shared.
+	cardGroup singleflight.Group
 }
 
 func (t *a2aCallTool) Name() string { return "a2a_call" }
@@ -128,11 +134,22 @@ func (t *a2aCallTool) Execute(ctx context.Context, args map[string]any) *tools.T
 	defer cancel()
 
 	if peer.CardKey != nil && !t.cardOK(peer.Name) {
-		if err := verifyCard(callCtx, t.client.HTTPClient(), peer.URL, peer.CardKey); err != nil {
-			t.log.Warn("agent card verification failed", "peer", peer.Name, "error", err)
-			return tools.Errorf("peer %s: agent card signature invalid", peerName)
+		_, err, _ := t.cardGroup.Do(peer.Name, func() (any, error) {
+			if t.cardOK(peer.Name) {
+				return nil, nil
+			}
+			if err := verifyCard(callCtx, t.client.HTTPClient(), peer.URL, peer.CardKey); err != nil {
+				return nil, err
+			}
+			t.markCardOK(peer.Name)
+			return nil, nil
+		})
+		if err != nil {
+			reason := cardErrorReason(err)
+			t.log.Warn("agent card verification failed", "peer", peer.Name, "reason", reason, "error", err)
+			egress.LogCall(t.log, "a2a_call", host, cardHTTPStatus(err), reason)
+			return tools.Errorf("peer %s: %s", peerName, reason)
 		}
-		t.markCardOK(peer.Name)
 	}
 
 	// Copy the injected client so the per-call capture wraps its transport
@@ -179,6 +196,36 @@ func (t *a2aCallTool) markCardOK(name string) {
 	t.cardMu.Lock()
 	defer t.cardMu.Unlock()
 	t.cardVerified[name] = true
+}
+
+// cardErrorReason turns a card verification failure into the text the LLM
+// sees: an HTTP denial keeps the supervisor/service vocabulary, a malformed
+// card says format, a forged card says signature, and anything else is a
+// transport failure.
+func cardErrorReason(err error) string {
+	var httpErr *cardHTTPError
+	if errors.As(err, &httpErr) {
+		return egress.DescribeResponse(&http.Response{
+			StatusCode: httpErr.status,
+			Body:       io.NopCloser(bytes.NewReader(httpErr.body)),
+		})
+	}
+	switch {
+	case errors.Is(err, ErrCardFormat):
+		return "agent card format invalid"
+	case errors.Is(err, ErrCardSignature):
+		return "agent card signature invalid"
+	default:
+		return egress.DescribeError(err)
+	}
+}
+
+func cardHTTPStatus(err error) int {
+	var httpErr *cardHTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.status
+	}
+	return 0
 }
 
 func (t *a2aCallTool) peerNames() []string {
