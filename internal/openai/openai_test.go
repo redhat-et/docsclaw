@@ -235,3 +235,41 @@ data: [DONE]
 		t.Errorf("content = %q, want %q", resp.Content, "Let me check.")
 	}
 }
+
+func TestProvider_AcceptsPlaceholderKey(t *testing.T) {
+	const key = "openshell-placeholder-xyz"
+
+	var gotAuth, gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"id":"1","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}]}`)
+	}))
+	defer server.Close()
+
+	provider, err := NewOpenAICompatProvider(llm.Config{
+		Provider: llm.ProviderOpenAI,
+		APIKey:   key,
+		BaseURL:  server.URL,
+		Model:    "test-model",
+	})
+	if err != nil {
+		t.Fatalf("constructor rejected placeholder key: %v", err)
+	}
+	provider.client = server.Client()
+
+	text, err := provider.Complete(context.Background(), "system", "hi")
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if text != "hello" {
+		t.Fatalf("text = %q, want %q", text, "hello")
+	}
+	if gotAuth != "Bearer "+key {
+		t.Fatalf("Authorization = %q, want %q", gotAuth, "Bearer "+key)
+	}
+	if gotPath != "/chat/completions" {
+		t.Fatalf("path = %q, want /chat/completions", gotPath)
+	}
+}
