@@ -19,11 +19,15 @@
 //	iss    issuer claim override (default the -issuer flag)
 //	jti    token ID, useful as a leak marker
 //	alg    ES256 (default), RS256, wrongkey, none, or HS256
-//	kid    JWS header kid override
+//	kid    JWS header kid override; kid= (empty) omits the header entirely
 //
 // alg=wrongkey signs with an ES256 key that is not in the JWKS while keeping a
 // published kid, which produces a token that fails signature verification.
 // alg=none and alg=HS256 produce algorithm-confusion probes.
+//
+// The in-process fixture in pkg/inboundauth/testissuer_test.go mints the same
+// deny shapes for the automated suite. This command is the standalone form;
+// when a new verifier deny path is added, extend it here too.
 package main
 
 import (
@@ -57,13 +61,19 @@ const (
 	defaultScope = "engineering read"
 )
 
+// signingKey pairs a private key with the JWS algorithm and published kid it
+// signs under. The "wrongkey" entry deliberately reuses the published ES256
+// kid, so key lookup succeeds and signature verification is what fails.
+type signingKey struct {
+	priv any
+	alg  jwa.KeyAlgorithm
+	kid  string
+}
+
 type issuer struct {
-	esKid, rsKid string
-	esPriv       *ecdsa.PrivateKey
-	rsPriv       *rsa.PrivateKey
-	wrongPriv    *ecdsa.PrivateKey
-	jwks         jwk.Set
-	hmacKey      []byte
+	jwks    jwk.Set
+	hmacKey []byte
+	signers map[string]signingKey
 }
 
 func newIssuer() (*issuer, error) {
@@ -85,24 +95,22 @@ func newIssuer() (*issuer, error) {
 	}
 
 	it := &issuer{
-		esKid: "es-1", rsKid: "rs-1",
-		esPriv: esPriv, rsPriv: rsPriv, wrongPriv: wrongPriv,
-		jwks: jwk.NewSet(), hmacKey: hmacKey,
+		jwks:    jwk.NewSet(),
+		hmacKey: hmacKey,
+		signers: map[string]signingKey{
+			"ES256":    {priv: esPriv, alg: jwa.ES256(), kid: "es-1"},
+			"RS256":    {priv: rsPriv, alg: jwa.RS256(), kid: "rs-1"},
+			"wrongkey": {priv: wrongPriv, alg: jwa.ES256(), kid: "es-1"},
+		},
 	}
-	for _, k := range []struct {
-		kid  string
-		alg  string
-		priv any
-	}{
-		{it.esKid, "ES256", it.esPriv},
-		{it.rsKid, "RS256", it.rsPriv},
-	} {
-		pub, err := publicJWK(k.priv, k.kid, k.alg)
+	for _, name := range []string{"ES256", "RS256"} {
+		sk := it.signers[name]
+		pub, err := publicJWK(sk.priv, sk.kid, name)
 		if err != nil {
 			return nil, err
 		}
 		if err := it.jwks.AddKey(pub); err != nil {
-			return nil, fmt.Errorf("add %s to JWKS: %w", k.kid, err)
+			return nil, fmt.Errorf("add %s to JWKS: %w", sk.kid, err)
 		}
 	}
 	return it, nil
@@ -127,7 +135,10 @@ func publicJWK(priv any, kid, alg string) (jwk.Key, error) {
 }
 
 type mintRequest struct {
-	alg    string
+	alg string
+	// kidSet reports that the caller supplied the kid parameter, so kid=""
+	// means "omit the header" rather than "use the default".
+	kidSet bool
 	kid    string
 	claims map[string]any
 }
@@ -177,9 +188,25 @@ func parseMintRequest(q map[string][]string, issuerURL string) (*mintRequest, er
 
 	return &mintRequest{
 		alg:    get("alg", "ES256"),
+		kidSet: has("kid"),
 		kid:    get("kid", ""),
 		claims: claims,
 	}, nil
+}
+
+// numericClaims converts time.Time claims to Unix seconds, which is how a JWT
+// encodes dates. Without it, encoding/json would emit RFC3339 strings and the
+// /token echo would not match the decoded token.
+func numericClaims(claims map[string]any) map[string]any {
+	out := make(map[string]any, len(claims))
+	for name, value := range claims {
+		if t, ok := value.(time.Time); ok {
+			out[name] = t.Unix()
+			continue
+		}
+		out[name] = value
+	}
+	return out
 }
 
 func parseSeconds(raw, name string) (time.Duration, error) {
@@ -201,68 +228,52 @@ func splitList(raw, sep string) []string {
 }
 
 func (it *issuer) mint(req *mintRequest) (string, error) {
-	switch req.alg {
-	case "ES256", "RS256", "wrongkey":
-		var (
-			priv any
-			alg  jwa.KeyAlgorithm
-			kid  string
-		)
+	sk, ok := it.signers[req.alg]
+	if !ok {
 		switch req.alg {
-		case "ES256":
-			priv, alg, kid = it.esPriv, jwa.ES256(), it.esKid
-		case "RS256":
-			priv, alg, kid = it.rsPriv, jwa.RS256(), it.rsKid
-		case "wrongkey":
-			// Keep a published kid so key lookup succeeds and the signature
-			// check is what fails.
-			priv, alg, kid = it.wrongPriv, jwa.ES256(), it.esKid
+		case "none", "HS256":
+			return it.manualToken(req.alg, req.kid, req.kidSet, req.claims), nil
+		default:
+			return "", fmt.Errorf("unsupported alg %q", req.alg)
 		}
-		if req.kid != "" {
-			kid = req.kid
-		}
+	}
 
-		tok := jwt.New()
-		for name, value := range req.claims {
-			if err := tok.Set(name, value); err != nil {
-				return "", fmt.Errorf("set claim %s: %w", name, err)
-			}
+	kid := sk.kid
+	if req.kidSet {
+		kid = req.kid
+	}
+
+	tok := jwt.New()
+	for name, value := range req.claims {
+		if err := tok.Set(name, value); err != nil {
+			return "", fmt.Errorf("set claim %s: %w", name, err)
 		}
-		hdrs := jws.NewHeaders()
+	}
+	hdrs := jws.NewHeaders()
+	if kid != "" {
 		if err := hdrs.Set(jws.KeyIDKey, kid); err != nil {
 			return "", fmt.Errorf("set kid header: %w", err)
 		}
-		signed, err := jwt.Sign(tok, jwt.WithKey(alg, priv, jws.WithProtectedHeaders(hdrs)))
-		if err != nil {
-			return "", fmt.Errorf("sign %s token: %w", req.alg, err)
-		}
-		return string(signed), nil
-	case "none", "HS256":
-		return it.manualToken(req.alg, req.kid, req.claims), nil
-	default:
-		return "", fmt.Errorf("unsupported alg %q", req.alg)
 	}
+	signed, err := jwt.Sign(tok, jwt.WithKey(sk.alg, sk.priv, jws.WithProtectedHeaders(hdrs)))
+	if err != nil {
+		return "", fmt.Errorf("sign %s token: %w", req.alg, err)
+	}
+	return string(signed), nil
 }
 
 // manualToken builds an unsigned or HMAC-signed JWS by hand, which jwx will not
 // do for algorithms the verifier is meant to reject.
-func (it *issuer) manualToken(alg, kid string, claims map[string]any) string {
-	if kid == "" {
-		kid = it.esKid
+func (it *issuer) manualToken(alg, kid string, kidSet bool, claims map[string]any) string {
+	if !kidSet {
+		kid = "es-1"
 	}
-	header := map[string]any{"alg": alg, "typ": "JWT", "kid": kid}
+	header := map[string]any{"alg": alg, "typ": "JWT"}
+	if kid != "" {
+		header["kid"] = kid
+	}
 	hb, _ := json.Marshal(header)
-	// encoding/json renders time.Time as RFC3339; JWT numeric dates are Unix
-	// seconds, so convert before marshaling.
-	numeric := make(map[string]any, len(claims))
-	for name, value := range claims {
-		if t, ok := value.(time.Time); ok {
-			numeric[name] = t.Unix()
-			continue
-		}
-		numeric[name] = value
-	}
-	cb, _ := json.Marshal(numeric)
+	cb, _ := json.Marshal(numericClaims(claims))
 	signingInput := base64.RawURLEncoding.EncodeToString(hb) + "." +
 		base64.RawURLEncoding.EncodeToString(cb)
 
@@ -322,7 +333,7 @@ func main() {
 		_ = json.NewEncoder(w).Encode(struct {
 			Token  string         `json:"token"`
 			Claims map[string]any `json:"claims"`
-		}{token, req.claims})
+		}{token, numericClaims(req.claims)})
 	})
 
 	log.Printf("test issuer listening on %s (iss=%s, jwks=%s/jwks.json)",

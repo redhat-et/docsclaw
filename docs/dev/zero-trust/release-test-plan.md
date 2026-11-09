@@ -297,8 +297,10 @@ malformed_authorization`), and stop the issuer then mint from cache-absent state
 (`503 jwks_unavailable`).
 
 Also assert the negative: a token signed with a different key is `401
-invalid_token`; a token with `alg: none` or `alg: HS256` is `401
-unsupported_algorithm` (the verifier rejects the algorithm before key lookup).
+invalid_token`; a token with no `kid` header is `401 invalid_token`; a token
+with `alg: none` or `alg: HS256` is `401 unsupported_algorithm` (the verifier
+rejects the algorithm before key lookup). Mint the kid-less token with
+`kid=` in `hack/testissuer`.
 
 The last three codes were verified against the code on 2026-11-09; the earlier
 `invalid_token` wording here was wrong.
@@ -667,7 +669,7 @@ Test issuer: `hack/testissuer`; injecting proxy: `hack/tokenproxy` (both
 | ----- | -------- |
 | T1.5 auth matrix (card, health, `/a2a`, `/v1/models`) | card/health 200 without a token; `/a2a` and `/v1/models` 401 `missing_token` without one, 200 with one |
 | B log for an authenticated call | `sub=alice azp=spiffe://openshell.local/openshell/sandbox/alice-assistant scope=engineering aud=engineering-analyst` |
-| T1.6 deny rows reaching A | `peer engineering-analyst: 401 missing_token`, `401 malformed_authorization`, `401 token_expired`, `401 token_not_yet_valid`, `401 invalid_issuer`, `403 invalid_audience`, `403 insufficient_scope`, `403 caller_not_allowed`, `401 invalid_token` (wrong key), `401 unsupported_algorithm` (`none`, `HS256`), `503 jwks_unavailable` |
+| T1.6 deny rows reaching A | `peer engineering-analyst: 401 missing_token`, `401 malformed_authorization`, `401 token_expired`, `401 token_not_yet_valid`, `401 invalid_issuer`, `403 invalid_audience`, `403 insufficient_scope`, `403 caller_not_allowed`, `401 invalid_token` (wrong key, no `kid`), `401 unsupported_algorithm` (`none`, `HS256`), `503 jwks_unavailable` |
 | Session store | one key, `alice|…|t4a-s1`; file mode `0600`; no token |
 | Token isolation | no token in A stdout/stderr, B stderr, proxy log, or `sessions.db{,-wal,-shm}`; `jti` marker absent too |
 
