@@ -141,11 +141,13 @@ Clean-break acceptance (plan section 1.1). Use word boundaries: a bare `opa`
 pattern also matches `otel/propagation` in `internal/bridge`.
 
 ```bash
-grep -rniE '\bspiffe\b|\bopa\b|x-delegation' --include='*.go' . | grep -v '_test.go'
+grep -rniE '\bspiffe\b|\bopa\b|x-delegation' --include='*.go' . \
+  | grep -v '_test.go' | grep -vE '^(\./)?hack/'
 ```
 
-Expected: no output. The only remaining hits anywhere are `spiffe://` caller
-identities in tests, which are intentional.
+Expected: no output. `hack/testissuer` intentionally carries a `spiffe://`
+caller identity, so test tooling is filtered out; a hit anywhere else is a
+regression.
 
 Removed surfaces must fail loudly, not silently (verified on `db32804`):
 
@@ -240,9 +242,11 @@ result and the info log carry `403 invalid_audience`, not "access denied".
 
 The live HTTP tests need an issuer. Two options:
 
-1. Lift `pkg/inboundauth/testissuer_test.go` into `hack/testissuer` (recommended,
-   ~60 lines, no new dependencies — it already mints ES256 tokens and serves
-   JWKS). Expose `GET /token?sub=&azp=&aud=&scope=&ttl=` plus `/jwks.json`.
+1. Use `hack/testissuer` (implemented 2026-11-09): `go build -o bin/testissuer
+   ./hack/testissuer/` then `./bin/testissuer -addr 127.0.0.1:9099`. It mints
+   ES256 by default and also serves RS256, `alg=wrongkey|none|HS256`, and
+   `ttl`, `nbf`, `iss`, `aud`, `scope`, `azp`, `jti` overrides; `GET
+   /jwks.json` publishes the signing keys.
 1. Skip T1.5–T1.9 and rely on `go test -race -run TestE2E -v ./internal/cmd`,
    which covers the same contracts in process. Do not skip T3: the sandbox
    boundary cannot be tested in process.
@@ -290,11 +294,18 @@ Mint one token per row and assert the exact code. Rows: expired (`401
 token_expired`), `nbf` in the future (`401 token_not_yet_valid`), wrong `iss`
 (`401 invalid_issuer`), wrong `aud` (`403 invalid_audience`), no required scope
 (`403 insufficient_scope`), `azp` outside the allowlist (`403
-caller_not_allowed`), two `Authorization` headers (`401 invalid_token`), and
-stop the issuer then mint from cache-absent state (`503 jwks_unavailable`).
+caller_not_allowed`), two `Authorization` headers (`401
+malformed_authorization`), and stop the issuer then mint from cache-absent state
+(`503 jwks_unavailable`).
 
-Also assert the negative: a token signed with a different key, and a token with
-`alg: none` or `alg: HS256`, all `401 invalid_token`.
+Also assert the negative: a token signed with a different key is `401
+invalid_token`; a token with no `kid` header is `401 invalid_token`; a token
+with `alg: none` or `alg: HS256` is `401 unsupported_algorithm` (the verifier
+rejects the algorithm before key lookup). Mint the kid-less token with
+`kid=` in `hack/testissuer`.
+
+The last three codes were verified against the code on 2026-11-09; the earlier
+`invalid_token` wording here was wrong.
 
 ### T1.7 Session isolation
 
@@ -446,7 +457,10 @@ binaries: [/usr/local/bin/docsclaw]
 ```bash
 "${OS[@]}" profile lint -f /tmp/dc-model.yaml
 "${OS[@]}" profile import -f /tmp/dc-model.yaml
-"${OS[@]}" provider create --name dc-model --type dc-model --credential api_key=...
+# The credential key is the profile's env var name; the value comes from the
+# environment (never argv). See the T4a gotcha list.
+LLM_API_KEY=... "${OS[@]}" provider create --name dc-model --type dc-model \
+  --credential LLM_API_KEY
 ```
 
 The endpoint host must equal `LLM_BASE_URL`'s host, and `binaries` must name the
@@ -476,7 +490,8 @@ SUBJECT=$(curl -fsS "http://127.0.0.1:8090/demo-subject-token?user=alice" | jq -
   --env LLM_PROVIDER=openai --env LLM_BASE_URL=... --env LLM_MODEL=... \
   -- sleep infinity
 ID=$("${OS[@]}" sandbox get dc-alice | awk '/Id:/ {print $2; exit}')
-deploy/podman/spire/register-sandbox.sh "$ID"     # no SPIFFE entry, no exchange
+SPIRE_SERVER_CONTAINER=zt2-spire-server \
+  deploy/podman/spire/register-sandbox.sh "$ID"   # no SPIFFE entry, no exchange
 
 # DEST is the parent directory, so this lands as /workspace/dc-sandbox-config/.
 "${OS[@]}" sandbox upload --no-git-ignore dc-alice /tmp/dc-sandbox-config /workspace
@@ -643,6 +658,55 @@ Assertions, in both:
 - The token appears in no log, no session store, and no provider input on
   either side (`"${OS[@]}" logs`, `podman logs`, `/workspace/sessions.db`).
 
+### T4a results (2026-11-09) — PASS in both shapes
+
+Test issuer: `hack/testissuer`; injecting proxy: `hack/tokenproxy` (both
+`go build`-able, no new dependencies). Proxy runs in front of B and adds
+`Authorization: Bearer` plus `x-session-id`; A never holds a token.
+
+**Shape 1 (two local processes).** B on `:8081` with `inbound_auth`,
+`hack/tokenproxy` on `:7000`, A via `docsclaw ask` with one `a2a_peers` entry.
+
+| Probe | Observed |
+| ----- | -------- |
+| T1.5 auth matrix (card, health, `/a2a`, `/v1/models`) | card/health 200 without a token; `/a2a` and `/v1/models` 401 `missing_token` without one, 200 with one |
+| B log for an authenticated call | `sub=alice azp=spiffe://openshell.local/openshell/sandbox/alice-assistant scope=engineering aud=engineering-analyst` |
+| T1.6 deny rows reaching A | `peer engineering-analyst: 401 missing_token`, `401 malformed_authorization`, `401 token_expired`, `401 token_not_yet_valid`, `401 invalid_issuer`, `403 invalid_audience`, `403 insufficient_scope`, `403 caller_not_allowed`, `401 invalid_token` (wrong key, no `kid`), `401 unsupported_algorithm` (`none`, `HS256`), `503 jwks_unavailable` |
+| Session store | one key, `alice\|…\|t4a-s1`; file mode `0600`; no token |
+| Token isolation | no token in A stdout/stderr, B stderr, proxy log, or `sessions.db{,-wal,-shm}`; `jti` marker absent too |
+
+**Shape 2 (sandbox to container).** Issuer, B and the proxy run as podman
+containers on a user-defined network (`t4a-net`); the proxy is published on
+`:19000`; A runs in an OpenShell sandbox with a profile binding
+`192.168.127.254.nip.io:19000`. Same assertions: A's text is B's greeting,
+the proxy log shows the POST, B logs the verified claims, and the token is
+absent from B, proxy and supervisor logs, the session store, and the sandbox
+filesystem.
+
+**Gotchas found here (added to Triage):**
+
+1. The proxy endpoint must be `access: read-write`. A2A uses `POST`, and
+   `read-only` makes the supervisor answer `403 policy_denied` before the
+   request reaches the proxy. This looked like a host/IP problem; it was the
+   method.
+2. `openshell sandbox create` without `--detach` can stay attached and look
+   like a hang even after the sandbox is Ready. Use `--detach`.
+3. `register-sandbox.sh` defaults to the stale container name
+   `openshell-spiffe-demo-spire-server`; set
+   `SPIRE_SERVER_CONTAINER=zt2-spire-server`.
+4. A model provider created from a profile with `env_vars: [LLM_API_KEY]`
+   takes the **env var name** as the credential key:
+   `LLM_API_KEY=… openshell provider create … --credential LLM_API_KEY`.
+   `--credential api_key=…` is rejected as undeclared.
+5. Custom profiles cannot be re-imported; `profile update` needs the exported
+   file (it carries `resource_version`), and an existing sandbox does not pick
+   up the change — recreate it.
+6. A container-to-container hop needs a user-defined podman network; the
+   default network here has no container-name DNS (`lookup t4a-b … no such
+   host`).
+7. B must bind `--host 0.0.0.0` inside its container, or the proxy container
+   cannot reach it (inbound auth otherwise defaults to loopback).
+
 ## T4b — v2 issuer integration (blocked)
 
 Blocked on the v2 side; do not attempt it before T4a is green. To make A→B work
@@ -763,8 +827,8 @@ podman manifest inspect ghcr.io/redhat-et/docsclaw:<ver>-openshell   # after pus
 - [ ] T3.4 records the real HTTPS denial shape and updates `openshell-notes.md`.
 - [ ] T3.5 proves unauthenticated requests are refused by DocsClaw, not by
       OpenShell, and records the service URL from `service list -o json`.
-- [ ] T4a passes: A→B with the test issuer, deny codes, no token in any log,
-      session store, or provider input.
+- [x] T4a passes (2026-11-09, both shapes): A→B with the test issuer, deny
+      codes, no token in any log, session store, or provider input.
 - [ ] T4b is either done or written into the demo readiness note as blocked,
       with the four requirements from T4b listed.
 - [ ] T7 artifacts verified; #125's image check closed.
