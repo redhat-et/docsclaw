@@ -112,9 +112,14 @@ not the same image as the default agent image.
 |----------|-------|
 | Tag | `ghcr.io/redhat-et/docsclaw:<version>-openshell` |
 | Binary | `/usr/local/bin/docsclaw` (no symlink) |
-| User | UID 1001, GID 0 |
+| User | UID 1001, GID 1001 |
 | Working directory | `/workspace` (writable) |
 | Base | UBI 10 minimal (includes `bash` and `sleep`) |
+
+OpenShell rejects a workload identity whose UID or GID is zero, so the runtime
+user is `1001:1001` rather than the OpenShift gid-0 convention; a sandbox
+created from an image declaring `USER 1001:0` fails with
+`workload identity must not contain UID or GID zero`.
 
 OpenShell's `sandbox exec` runs commands through `bash -lc`, and the
 harness keeps the sandbox alive with `sleep infinity`, so the image ships
@@ -123,7 +128,7 @@ binary must stay at `/usr/local/bin/docsclaw`.
 
 `serve` defaults to `/workspace`. OpenShell treats a `WORKDIR` other than
 `/` or `/sandbox` as the sandbox workspace, so it must exist and be
-writable; the image creates it for UID 1001.
+writable; the image creates it for user `1001:1001`.
 
 For a read-only root filesystem, mount a volume at the workspace path:
 
