@@ -271,15 +271,18 @@ health server stays on `8100` throughout this tier.
 
 | Probe | Expected |
 | ----- | -------- |
-| `curl -s localhost:8081/.well-known/agent-card.json` | 200, no token |
-| `curl -s localhost:8100/health` | 200, no token (separate health server) |
-| `curl -s -X POST localhost:8081/a2a -H 'content-type: application/json' -d '{}'` | 401 `missing_token`, `WWW-Authenticate` present |
+| `curl -si localhost:8081/.well-known/agent-card.json` | 200, no token |
+| `curl -si localhost:8100/health` | 200, no token (separate health server) |
+| `curl -si -X POST localhost:8081/a2a -H 'content-type: application/json' -d '{}'` | 401 `missing_token`, `WWW-Authenticate` present |
 | same with `-H "Authorization: Bearer $TOKEN"` | not 401 — JSON-RPC error about the empty body is fine |
-| `curl -s localhost:8081/v1/models` | 401 `missing_token` (the whole `/v1` tree is protected) |
-| `curl -s localhost:8081/v1/models -H "Authorization: Bearer $TOKEN"` | 200 |
+| `curl -si localhost:8081/v1/models` | 401 `missing_token` (the whole `/v1` tree is protected) |
+| `curl -si localhost:8081/v1/models -H "Authorization: Bearer $TOKEN"` | 200 |
 | `ss -ltn` / `lsof -iTCP:8081` | bound to `127.0.0.1` only |
 | stderr log for an authenticated request | `request authenticated sub=alice azp=… scope=engineering aud=engineering-analyst`, no token |
 | `grep -r "$TOKEN" /tmp/dc-b` | no match |
+
+`-i` keeps the status line and headers in the output, which several rows
+assert; `-s` alone would print only the body.
 
 ### T1.6 Deny matrix over HTTP
 
@@ -400,6 +403,10 @@ Two profiles: the document capability (the shipped template, plus the DocsClaw
 binary) and the model endpoint.
 
 ```bash
+cd ~/work/zero-trust-agents-v2
+export STATE_DIR="$PWD/.zt2-state"
+source scripts/lib.sh      # defines doc_endpoint_host/_port and doc_allowed_ips_subst
+
 # Same RFC 8693 grant as the demo, with the DocsClaw binary authorized too.
 sed -e "s/@DOC_HOST@/$(doc_endpoint_host engineering)/" \
     -e "s/@DOC_PORT@/$(doc_endpoint_port engineering)/" \
@@ -409,6 +416,9 @@ sed -e "s/@DOC_HOST@/$(doc_endpoint_host engineering)/" \
 "${OS[@]}" profile lint -f /tmp/dc-alice-eng.yaml
 "${OS[@]}" profile import -f /tmp/dc-alice-eng.yaml
 ```
+
+The three helpers come from the v2 checkout, not from docsclaw: `scripts/lib.sh`
+sources the podman driver, which sources `deploy/podman/spire/common.sh`.
 
 Model profile, retargeted from `docs/OPENCLAW_ON_OPENSHELL.md`:
 
@@ -468,7 +478,7 @@ SUBJECT=$(curl -fsS "http://127.0.0.1:8090/demo-subject-token?user=alice" | jq -
 ID=$("${OS[@]}" sandbox get dc-alice | awk '/Id:/ {print $2; exit}')
 deploy/podman/spire/register-sandbox.sh "$ID"     # no SPIFFE entry, no exchange
 
-# DEST is the parent directory, so this lands as /workspace/config/.
+# DEST is the parent directory, so this lands as /workspace/dc-sandbox-config/.
 "${OS[@]}" sandbox upload --no-git-ignore dc-alice /tmp/dc-sandbox-config /workspace
 ```
 
@@ -480,7 +490,7 @@ image, the same files had to be written over stdin.
 
 ```bash
 "${OS[@]}" sandbox exec --name dc-alice -- bash -lc \
-  'docsclaw ask --config-dir /workspace/config --trace "Summarize DOC-001 from engineering"'
+  'docsclaw ask --config-dir /workspace/dc-sandbox-config --trace "Summarize DOC-001 from engineering"'
 ```
 
 | Scenario | Setup | Expected |
@@ -534,7 +544,9 @@ body actually contains rather than assuming a named code.
 ### T3.5 Exposure: OpenShell admits, DocsClaw refuses
 
 ```bash
-# A second config dir with inbound_auth enabled, uploaded like T3.2.
+# A second config dir with inbound_auth enabled; DEST is the parent, so this
+# lands as /workspace/config-b.
+"${OS[@]}" sandbox upload --no-git-ignore dc-alice /tmp/dc-sandbox-config-b /workspace
 "${OS[@]}" sandbox exec --name dc-alice -- bash -lc \
   'docsclaw serve --config-dir /workspace/config-b -p 8080 &'
 "${OS[@]}" service expose dc-alice 8080 agent --authorization-mode bearer-passthrough
