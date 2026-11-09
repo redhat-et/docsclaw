@@ -145,7 +145,7 @@ grep -rniE '\bspiffe\b|\bopa\b|x-delegation' --include='*.go' . | grep -v '_test
 ```
 
 Expected: no output. The only remaining hits anywhere are `spiffe://` caller
-identities in tests, which are intentional.
+identities in tests and in `hack/testissuer`, which are intentional.
 
 Removed surfaces must fail loudly, not silently (verified on `db32804`):
 
