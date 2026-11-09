@@ -114,7 +114,7 @@ not the same image as the default agent image.
 | Binary | `/usr/local/bin/docsclaw` (no symlink) |
 | User | UID 1001, GID 1001 |
 | Working directory | `/workspace` (writable) |
-| Base | UBI 10 minimal (includes `bash` and `sleep`) |
+| Base | UBI 10 minimal (includes `bash`, `sleep`, and `tar`) |
 
 OpenShell rejects a workload identity whose UID or GID is zero, so the runtime
 user is `1001:1001` rather than the OpenShift gid-0 convention; a sandbox
@@ -129,6 +129,17 @@ binary must stay at `/usr/local/bin/docsclaw`.
 `serve` defaults to `/workspace`. OpenShell treats a `WORKDIR` other than
 `/` or `/sandbox` as the sandbox workspace, so it must exist and be
 writable; the image creates it for user `1001:1001`.
+
+`openshell sandbox upload` extracts into the sandbox with `tar`, so the image
+ships it. Deliver an agent config with the destination's parent directory:
+
+```bash
+openshell sandbox upload --no-git-ignore <sandbox> ./my-agent /workspace
+# -> /workspace/my-agent/system-prompt.txt, ...
+```
+
+Note that `/config` is not writable (the root filesystem is root-owned), so use
+a path under the workspace.
 
 For a read-only root filesystem, mount a volume at the workspace path:
 
