@@ -76,6 +76,7 @@ type issuer struct {
 	signers map[string]signingKey
 }
 
+// newIssuer generates the signing keys and publishes the public halves.
 func newIssuer() (*issuer, error) {
 	esPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -116,6 +117,8 @@ func newIssuer() (*issuer, error) {
 	return it, nil
 }
 
+// publicJWK returns the public part of priv with kid and alg set, ready for
+// the published JWKS set.
 func publicJWK(priv any, kid, alg string) (jwk.Key, error) {
 	privJWK, err := jwk.Import(priv)
 	if err != nil {
@@ -143,6 +146,8 @@ type mintRequest struct {
 	claims map[string]any
 }
 
+// parseMintRequest turns the /token query into the claims and signing options
+// for one token.
 func parseMintRequest(q map[string][]string, issuerURL string) (*mintRequest, error) {
 	get := func(name, fallback string) string {
 		if vs, ok := q[name]; ok && len(vs) > 0 {
@@ -209,6 +214,7 @@ func numericClaims(claims map[string]any) map[string]any {
 	return out
 }
 
+// parseSeconds parses an integer number of seconds from a query value.
 func parseSeconds(raw, name string) (time.Duration, error) {
 	n, err := strconv.Atoi(raw)
 	if err != nil {
@@ -217,6 +223,7 @@ func parseSeconds(raw, name string) (time.Duration, error) {
 	return time.Duration(n) * time.Second, nil
 }
 
+// splitList splits raw on sep and drops whitespace-only elements.
 func splitList(raw, sep string) []string {
 	var out []string
 	for _, part := range strings.Split(raw, sep) {
@@ -227,6 +234,8 @@ func splitList(raw, sep string) []string {
 	return out
 }
 
+// mint signs the requested token, including the deny shapes the verifier is
+// meant to reject.
 func (it *issuer) mint(req *mintRequest) (string, error) {
 	sk, ok := it.signers[req.alg]
 	if !ok {
@@ -286,6 +295,7 @@ func (it *issuer) manualToken(alg, kid string, kidSet bool, claims map[string]an
 	return signingInput + "." + base64.RawURLEncoding.EncodeToString(sig)
 }
 
+// main serves the JWKS and token endpoints until the process is stopped.
 func main() {
 	addr := flag.String("addr", "127.0.0.1:9099", "listen address")
 	issuerURL := flag.String("issuer", "", "issuer claim URL (default http://<addr>)")

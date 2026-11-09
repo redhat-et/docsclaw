@@ -141,11 +141,13 @@ Clean-break acceptance (plan section 1.1). Use word boundaries: a bare `opa`
 pattern also matches `otel/propagation` in `internal/bridge`.
 
 ```bash
-grep -rniE '\bspiffe\b|\bopa\b|x-delegation' --include='*.go' . | grep -v '_test.go'
+grep -rniE '\bspiffe\b|\bopa\b|x-delegation' --include='*.go' . \
+  | grep -v '_test.go' | grep -vE '^(\./)?hack/'
 ```
 
-Expected: no output. The only remaining hits anywhere are `spiffe://` caller
-identities in tests and in `hack/testissuer`, which are intentional.
+Expected: no output. `hack/testissuer` intentionally carries a `spiffe://`
+caller identity, so test tooling is filtered out; a hit anywhere else is a
+regression.
 
 Removed surfaces must fail loudly, not silently (verified on `db32804`):
 
@@ -670,7 +672,7 @@ Test issuer: `hack/testissuer`; injecting proxy: `hack/tokenproxy` (both
 | T1.5 auth matrix (card, health, `/a2a`, `/v1/models`) | card/health 200 without a token; `/a2a` and `/v1/models` 401 `missing_token` without one, 200 with one |
 | B log for an authenticated call | `sub=alice azp=spiffe://openshell.local/openshell/sandbox/alice-assistant scope=engineering aud=engineering-analyst` |
 | T1.6 deny rows reaching A | `peer engineering-analyst: 401 missing_token`, `401 malformed_authorization`, `401 token_expired`, `401 token_not_yet_valid`, `401 invalid_issuer`, `403 invalid_audience`, `403 insufficient_scope`, `403 caller_not_allowed`, `401 invalid_token` (wrong key, no `kid`), `401 unsupported_algorithm` (`none`, `HS256`), `503 jwks_unavailable` |
-| Session store | one key, `alice|…|t4a-s1`; file mode `0600`; no token |
+| Session store | one key, `alice\|…\|t4a-s1`; file mode `0600`; no token |
 | Token isolation | no token in A stdout/stderr, B stderr, proxy log, or `sessions.db{,-wal,-shm}`; `jti` marker absent too |
 
 **Shape 2 (sandbox to container).** Issuer, B and the proxy run as podman

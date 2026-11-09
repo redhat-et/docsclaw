@@ -26,8 +26,10 @@ import (
 	"strings"
 )
 
+// tokenKey keys the per-request token stored in the request context.
 type tokenKey struct{}
 
+// main starts the injecting proxy and serves until the process is stopped.
 func main() {
 	listen := flag.String("listen", "127.0.0.1:7000", "listen address")
 	target := flag.String("target", "http://127.0.0.1:8081", "upstream base URL")
