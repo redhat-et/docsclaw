@@ -6,6 +6,11 @@ LABEL org.opencontainers.image.source="https://github.com/redhat-et/docsclaw" \
 
 USER root
 
+# `openshell sandbox upload` extracts into the sandbox with tar, and UBI
+# minimal does not ship it, so delivering an agent config over the harness
+# fails without this.
+RUN microdnf install -y tar && microdnf clean all
+
 # OpenShell provider profiles bind credentials to this exact binary path and
 # pin the first observed digest, so copy to the real path with no symlink.
 COPY --chmod=0755 --chown=root:root docsclaw /usr/local/bin/docsclaw

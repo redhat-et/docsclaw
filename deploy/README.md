@@ -114,7 +114,7 @@ not the same image as the default agent image.
 | Binary | `/usr/local/bin/docsclaw` (no symlink) |
 | User | UID 1001, GID 1001 |
 | Working directory | `/workspace` (writable) |
-| Base | UBI 10 minimal (includes `bash` and `sleep`) |
+| Base | UBI 10 minimal (includes `bash`, `sleep`, and `tar`) |
 
 OpenShell rejects a workload identity whose UID or GID is zero, so the runtime
 user is `1001:1001` rather than the OpenShift gid-0 convention; a sandbox
@@ -129,6 +129,16 @@ binary must stay at `/usr/local/bin/docsclaw`.
 `serve` defaults to `/workspace`. OpenShell treats a `WORKDIR` other than
 `/` or `/sandbox` as the sandbox workspace, so it must exist and be
 writable; the image creates it for user `1001:1001`.
+
+`openshell sandbox upload` extracts into the sandbox with `tar`, so the image
+ships it. The destination argument is the parent directory, and the config must
+live under the workspace: `/config` is not writable because the root filesystem
+is root-owned.
+
+```bash
+openshell sandbox upload --no-git-ignore <sandbox> ./my-agent /workspace
+# -> /workspace/my-agent/system-prompt.txt, ...
+```
 
 For a read-only root filesystem, mount a volume at the workspace path:
 
@@ -165,7 +175,7 @@ injected through `SSL_CERT_FILE`, which Go reads automatically.
 Run a single prompt without starting a server:
 
 ```bash
-docsclaw ask --config-dir /config/agent --trace "Summarize DOC-001 from engineering"
+docsclaw ask --config-dir /workspace/my-agent --trace "Summarize DOC-001 from engineering"
 ```
 
 The answer goes to stdout and every log line and trace entry goes to stderr,
