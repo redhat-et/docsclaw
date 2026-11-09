@@ -131,15 +131,14 @@ binary must stay at `/usr/local/bin/docsclaw`.
 writable; the image creates it for user `1001:1001`.
 
 `openshell sandbox upload` extracts into the sandbox with `tar`, so the image
-ships it. Deliver an agent config with the destination's parent directory:
+ships it. The destination argument is the parent directory, and the config must
+live under the workspace: `/config` is not writable because the root filesystem
+is root-owned.
 
 ```bash
 openshell sandbox upload --no-git-ignore <sandbox> ./my-agent /workspace
 # -> /workspace/my-agent/system-prompt.txt, ...
 ```
-
-Note that `/config` is not writable (the root filesystem is root-owned), so use
-a path under the workspace.
 
 For a read-only root filesystem, mount a volume at the workspace path:
 
@@ -176,7 +175,7 @@ injected through `SSL_CERT_FILE`, which Go reads automatically.
 Run a single prompt without starting a server:
 
 ```bash
-docsclaw ask --config-dir /config/agent --trace "Summarize DOC-001 from engineering"
+docsclaw ask --config-dir /workspace/my-agent --trace "Summarize DOC-001 from engineering"
 ```
 
 The answer goes to stdout and every log line and trace entry goes to stderr,
