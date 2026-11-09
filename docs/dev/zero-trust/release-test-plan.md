@@ -49,6 +49,14 @@ OS=(openshell --gateway zt2 --gateway-endpoint http://127.0.0.1:18083)
 metadata points at a ROSA endpoint and is unreachable; the `--gateway-endpoint`
 override is what makes it work locally, so never rely on the stored endpoint.
 
+Both repositories have same-named directories, so read every path as
+repo-qualified:
+
+| Paths | Repository |
+| ----- | ---------- |
+| `scripts/`, `deploy/podman/`, `internal/tokens/`, `docs/OPENCLAW_ON_OPENSHELL.md` | `~/work/zero-trust-agents-v2` |
+| `cmd/`, `internal/`, `pkg/`, `deploy/README.md`, `Containerfile.openshell` | the docsclaw checkout |
+
 ### The v2 stack as verified on 2026-11-07
 
 | Component | Container | Publish |
@@ -59,9 +67,9 @@ override is what makes it work locally, so never rely on the stored endpoint.
 | SPIFFE | `zt2-spire-server`, `zt2-spire-agent`, `zt2-spire-oidc` | OIDC + JWKS on `:18081` |
 | Sandboxes | podman containers plus one supervisor sidecar each | e.g. `alice-s1` Ready |
 
-Read-only probes that answered: `$OS sandbox list` → `alice-s1`;
-`$OS profile list` → four `zt2-*` profiles; `$OS provider list` → providers
-created by earlier scenario runs; `$OS service list` → nothing exposed yet;
+Read-only probes that answered: `"${OS[@]}" sandbox list` → `alice-s1`;
+`"${OS[@]}" profile list` → four `zt2-*` profiles; `"${OS[@]}" provider list` → providers
+created by earlier scenario runs; `"${OS[@]}" service list` → nothing exposed yet;
 `GET :8090/demo-subject-token?user=alice` → an HS256 token with
 `iss=http://token-issuer.zt-demo.svc:8080`, `sub=alice`,
 `departments=[engineering,finance]`, `scope=openid profile email`.
@@ -186,9 +194,14 @@ loop:
 
 ```bash
 export LLM_PROVIDER=anthropic LLM_API_KEY=... LLM_MODEL=...
-./bin/docsclaw ask --config-dir /tmp/dc-a --trace \
+mkdir -p /tmp/dc-a/workspace
+./bin/docsclaw ask --config-dir /tmp/dc-a --workspace /tmp/dc-a/workspace --trace \
   "Summarize DOC-001 from engineering"
 ```
+
+`--workspace` is required outside the image: the default `/workspace` cannot be
+created on a macOS or non-sandbox host, and both `ask` and `serve` fail with
+`failed to create workspace: mkdir /workspace: read-only file system`.
 
 Pass: stdout is the answer only; stderr shows `→ fetch_document` and
 `← fetch_document ok:`; the answer mentions the title. Repeat with
@@ -204,11 +217,15 @@ demo — the placeholder path in T3 reuses this exact config.
 | `ask --config-dir /nonexistent "x"` | exit 1, clear config error |
 | Stub server killed mid-run | exit 1, tool failure surfaced, no hang |
 
+These rows assume the `--workspace` flag from T1.1; without it every invocation
+fails on the workspace before reaching the check under test.
+
 ### T1.3 Error vocabulary from the tool layer
 
 ```bash
 # Unknown service: the enumeration is in the tool result the LLM sees
-./bin/docsclaw ask --config-dir /tmp/dc-a --trace "Fetch DOC-001 from finance"
+./bin/docsclaw ask --config-dir /tmp/dc-a --workspace /tmp/dc-a/workspace --trace \
+  "Fetch DOC-001 from finance"
 ```
 
 Pass: result contains `unknown document service "finance"; available: engineering`.
@@ -243,14 +260,19 @@ inbound_auth:
 ```
 
 ```bash
-./bin/docsclaw serve --config-dir /tmp/dc-b -p 8081 &
+mkdir -p /tmp/dc-b/workspace
+./bin/docsclaw serve --config-dir /tmp/dc-b --workspace /tmp/dc-b/workspace -p 8081 &
 TOKEN=$(curl -s 'http://127.0.0.1:9099/token?sub=alice&azp=spiffe://openshell.local/openshell/sandbox/alice-assistant&aud=engineering-analyst&scope=engineering&ttl=300' | jq -r .token)
 ```
+
+The defaults for the `docsclaw` service are port `8000` and health port `8100`
+(`internal/config/config.go`); `-p` overrides only the service port, so the
+health server stays on `8100` throughout this tier.
 
 | Probe | Expected |
 | ----- | -------- |
 | `curl -s localhost:8081/.well-known/agent-card.json` | 200, no token |
-| `curl -s localhost:8180/health` | 200, no token (separate health server) |
+| `curl -s localhost:8100/health` | 200, no token (separate health server) |
 | `curl -s -X POST localhost:8081/a2a -H 'content-type: application/json' -d '{}'` | 401 `missing_token`, `WWW-Authenticate` present |
 | same with `-H "Authorization: Bearer $TOKEN"` | not 401 — JSON-RPC error about the empty body is fine |
 | `curl -s localhost:8081/v1/models` | 401 `missing_token` (the whole `/v1` tree is protected) |
@@ -303,7 +325,8 @@ openssl ecparam -name prime256v1 -genkey -noout -out /tmp/card.key
 openssl ec -in /tmp/card.key -pubout -out /tmp/card.pub
 # Produce the A2A detached-JWS card file (reuse the fixture builder in
 # internal/a2acall/cardverify_test.go or write ~40 lines with jwx), then:
-AGENT_CARD_SIGNED_PATH=/tmp/dc-b/agent-card.signed.json ./bin/docsclaw serve --config-dir /tmp/dc-b
+AGENT_CARD_SIGNED_PATH=/tmp/dc-b/agent-card.signed.json ./bin/docsclaw serve \
+  --config-dir /tmp/dc-b --workspace /tmp/dc-b/workspace
 ```
 
 A side: peer gets `card_public_key: /tmp/card.pub`. Pass: first call succeeds;
@@ -361,9 +384,9 @@ sandbox_curl alice-s1 "$ENGINEERING_URL/documents/DOC-001" "Engineering Roadmap"
 
 ```bash
 make image-openshell                    # arm64 by default; matches the podman machine
-$OS sandbox create --name dc-probe --from docsclaw:dev-openshell -- sleep infinity
-$OS sandbox exec --name dc-probe -- bash -lc 'id; ls -l /usr/local/bin/docsclaw'
-$OS sandbox exec --name dc-probe -- bash -lc 'env | grep -iE "proxy|LLM_"; echo "SSL_CERT_FILE=$SSL_CERT_FILE"'
+"${OS[@]}" sandbox create --name dc-probe --from docsclaw:dev-openshell -- sleep infinity
+"${OS[@]}" sandbox exec --name dc-probe -- bash -lc 'id; ls -l /usr/local/bin/docsclaw'
+"${OS[@]}" sandbox exec --name dc-probe -- bash -lc 'env | grep -iE "proxy|LLM_"; echo "SSL_CERT_FILE=$SSL_CERT_FILE"'
 ```
 
 Record the driver, whether `/sandbox` exists next to `/workspace`, whether proxy
@@ -383,8 +406,8 @@ sed -e "s/@DOC_HOST@/$(doc_endpoint_host engineering)/" \
     -e "$(doc_allowed_ips_subst)" \
     -e 's#^  - /usr/bin/curl$#  - /usr/bin/curl\n  - /usr/local/bin/docsclaw#' \
     deploy/podman/profiles/alice-engineering.yaml.in > /tmp/dc-alice-eng.yaml
-$OS profile lint -f /tmp/dc-alice-eng.yaml
-$OS profile import -f /tmp/dc-alice-eng.yaml
+"${OS[@]}" profile lint -f /tmp/dc-alice-eng.yaml
+"${OS[@]}" profile import -f /tmp/dc-alice-eng.yaml
 ```
 
 Model profile, retargeted from `docs/OPENCLAW_ON_OPENSHELL.md`:
@@ -411,9 +434,9 @@ binaries: [/usr/local/bin/docsclaw]
 ```
 
 ```bash
-$OS profile lint -f /tmp/dc-model.yaml
-$OS profile import -f /tmp/dc-model.yaml
-$OS provider create --name dc-model --type dc-model --credential api_key=...
+"${OS[@]}" profile lint -f /tmp/dc-model.yaml
+"${OS[@]}" profile import -f /tmp/dc-model.yaml
+"${OS[@]}" provider create --name dc-model --type dc-model --credential api_key=...
 ```
 
 The endpoint host must equal `LLM_BASE_URL`'s host, and `binaries` must name the
@@ -436,17 +459,17 @@ loop:
 ```bash
 # Mint a fresh subject token per run: they expire in 30 minutes (see T3.7).
 SUBJECT=$(curl -fsS "http://127.0.0.1:8090/demo-subject-token?user=alice" | jq -r .access_token)
-$OS provider create --name dc-alice-eng --type zt2-alice-engineering-v2 \
+"${OS[@]}" provider create --name dc-alice-eng --type zt2-alice-engineering-v2 \
   --credential "subject_token=$SUBJECT"
-$OS sandbox create --name dc-alice --from docsclaw:dev-openshell \
+"${OS[@]}" sandbox create --name dc-alice --from docsclaw:dev-openshell \
   --provider dc-alice-eng --provider dc-model \
   --env LLM_PROVIDER=openai --env LLM_BASE_URL=... --env LLM_MODEL=... \
   -- sleep infinity
-ID=$($OS sandbox get dc-alice | awk '/Id:/ {print $2; exit}')
+ID=$("${OS[@]}" sandbox get dc-alice | awk '/Id:/ {print $2; exit}')
 deploy/podman/spire/register-sandbox.sh "$ID"     # no SPIFFE entry, no exchange
 
 # DEST is the parent directory, so this lands as /workspace/config/.
-$OS sandbox upload --no-git-ignore dc-alice /tmp/dc-sandbox-config /workspace
+"${OS[@]}" sandbox upload --no-git-ignore dc-alice /tmp/dc-sandbox-config /workspace
 ```
 
 `/config` is not writable (the root filesystem is root-owned, the process is
@@ -456,7 +479,7 @@ image, the same files had to be written over stdin.
 ### T3.3 The scenarios, with DocsClaw as the agent
 
 ```bash
-$OS sandbox exec --name dc-alice -- bash -lc \
+"${OS[@]}" sandbox exec --name dc-alice -- bash -lc \
   'docsclaw ask --config-dir /workspace/config --trace "Summarize DOC-001 from engineering"'
 ```
 
@@ -465,6 +488,7 @@ $OS sandbox exec --name dc-alice -- bash -lc \
 | 1 | Alice + engineering capability, engineering doc | answer mentions `Engineering Roadmap`; supervisor log shows the exchange |
 | 2 | Alice + hr capability, engineering doc | `502 Bad Gateway` in the tool result, `Token grant failed` in the supervisor log |
 | 3 | no delegation (no subject token) | same shape as scenario 2 |
+| 4 | Carol + hr capability, hr doc | answer names the HR document. Needs Carol's own provider and the `carol-hr` profile, plus the hr document service URL in the config |
 | 5 | sandbox SPIFFE ID not registered | the exchange fails; no document content reaches the answer |
 | 6 | — | not a DocsClaw case: the replay is staged out-of-band with registered SVIDs, and DocsClaw never holds a token to replay. Leave it with the harness |
 
@@ -486,7 +510,7 @@ An answer that says only "access denied", or a 502 flattened into a policy
 block, is a regression.
 
 Also assert the credential never leaks: `env` inside the sandbox shows
-`LLM_API_KEY=openshell:resolve:env:…`, and neither `$OS logs dc-alice` nor the
+`LLM_API_KEY=openshell:resolve:env:…`, and neither `"${OS[@]}" logs dc-alice` nor the
 supervisor log carries an `Authorization` value.
 
 ### T3.4 Denial shape probes — close the four unverified items
@@ -494,21 +518,27 @@ supervisor log carries an `Authorization` value.
 Put a second config in the same sandbox pointing `fetch_document` at hosts the
 profile does not bind, one `http://` and one `https://`. This settles items 1–3
 of "Unverified items" in `openshell-notes.md`; item 4 is settled by
-`$OS service list -o json` in T3.5.
+`"${OS[@]}" service list -o json` in T3.5.
 
 | Target | Expected tool result | Record |
 | ------ | -------------------- | ------ |
 | unbound `http://` host | `403 policy_denied` → `blocked by sandbox network policy` | status, body, headers |
 | unbound `https://` host | `blocked by sandbox network policy` via the Go TLS string | exact Go error text |
-| bound but down host | `502 upstream_unreachable` | status reaches the tool result |
+| bound but down host | `502` plus the body's `error` field if it carries one, otherwise `502 Bad Gateway` | the exact string; `upstream_unreachable` is the documented supervisor code but was not observed |
+
+`internal/egress` does not enumerate any 502 code: it prints the JSON `error`
+field verbatim when present and falls back to the status text otherwise. A
+failed grant produced the bare form on 2026-11-09 (T3.7), so record what the
+body actually contains rather than assuming a named code.
 
 ### T3.5 Exposure: OpenShell admits, DocsClaw refuses
 
 ```bash
-$OS sandbox exec --name dc-alice -- bash -lc \
-  'docsclaw serve --config-dir /config/agent-b -p 8080 &'
-$OS service expose dc-alice 8080 agent --authorization-mode bearer-passthrough
-$OS service list -o json                        # settle unverified item 4
+# A second config dir with inbound_auth enabled, uploaded like T3.2.
+"${OS[@]}" sandbox exec --name dc-alice -- bash -lc \
+  'docsclaw serve --config-dir /workspace/config-b -p 8080 &'
+"${OS[@]}" service expose dc-alice 8080 agent --authorization-mode bearer-passthrough
+"${OS[@]}" service list -o json                        # settle unverified item 4
 ```
 
 Against the exposed URL, from the Mac:
@@ -518,8 +548,8 @@ Against the exposed URL, from the Mac:
 | `GET /.well-known/agent-card.json`, no token | 200 (exempt) |
 | `POST /a2a`, no token | **401 `missing_token`** — the reason `pkg/inboundauth` exists |
 | `GET /v1/models`, no token | 401 |
-| `GET :8180/health` inside the sandbox | 200, no token |
-| `$OS logs dc-alice` | no token, no `Authorization` value |
+| `GET :8100/health` inside the sandbox | 200, no token |
+| `"${OS[@]}" logs dc-alice` | no token, no `Authorization` value |
 
 The authenticated 200 case needs a token DocsClaw can verify, which the v2
 issuer cannot mint — that belongs to T4a (test issuer) and T4b (integration).
@@ -527,7 +557,7 @@ issuer cannot mint — that belongs to T4a (test issuer) and T4b (integration).
 ### T3.6 Session store inside a sandbox
 
 `--session-db /workspace/sessions.db`; two execs share history; file mode
-`0600`; `$OS sandbox stop` then `start` preserves it.
+`0600`; `"${OS[@]}" sandbox stop` then `start` preserves it.
 
 ### T3.7 First run: scenario 1 result (2026-11-07)
 
@@ -599,7 +629,7 @@ Assertions, in both:
 - Each deny row from T1.6 arrives in A's tool result as
   `peer engineering-analyst: <status> <code>`.
 - The token appears in no log, no session store, and no provider input on
-  either side (`$OS logs`, `podman logs`, `/workspace/sessions.db`).
+  either side (`"${OS[@]}" logs`, `podman logs`, `/workspace/sessions.db`).
 
 ## T4b — v2 issuer integration (blocked)
 
@@ -620,8 +650,8 @@ inside the v2 stack:
 1. **Profile**: a grant with `audience` equal to B's `inbound_auth.audience` and
    an `audience_override` for B's exposed host, `binaries:
    [/usr/local/bin/docsclaw]`.
-1. **Exposure**: `$OS service expose <B> 8080 agent --authorization-mode
-   bearer-passthrough`, then bind the URL from `$OS service list -o json` in A's
+1. **Exposure**: `"${OS[@]}" service expose <B> 8080 agent --authorization-mode
+   bearer-passthrough`, then bind the URL from `"${OS[@]}" service list -o json` in A's
    profile.
 
 Until all four land, A→B inside the v2 stack is unproven and the demo readiness
@@ -645,10 +675,10 @@ checks:
   entry here, a podman VM entry on macOS.
 - `doc_endpoint_host` differs (nip.io host vs host IP), so the
   `document_services` URL must match what the profile binds.
-- The deny probes again: DNS and loopback behave differently on Linux, and the
-  expected shape is still `upstream_unreachable` rather than `connection
-  refused` for a bound-but-down host, because the proxy is the only reachable
-  endpoint.
+- The deny probes again: DNS and loopback behave differently on Linux. A
+  bound-but-down host still yields a `502` rather than `connection refused`,
+  because the proxy is the only reachable endpoint; record whether the body
+  names the cause or falls back to `502 Bad Gateway`.
 
 ## T6 — Regression beyond zero-trust
 
@@ -667,7 +697,7 @@ deploy manifests. Sweep the features that share those seams.
 | OpenAI `/v1` chat | Open WebUI pointed at `:8081/v1` | chat completes; with inbound auth on, the UI needs a token |
 | K8s deploy | `deploy/standalone-agent.yaml` | applies, pod ready, probes green; no v1 SPIRE/OPA wording (#125) |
 | ConfigMap generation | `make configmap-gen CONFIG_DIR=testdata/standalone` | renders |
-| Metrics/health | `:8180/metrics`, `/health`, `/ready` | 200; no auth required |
+| Metrics/health | `:8100/metrics`, `/health`, `/ready` | 200; no auth required |
 | A2A interop | `a2a discover <url>`, `a2a send <url> "hi"` | card parsed, message answered |
 
 ## T7 — Release artifacts
@@ -703,7 +733,7 @@ podman manifest inspect ghcr.io/redhat-et/docsclaw:<ver>-openshell   # after pus
 | `403 invalid_audience` | `audience` differs between agent config and minted token | T1.6 |
 | A sees `peer X: 403 caller_not_allowed` | `azp` not covered by `allowed_callers` prefix | T1.6 |
 | `agent card signature invalid` | card re-signed with a different key, or canonicalization mismatch | `internal/a2acall/cardverify.go` |
-| Serve won't start: address in use | loopback bind default and a stale process | `lsof -iTCP:8080` |
+| Serve won't start: address in use | loopback bind default and a stale process | `lsof -iTCP:8000` (default port; `-p` overrides it) |
 | `/workspace` not writable in sandbox | image `WORKDIR` created but volume remounted | T2 read-only case |
 
 ## Exit criteria
