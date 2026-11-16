@@ -68,7 +68,7 @@ OPENARCH ?= $(if $(PODMAN_CONNECTION),$(shell $(CONTAINER_ENGINE) version --form
 image-openshell:
 	@mkdir -p build/openshell
 	@trap 'rm -rf build/openshell' EXIT; \
-	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/docsclaw ./cmd/docsclaw && \
+	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/linux/$(OPENARCH)/docsclaw ./cmd/docsclaw && \
 	cp Containerfile.openshell build/openshell/Containerfile && \
 	$(CONTAINER_ENGINE) build $(if $(findstring docker,$(CONTAINER_ENGINE)),--pull,--pull=newer) --platform linux/$(OPENARCH) -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
 

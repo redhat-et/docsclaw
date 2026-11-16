@@ -15,7 +15,8 @@ RUN --mount=type=bind,from=registry.access.redhat.com/hi/core-runtime:latest-bui
     curl jq
 USER 65532
 
-COPY --chmod=0755 docsclaw /usr/local/bin/docsclaw
+ARG TARGETPLATFORM
+COPY --chmod=0755 $TARGETPLATFORM/docsclaw /usr/local/bin/docsclaw
 
 ENTRYPOINT ["docsclaw"]
 CMD ["serve"]

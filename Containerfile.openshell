@@ -17,7 +17,8 @@ RUN microdnf install -y tar && microdnf clean all
 
 # OpenShell provider profiles bind credentials to this exact binary path and
 # pin the first observed digest, so copy to the real path with no symlink.
-COPY --chmod=0755 --chown=root:root docsclaw /usr/local/bin/docsclaw
+ARG TARGETPLATFORM
+COPY --chmod=0755 --chown=root:root $TARGETPLATFORM/docsclaw /usr/local/bin/docsclaw
 
 # serve defaults to /workspace. OpenShell treats a non-/sandbox WORKDIR as the
 # sandbox workspace, so it must exist and be writable by the runtime user.

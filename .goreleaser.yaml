@@ -8,7 +8,8 @@ before:
     - go test ./...
 
 builds:
-  - main: ./cmd/docsclaw
+  - id: docsclaw
+    main: ./cmd/docsclaw
     binary: docsclaw
     env:
       - CGO_ENABLED=0
@@ -64,49 +65,25 @@ brews:
     install: |
       bin.install "docsclaw"
 
-dockers:
-  - image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
-    use: buildx
+# One multi-arch manifest per variant; `latest` follows stable tags only.
+# Artifacts are staged at $TARGETPLATFORM/, so both Dockerfiles copy from there.
+dockers_v2:
+  - id: docsclaw
+    ids: [docsclaw]
     dockerfile: Dockerfile.release
-    build_flag_templates:
-      - "--platform=linux/amd64"
-    goarch: amd64
-  - image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
-    use: buildx
-    dockerfile: Dockerfile.release
-    build_flag_templates:
-      - "--platform=linux/arm64"
-    goarch: arm64
-  - image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-amd64"
-    use: buildx
+    images:
+      - "ghcr.io/redhat-et/docsclaw"
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms: [linux/amd64, linux/arm64]
+    sbom: false
+  - id: docsclaw-openshell
+    ids: [docsclaw]
     dockerfile: Containerfile.openshell
-    build_flag_templates:
-      - "--platform=linux/amd64"
-    goarch: amd64
-  - image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-arm64"
-    use: buildx
-    dockerfile: Containerfile.openshell
-    build_flag_templates:
-      - "--platform=linux/arm64"
-    goarch: arm64
-
-docker_manifests:
-  - name_template: "ghcr.io/redhat-et/docsclaw:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
-  # `latest` follows stable tags only; prereleases still publish the
-  # versioned manifest above.
-  - name_template: "ghcr.io/redhat-et/docsclaw:latest"
-    skip_push: auto
-    image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell"
-    image_templates:
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-amd64"
-      - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-openshell-arm64"
+    images:
+      - "ghcr.io/redhat-et/docsclaw"
+    tags:
+      - "{{ .Version }}-openshell"
+    platforms: [linux/amd64, linux/arm64]
+    sbom: false
