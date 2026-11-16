@@ -67,7 +67,7 @@ image-openshell:
 	@trap 'rm -rf build/openshell' EXIT; \
 	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/docsclaw ./cmd/docsclaw && \
 	cp Containerfile.openshell build/openshell/Containerfile && \
-	$(CONTAINER_ENGINE) build -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
+	$(CONTAINER_ENGINE) build --platform linux/$(OPENARCH) -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
 
 # --- Agent image from manifest ---
 # Build a custom agent image from an agent manifest.

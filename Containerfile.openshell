@@ -1,4 +1,7 @@
-FROM registry.access.redhat.com/ubi10/ubi-minimal@sha256:602a6643e552ed429d7d64d3e409b3c4d0b42c1c8f965af9b44d4a3f842ad874
+# Multi-arch index: a per-architecture digest pin builds only that architecture
+# and fails the other with "Exec format error" while still producing a
+# correctly-named image. The minor tag still carries UBI's CVE rebuilds.
+FROM registry.access.redhat.com/ubi10/ubi-minimal:10.1
 
 LABEL org.opencontainers.image.source="https://github.com/redhat-et/docsclaw" \
       org.opencontainers.image.description="DocsClaw agent runtime for NVIDIA OpenShell sandboxes" \
@@ -17,9 +20,11 @@ COPY --chmod=0755 --chown=root:root docsclaw /usr/local/bin/docsclaw
 
 # serve defaults to /workspace. OpenShell treats a non-/sandbox WORKDIR as the
 # sandbox workspace, so it must exist and be writable by the runtime user.
-RUN mkdir -p /workspace \
-    && chown 1001:1001 /workspace \
-    && chmod 0775 /workspace
+# The Kubernetes driver mounts the workspace PVC at /sandbox, so that path must
+# exist too; keeping both lets a consumer use one path on either driver.
+RUN mkdir -p /workspace /sandbox \
+    && chown 1001:1001 /workspace /sandbox \
+    && chmod 0775 /workspace /sandbox
 
 # OpenShell refuses to start a sandbox whose workload identity carries a zero
 # UID or GID ("workload identity must not contain UID or GID zero"), so this is

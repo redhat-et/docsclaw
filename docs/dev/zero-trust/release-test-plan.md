@@ -366,6 +366,8 @@ podman image inspect docsclaw:dev-openshell \
 | Version | `podman exec … docsclaw --version` | the injected version (a local build reports `dev`) |
 | Config error path (#125) | `docsclaw ask --config-dir /nonexistent x` | exit 1, clear message |
 | Writable workspace | `podman run --rm docsclaw:dev-openshell bash -lc 'touch /workspace/x && echo ok'` | `ok` |
+| Writable `/sandbox` | `podman run --rm docsclaw:dev-openshell bash -lc 'touch /sandbox/x && echo ok'` | `ok`; the Kubernetes driver mounts the workspace PVC here |
+| Arch matches `OPENARCH` | `make image-openshell OPENARCH=amd64 OPEN_TAG=docsclaw:test-amd64 && podman image inspect … --format '{{.Architecture}}'` | `amd64`; repeat for `arm64`. Without `--platform` the build silently uses the host arch and mislabels the image |
 | Read-only rootfs | `podman run --rm --read-only -v dc-ws:/workspace docsclaw:dev-openshell bash -lc 'touch /workspace/x'` | `ok` |
 | Non-root euid | `podman run --rm docsclaw:dev-openshell id` | `uid=1001 gid=1001` |
 | `tar` present | `podman run --rm docsclaw:dev-openshell tar --version` | needed by `sandbox upload` |
@@ -379,6 +381,14 @@ that catches a regression.
 **Second gap, now fixed:** UBI minimal has no `tar`, so `openshell sandbox
 upload` failed with `tar: command not found`. Fixed in PR #127 (`b390422`), which
 installs `tar` and documents the upload destination semantics.
+
+**Image gaps fixed (2026-11-16):** #131 — the base image was pinned to a
+single-arch arm64 digest, and the `image-openshell` target never passed
+`--platform`, so an `OPENARCH=amd64` build produced an arm64 image with an
+amd64 binary inside. The base is now the multi-arch `ubi-minimal:10.1` index
+and the target passes `--platform linux/$(OPENARCH)`. #130 — `/sandbox` now
+exists alongside `/workspace` for the Kubernetes driver's PVC mount. The arch
+and `/sandbox` rows above are the regression guards.
 
 Also confirm `oras`/`curl` absence is acceptable: the image is a runtime, not a
 toolbox. If the demo scripts need `curl` for health checks, add it to the
