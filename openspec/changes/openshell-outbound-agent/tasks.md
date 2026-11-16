@@ -42,5 +42,6 @@
 
 - [ ] 5.1 Add `Containerfile.openshell` and a `make image-openshell`
   target; verify UID, binary path, and `sleep infinity`
-- [ ] 5.2 Add the GoReleaser `-openshell` image entries and manifest;
-  document the tag, binary path, UID, and workspace mount
+- [x] 5.2 Add the GoReleaser `-openshell` image entries and manifest;
+  document the tag, binary path, UID, and workspace mount (entries landed in
+  #113; first publication is verified by T7 at the next tagged release)
