@@ -47,9 +47,13 @@ release:
   github:
     owner: redhat-et
     name: docsclaw
+  # Mark -rc/-beta tags as prereleases so they can be promoted later.
+  prerelease: auto
 
 brews:
   - name: docsclaw
+    # Don't move the tap formula to a prerelease tag.
+    skip_upload: auto
     repository:
       owner: pavelanni
       name: homebrew-tap
@@ -95,7 +99,10 @@ docker_manifests:
     image_templates:
       - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
       - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
+  # `latest` follows stable tags only; prereleases still publish the
+  # versioned manifest above.
   - name_template: "ghcr.io/redhat-et/docsclaw:latest"
+    skip_push: auto
     image_templates:
       - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-amd64"
       - "ghcr.io/redhat-et/docsclaw:{{ .Version }}-arm64"
