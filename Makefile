@@ -60,14 +60,17 @@ image-security-push: image-security
 # A linux binary plus a shell and `sleep`, which the OpenShell harness needs
 # for `sandbox exec` and `-- sleep infinity`.
 OPEN_TAG ?= docsclaw:dev-openshell
-OPENARCH ?= $(shell go env GOARCH)
+# Default to the architecture of the engine that builds the image. With
+# PODMAN_CONNECTION set that engine is remote, so ask it instead of guessing
+# from the local Go toolchain.
+OPENARCH ?= $(if $(PODMAN_CONNECTION),$(shell $(CONTAINER_ENGINE) version --format '{{.Server.OsArch}}' | sed 's|.*/||'),$(shell go env GOARCH))
 
 image-openshell:
 	@mkdir -p build/openshell
 	@trap 'rm -rf build/openshell' EXIT; \
 	GOOS=linux GOARCH=$(OPENARCH) CGO_ENABLED=0 go build -o build/openshell/docsclaw ./cmd/docsclaw && \
 	cp Containerfile.openshell build/openshell/Containerfile && \
-	$(CONTAINER_ENGINE) build -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
+	$(CONTAINER_ENGINE) build $(if $(findstring docker,$(CONTAINER_ENGINE)),--pull,--pull=newer) --platform linux/$(OPENARCH) -t $(OPEN_TAG) -f build/openshell/Containerfile build/openshell
 
 # --- Agent image from manifest ---
 # Build a custom agent image from an agent manifest.

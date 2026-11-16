@@ -38,7 +38,11 @@ Three Dockerfiles:
 - `Dockerfile` — local dev builds (multi-stage with Go builder)
 - `Dockerfile.release` — GoReleaser builds (scratch, pre-built binary)
 - `Containerfile.openshell` — OpenShell sandbox image (`-openshell` tag;
-  UBI minimal, non-root, `bash` and `sleep`)
+  UBI 10.3 minimal, non-root, `bash` and `sleep`)
+
+Base images use floating minor tags and are built with `--pull=newer`; do not
+pin digests while the project is pre-production. A digest pin must name the
+multi-arch index, never a per-architecture manifest.
 
 Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 `pavelanni/homebrew-tap`).

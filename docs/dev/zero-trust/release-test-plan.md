@@ -366,6 +366,8 @@ podman image inspect docsclaw:dev-openshell \
 | Version | `podman exec … docsclaw --version` | the injected version (a local build reports `dev`) |
 | Config error path (#125) | `docsclaw ask --config-dir /nonexistent x` | exit 1, clear message |
 | Writable workspace | `podman run --rm docsclaw:dev-openshell bash -lc 'touch /workspace/x && echo ok'` | `ok` |
+| Writable `/sandbox` (Podman driver) | `podman run --rm docsclaw:dev-openshell bash -lc 'touch /sandbox/x && echo ok'` | `ok`; on Kubernetes the driver mounts the workspace PVC here, so ownership comes from the volume, not this image |
+| Arch matches `OPENARCH` | `make image-openshell OPENARCH=amd64 OPEN_TAG=docsclaw:test-amd64 && podman image inspect … --format '{{.Architecture}}' && podman run --rm docsclaw:test-amd64 uname -m && podman run --rm docsclaw:test-amd64 docsclaw --version` | `amd64` and `x86_64`, then the version line; repeat for `arm64`/`aarch64`. Check all three — the label and the binary can diverge |
 | Read-only rootfs | `podman run --rm --read-only -v dc-ws:/workspace docsclaw:dev-openshell bash -lc 'touch /workspace/x'` | `ok` |
 | Non-root euid | `podman run --rm docsclaw:dev-openshell id` | `uid=1001 gid=1001` |
 | `tar` present | `podman run --rm docsclaw:dev-openshell tar --version` | needed by `sandbox upload` |
@@ -379,6 +381,18 @@ that catches a regression.
 **Second gap, now fixed:** UBI minimal has no `tar`, so `openshell sandbox
 upload` failed with `tar: command not found`. Fixed in PR #127 (`b390422`), which
 installs `tar` and documents the upload destination semantics.
+
+**Image gaps fixed (2026-11-16):** #131 — the base image was pinned to a
+single-arch arm64 digest, and the `image-openshell` target never passed
+`--platform`, so an `OPENARCH=amd64` build produced an arm64 image with an
+amd64 binary inside. The base is now the multi-arch `ubi-minimal:10.3` tag and
+the target passes `--platform linux/$(OPENARCH)` with `--pull=newer`. The
+project is pre-production, so the base tag floats rather than pinning a digest;
+`--pull=newer` is what keeps UBI's CVE rebuilds coming, and `OPENARCH` defaults
+to the *builder's* architecture (queried from the remote engine when
+`PODMAN_CONNECTION` is set). #130 — `/sandbox` now exists alongside `/workspace`
+for the Kubernetes driver's PVC mount. The arch and `/sandbox` rows above are
+the regression guards.
 
 Also confirm `oras`/`curl` absence is acceptable: the image is a runtime, not a
 toolbox. If the demo scripts need `curl` for health checks, add it to the
@@ -741,7 +755,7 @@ host OS detected automatically (`ZT2_HOST_OS` overrides).
 
 ```bash
 make build && deploy/podman/scripts/build-images.sh && scripts/setup.sh
-make image-openshell OPENARCH=amd64          # or PODMAN_CONNECTION=rhel on the host
+make image-openshell OPENARCH=amd64          # or PODMAN_CONNECTION=rhel to build there
 ```
 
 Make the image visible to that gateway, then re-run T2, T3 and T4a. Additional
