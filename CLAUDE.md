@@ -47,6 +47,10 @@ multi-arch index, never a per-architecture manifest.
 Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 `pavelanni/homebrew-tap`).
 
+Promotion is a new tag, not a UI toggle: the release workflow runs on `v*` tag
+pushes only, so marking an existing prerelease as stable in the GitHub UI does
+not publish `:latest` or the Homebrew formula. Push a stable `v*` tag.
+
 ## Project structure
 
 | Path | Description |
