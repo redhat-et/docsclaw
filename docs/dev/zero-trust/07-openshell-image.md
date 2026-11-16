@@ -35,7 +35,10 @@ manifest.
 
 - [ ] **Step 1:** Choose the base from the WP01 requirements:
   `registry.access.redhat.com/ubi10/ubi-micro` if it ships coreutils
-  `sleep` and `/bin/sh`, otherwise `ubi10/ubi-minimal`. Pin the digest.
+  `sleep` and `/bin/sh`, otherwise `ubi10/ubi-minimal`. Do not pin a digest:
+  the project is pre-production, so use the multi-arch minor tag (currently
+  `ubi-minimal:10.3`) and build with `--pull=newer`. If a digest is ever
+  required, pin the multi-arch **index** digest, never a per-architecture one.
   Record the choice and the measured image size in the PR description.
 - [ ] **Step 2:** Write the file: copy the pre-built `docsclaw` to
   `/usr/local/bin/docsclaw` (mode 0755, owned by root), create the

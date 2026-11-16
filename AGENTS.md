@@ -69,6 +69,9 @@ make image-security     # hardened image from containers/Containerfile.security
 - Default engine is `podman`; override with `CONTAINER_ENGINE=docker`.
 - Default tag is the short Git SHA; override with `DEV_TAG` or `REGISTRY`.
 - Release builds use `Dockerfile.release` (Red Hat `core-runtime` base) via GoReleaser.
+- Base images use floating minor tags and are built with `--pull=newer`; do not
+  pin digests while the project is pre-production. A digest pin must name the
+  multi-arch index, never a per-architecture manifest.
 
 ## Custom agent manifests
 

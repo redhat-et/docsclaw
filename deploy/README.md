@@ -113,8 +113,8 @@ not the same image as the default agent image.
 | Tag | `ghcr.io/redhat-et/docsclaw:<version>-openshell` |
 | Binary | `/usr/local/bin/docsclaw` (no symlink) |
 | User | UID 1001, GID 1001 |
-| Working directory | `/workspace` (writable) |
-| Base | UBI 10 minimal (includes `bash`, `sleep`, and `tar`) |
+| Working directory | `/workspace` (default, writable); `/sandbox` is created too |
+| Base | UBI 10.3 minimal (includes `bash`, `sleep`, and `tar`) |
 
 OpenShell rejects a workload identity whose UID or GID is zero, so the runtime
 user is `1001:1001` rather than the OpenShift gid-0 convention; a sandbox
@@ -128,7 +128,10 @@ binary must stay at `/usr/local/bin/docsclaw`.
 
 `serve` defaults to `/workspace`. OpenShell treats a `WORKDIR` other than
 `/` or `/sandbox` as the sandbox workspace, so it must exist and be
-writable; the image creates it for user `1001:1001`.
+writable; the image creates both, owned by `1001:1001`. Use `/sandbox` on
+the Kubernetes driver, which mounts the workspace PVC there; the image's
+ownership is covered by the volume, so a pod running as an arbitrary UID
+needs `fsGroup` to write.
 
 `openshell sandbox upload` extracts into the sandbox with `tar`, so the image
 ships it. The destination argument is the parent directory, and the config must
@@ -136,8 +139,11 @@ live under the workspace: `/config` is not writable because the root filesystem
 is root-owned.
 
 ```bash
+# Podman driver:
 openshell sandbox upload --no-git-ignore <sandbox> ./my-agent /workspace
-# -> /workspace/my-agent/system-prompt.txt, ...
+# Kubernetes driver (workspace PVC):
+openshell sandbox upload --no-git-ignore <sandbox> ./my-agent /sandbox
+# -> <dest>/my-agent/system-prompt.txt, ...
 ```
 
 For a read-only root filesystem, mount a volume at the workspace path:
