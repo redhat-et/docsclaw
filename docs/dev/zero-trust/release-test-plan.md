@@ -367,7 +367,7 @@ podman image inspect docsclaw:dev-openshell \
 | Config error path (#125) | `docsclaw ask --config-dir /nonexistent x` | exit 1, clear message |
 | Writable workspace | `podman run --rm docsclaw:dev-openshell bash -lc 'touch /workspace/x && echo ok'` | `ok` |
 | Writable `/sandbox` (Podman driver) | `podman run --rm docsclaw:dev-openshell bash -lc 'touch /sandbox/x && echo ok'` | `ok`; on Kubernetes the driver mounts the workspace PVC here, so ownership comes from the volume, not this image |
-| Arch matches `OPENARCH` | `make image-openshell OPENARCH=amd64 OPEN_TAG=docsclaw:test-amd64 && podman image inspect … --format '{{.Architecture}}' && podman run --rm docsclaw:test-amd64 uname -m` | `amd64` and `x86_64`; repeat for `arm64`/`aarch64`. Check both — the label and the binary can diverge |
+| Arch matches `OPENARCH` | `make image-openshell OPENARCH=amd64 OPEN_TAG=docsclaw:test-amd64 && podman image inspect … --format '{{.Architecture}}' && podman run --rm docsclaw:test-amd64 uname -m && podman run --rm docsclaw:test-amd64 docsclaw --version` | `amd64` and `x86_64`, then the version line; repeat for `arm64`/`aarch64`. Check all three — the label and the binary can diverge |
 | Read-only rootfs | `podman run --rm --read-only -v dc-ws:/workspace docsclaw:dev-openshell bash -lc 'touch /workspace/x'` | `ok` |
 | Non-root euid | `podman run --rm docsclaw:dev-openshell id` | `uid=1001 gid=1001` |
 | `tar` present | `podman run --rm docsclaw:dev-openshell tar --version` | needed by `sandbox upload` |
