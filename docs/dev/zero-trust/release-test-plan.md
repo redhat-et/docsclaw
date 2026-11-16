@@ -750,7 +750,7 @@ note must say so. T4a is the substitute evidence for the v0.21.0 tag.
 ## T5 — x86_64 on the RHEL homelab
 
 Same v2 stack, its Fedora/RHEL quick start (`README.md`): rootless podman with
-`podman.socket` enabled, OpenShell CLI 0.1.6 from upstream releases, and the
+`podman.socket` enabled, OpenShell CLI 0.1.8 from upstream releases, and the
 host OS detected automatically (`ZT2_HOST_OS` overrides).
 
 ```bash
@@ -769,6 +769,39 @@ checks:
   bound-but-down host still yields a `502` rather than `connection refused`,
   because the proxy is the only reachable endpoint; record whether the body
   names the cause or falls back to `502 Bad Gateway`.
+
+### T5 results (2026-11-16) — T2 and T3.3 pass on x86_64
+
+Host: `rhel01.internal`, RHEL 10.2, rootless podman, OpenShell CLI 0.1.8.
+Image built natively (`make image-openshell`) → `amd64`, UBI 10.3.
+
+T2 checklist: every row passes (`1001:1001`, `WORKDIR /workspace`,
+`sleep infinity`, real binary, `/sandbox` + `/workspace` writable,
+read-only-rootfs + volume, `tar`, `amd64`/`x86_64`). One change from the 10.1
+base: `/usr/bin/curl` is now present (oras is not).
+
+T3.0: the gateway resolves the locally built image (`dc-probe` Ready; exec as
+1001; `/sandbox` and `/workspace` both exist). T3.3 scenario 1: `docsclaw ask`
+fetches DOC-001 (200) and the answer is the engineering roadmap.
+
+Linux gotchas hit (worth folding into the harness or the triage table):
+
+- `openshell sandbox get` table output has no ID; use `-o json`.
+- The Rust CLI panics on SIGPIPE when piped into `awk '…; exit'`; capture the
+  output first, then parse.
+- Register the SPIFFE entry before the first request and let it propagate
+  (~10–15 s). The supervisor caches a failed token grant
+  (`workload_identity_rejected`), and every later retry fails until the
+  sandbox is recreated.
+- Deny shape matches the documented one: a refused grant surfaces as a bare
+  `502 Bad Gateway` in the tool result, with `stage=workload_identity` only in
+  the supervisor log.
+- v2 `setup.sh` is not idempotent for `docsclaw-model`: its stale-state cleanup
+  only removes `zt2-*` profiles, so a pre-existing `docsclaw-model` blocks the
+  import. Delete it before re-running setup.
+
+Not run in this pass: T3.4–T3.6, the T4a re-run, and T6. T4a remains green from
+2026-11-09, and the image fix does not touch the inbound-auth code paths.
 
 ## T6 — Regression beyond zero-trust
 
