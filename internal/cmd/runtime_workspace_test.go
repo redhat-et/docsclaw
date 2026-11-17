@@ -6,12 +6,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/redhat-et/docsclaw/pkg/inboundauth"
 )
 
-// TestRuntimeToolsShareWorkspace documents the single-tenant boundary: every
-// caller of one process uses the same workspace, so a fact written by the
-// remember tool is readable by read_file. Run one instance per tenant.
-func TestRuntimeToolsShareWorkspace(t *testing.T) {
+// TestSingleTenantMemorySharedAcrossCallers documents the single-tenant
+// boundary: two authenticated callers with different subjects use the same
+// workspace, so a fact written by one is readable by the other. Run one
+// instance per tenant; isolation between tenants belongs to the
+// container/OpenShell layer.
+func TestSingleTenantMemorySharedAcrossCallers(t *testing.T) {
 	dir := t.TempDir()
 	workspace := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "system-prompt.txt"), []byte("test"), 0o600); err != nil {
@@ -33,11 +37,14 @@ func TestRuntimeToolsShareWorkspace(t *testing.T) {
 		}
 	})
 
+	alice := inboundauth.ContextWithClaims(context.Background(), inboundauth.Claims{Subject: "alice"})
+	bob := inboundauth.ContextWithClaims(context.Background(), inboundauth.Claims{Subject: "bob"})
+
 	remember, ok := rt.Registry.Get("remember")
 	if !ok {
 		t.Fatal("remember tool not registered")
 	}
-	if res := remember.Execute(context.Background(), map[string]any{"entry": "the number 7"}); res.Error {
+	if res := remember.Execute(alice, map[string]any{"entry": "the number 7"}); res.Error {
 		t.Fatalf("remember failed: %s", res.Output)
 	}
 
@@ -45,7 +52,7 @@ func TestRuntimeToolsShareWorkspace(t *testing.T) {
 	if !ok {
 		t.Fatal("read_file tool not registered")
 	}
-	res := readFile.Execute(context.Background(), map[string]any{
+	res := readFile.Execute(bob, map[string]any{
 		"path": filepath.Join(workspace, "MEMORY.md"),
 	})
 	if res.Error {
