@@ -30,7 +30,7 @@ git tag v0.1.0 && git push --tags
 
 Produces binaries (linux/darwin/windows, amd64/arm64), multi-arch
 container images on `ghcr.io/redhat-et/docsclaw`, and a Homebrew
-formula. Version is injected via ldflags into
+cask. Version is injected via ldflags into
 `internal/cmd.version`.
 
 Three Dockerfiles:
@@ -49,7 +49,7 @@ Required repo secret: `HOMEBREW_TAP_TOKEN` (write access to
 
 Promotion is a new tag, not a UI toggle: the release workflow runs on `v*` tag
 pushes only, so marking an existing prerelease as stable in the GitHub UI does
-not publish `:latest` or the Homebrew formula. Push a stable `v*` tag.
+not publish `:latest` or the Homebrew cask. Push a stable `v*` tag.
 
 ## Project structure
 

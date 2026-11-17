@@ -111,7 +111,7 @@ git push --tags
 ```
 
 - Requires the repo secret `HOMEBREW_TAP_TOKEN` for the Homebrew tap.
-- Produces cross-platform binaries, multi-arch images (`ghcr.io/redhat-et/docsclaw:<version>`), and a Homebrew formula.
+- Produces cross-platform binaries, multi-arch images (`ghcr.io/redhat-et/docsclaw:<version>`), and a Homebrew cask.
 
 ## Workspace context
 
