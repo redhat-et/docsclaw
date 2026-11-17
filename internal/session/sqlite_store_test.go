@@ -1,12 +1,36 @@
 package session
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/redhat-et/docsclaw/pkg/llm"
 )
+
+func TestSQLiteStoreFileModes(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "modes.db")
+	store, err := NewSQLiteStore(dbPath, 30*time.Minute)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		info, err := os.Stat(dbPath + suffix)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			t.Fatalf("stat %s: %v", suffix, err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("%s mode = %o, want 600", dbPath+suffix, perm)
+		}
+	}
+}
 
 func TestSQLiteStoreNew(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
