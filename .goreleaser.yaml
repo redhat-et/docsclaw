@@ -51,19 +51,25 @@ release:
   # Mark -rc/-beta tags as prereleases so they can be promoted later.
   prerelease: auto
 
-brews:
+homebrew_casks:
   - name: docsclaw
-    # Don't move the tap formula to a prerelease tag.
+    # Don't move the tap cask to a prerelease tag.
     skip_upload: auto
+    binaries:
+      - docsclaw
     repository:
       owner: pavelanni
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/redhat-et/docsclaw
     description: Universal AI agent runtime with ConfigMap-driven personality
-    license: Apache-2.0
-    install: |
-      bin.install "docsclaw"
+    # The macOS binaries are not notarized; clear the quarantine bit on install.
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/docsclaw"]
+          end
 
 # One multi-arch manifest per variant; `latest` follows stable tags only.
 # Artifacts are staged at $TARGETPLATFORM/, so both Dockerfiles copy from there.
@@ -77,6 +83,7 @@ dockers_v2:
       - "{{ .Version }}"
       - "{{ if not .Prerelease }}latest{{ end }}"
     platforms: [linux/amd64, linux/arm64]
+    flags: ["--provenance=false"]
     sbom: false
   - id: docsclaw-openshell
     ids: [docsclaw]
@@ -86,4 +93,5 @@ dockers_v2:
     tags:
       - "{{ .Version }}-openshell"
     platforms: [linux/amd64, linux/arm64]
+    flags: ["--provenance=false"]
     sbom: false

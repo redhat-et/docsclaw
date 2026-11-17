@@ -319,9 +319,10 @@ git push --tags
 ```
 
 This produces:
+
 - Binaries for linux/darwin/windows (amd64, arm64)
 - Multi-arch container images on `ghcr.io/redhat-et/docsclaw`
-- Homebrew formula (`brew install pavelanni/tap/docsclaw`)
+- Homebrew cask (`brew install --cask pavelanni/tap/docsclaw`)
 - SHA256 checksums
 
 ## License
