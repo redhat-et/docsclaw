@@ -325,6 +325,10 @@ This produces:
 - Homebrew cask (`brew install --cask pavelanni/tap/docsclaw`)
 - SHA256 checksums
 
+> Upgrading from the pre-cask formula? Run `brew uninstall docsclaw` first —
+> the old formula binary shadows the cask's. The cask installs the matching
+> Linux build too; RPM/DEB packages are planned (#142).
+
 ## License
 
 Apache License 2.0

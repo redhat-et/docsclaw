@@ -934,6 +934,7 @@ podman manifest inspect ghcr.io/redhat-et/docsclaw:<ver>-openshell   # after pus
 | Binaries | linux/darwin/windows × amd64/arm64 |
 | Images | `<ver>-amd64`, `<ver>-arm64`, plus the `<ver>-openshell` manifest with both |
 | Homebrew cask | generated, with darwin and linux URLs |
+| RC keeps the tap stable | `gh api repos/pavelanni/homebrew-tap/contents/Casks/docsclaw.rb` before and after a `v*-rc` tag — unchanged (`skip_upload: auto`) |
 | Version injection | `docsclaw --version` = the tag, not `dev` |
 | Tag flow | `v0.21.0-rc.1` first; promote after T3 and T4a pass by pushing a stable `v0.21.0` tag (see below) |
 | CI gate | **none today** (#125) — run T0 locally before tagging |
