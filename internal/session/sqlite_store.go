@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -21,6 +22,16 @@ type SQLiteStore struct {
 }
 
 func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
+	// Create the database owner-only before SQLite opens it: SQLite creates a
+	// new file with the umask-adjusted mode, and the WAL inherits that mode.
+	f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("create sqlite database: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("close sqlite database: %w", err)
+	}
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -56,6 +67,15 @@ func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
 	if _, err := db.Exec(schema); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
+	}
+
+	// -wal and -shm carry session content and SQLite creates them with the
+	// process umask; keep them owner-only like the main database.
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if err := os.Chmod(dbPath+suffix, 0o600); err != nil && !errors.Is(err, os.ErrNotExist) {
+			_ = db.Close()
+			return nil, fmt.Errorf("chmod sqlite %s: %w", dbPath+suffix, err)
+		}
 	}
 
 	db.SetMaxOpenConns(1)

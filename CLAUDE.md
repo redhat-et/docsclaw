@@ -86,6 +86,13 @@ Tools are organized as separate internal packages, each exporting a
 constructor that returns `tools.Tool`. The tool registry in `pkg/tools/`
 manages allowed tools and generates LLM tool definitions.
 
+`serve` is single-tenant: run one instance per tenant or trust boundary, and
+treat every caller of an instance as one trust domain. Session history is
+keyed by verified identity when inbound auth is enabled (without claims it
+falls back to the caller-supplied session ID), but the workspace (files and
+`MEMORY.md`) is shared by every caller of the process. Multi-tenancy belongs
+to the infrastructure (containers, OpenShell).
+
 ## Configuration
 
 The agent reads personality from a config directory:
