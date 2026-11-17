@@ -324,6 +324,28 @@ the same `-H "x-session-id: $SID"`. Pass: Bob does not see Alice's turn; with
 `--session-db /tmp/dc-b/sessions.db` the store contains two keys and the file is
 mode `0600`.
 
+### T1.7 results (2026-11-17, local Mac)
+
+Session-store isolation passes. Cross-caller end-to-end isolation is out of
+scope by design (single-tenant `serve`, #144).
+
+- Two tokens (`sub=alice`, `sub=bob`), same `x-session-id`, one `serve` with
+  `--session-db`: the store held two keys (`alice|azp|sid`, `bob|azp|sid`) and
+  separate `messages` rows. PASS.
+- Bob still answered "You said 7." Alice's agent wrote `MEMORY.md` via the
+  `remember` tool; Bob's read it with `read_file`. This is the documented
+  single-tenant limitation, not a store bug.
+- Cause: `tools.allowed: []` installed no filter, so all five default tools
+  were enabled (`allowed=5` in the log) — fixed in #143.
+
+#144 decision: DocsClaw is single-tenant; the workspace and `MEMORY.md` are
+shared by design, and isolation belongs to the container/OpenShell boundary.
+The identity-keyed session store stays as defense-in-depth, so T1.7 asserts
+store isolation only.
+
+File modes: `sqlite_store.go` now chmods `sessions.db`, `-shm`, and `-wal` to
+`0600` (#146).
+
 ### T1.8 Two-process A2A (manual WP12)
 
 B as in T1.5. A with `a2a_peers: [{name: engineering-analyst, url:

@@ -174,7 +174,7 @@ Controls which tools are available and loop behavior:
 
 ```yaml
 tools:
-  allowed:            # Only these tools are available to the LLM
+  allowed:            # List every tool explicitly; empty or omitted enables none
     - exec
     - web_fetch
     - read_file
@@ -191,6 +191,10 @@ tools:
 loop:
   max_iterations: 10  # Max tool-use rounds before giving up
 ```
+
+An empty or omitted `tools.allowed` enables none of the built-in tools.
+Tools registered as always-allowed — configured MCP servers, `rag_search`,
+and `load_skill` — are not governed by the list.
 
 ### Workspace context (OpenClaw compatibility)
 

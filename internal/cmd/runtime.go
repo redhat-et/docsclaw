@@ -142,7 +142,12 @@ func buildRuntime(ctx context.Context, cfg Config, opts runtimeOptions) (rt *age
 	var skillsSummary string
 
 	if agentCfg != nil {
-		toolRegistry = tools.NewRegistry(agentCfg.Tools.Allowed)
+		allowedTools := agentCfg.Tools.Allowed
+		if allowedTools == nil {
+			// Tools must be listed explicitly; an omitted allowlist means none.
+			allowedTools = []string{}
+		}
+		toolRegistry = tools.NewRegistry(allowedTools)
 
 		if err := os.MkdirAll(workspace, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create workspace: %w", err)
