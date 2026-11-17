@@ -625,10 +625,10 @@ Exposed `docsclaw serve` on the sandbox loopback and probed the exposed URL:
 | `GET 127.0.0.1:8100/health` inside the sandbox | 200 |
 | supervisor log | no `Authorization`, bearer, or JWT strings |
 
-Two plan corrections: `serve` binds `127.0.0.1:8000` (not 8080) and there is
-no `-p` flag — the port comes from the config/viper defaults, and the
-`service:` block in `agent-config.yaml` is ignored. `service list -o json`
-returns `{"url": "http://<sandbox>--agent.openshell.localhost:18083/"}`.
+One plan correction: `serve` ignores the `service:` block in
+`agent-config.yaml`; set the port with `-p/--port` (default `8000`). Exposing
+that port also exposes whatever else holds it on a busy host. `service list
+-o json` returns `{"url": "http://<sandbox>--agent.openshell.localhost:18083/"}`.
 
 ### T3.6 Session store inside a sandbox
 
