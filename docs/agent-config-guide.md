@@ -24,7 +24,9 @@ loop:
 ```
 
 List every tool you want under `tools.allowed`; an empty or omitted list
-enables none.
+enables none of the built-in tools. Tools registered as always-allowed —
+configured MCP servers, `rag_search`, and `load_skill` — are not governed by
+the list.
 
 ## Full example
 

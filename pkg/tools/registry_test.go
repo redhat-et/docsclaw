@@ -76,6 +76,15 @@ func TestRegistryAlwaysAllowedWithEmptyFilter(t *testing.T) {
 	}
 }
 
+func TestRegistryNilAllowlistAllowsAll(t *testing.T) {
+	r := NewRegistry(nil)
+	r.Register(&mockTool{name: "test_tool"})
+
+	if _, ok := r.Get("test_tool"); !ok {
+		t.Fatal("a nil allowlist must not filter tools")
+	}
+}
+
 func TestRegistryAlwaysAllowed(t *testing.T) {
 	r := NewRegistry([]string{"only_this"})
 	r.Register(&mockTool{name: "only_this"})

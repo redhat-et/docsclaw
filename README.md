@@ -192,6 +192,10 @@ loop:
   max_iterations: 10  # Max tool-use rounds before giving up
 ```
 
+An empty or omitted `tools.allowed` enables none of the built-in tools.
+Tools registered as always-allowed — configured MCP servers, `rag_search`,
+and `load_skill` — are not governed by the list.
+
 ### Workspace context (OpenClaw compatibility)
 
 DocsClaw loads OpenClaw-compatible workspace files from the
