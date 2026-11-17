@@ -901,6 +901,26 @@ deploy manifests. Sweep the features that share those seams.
 | Metrics/health | `:8100/metrics`, `/health`, `/ready` | 200; no auth required |
 | A2A interop | `a2a discover <url>`, `a2a send <url> "hi"` | card parsed, message answered |
 
+### T6 results (2026-11-16, local Mac + x86_64)
+
+| Area | Result |
+| ---- | ------ |
+| Skills (local, `SKILL.md`) | PASS — `docsclaw skill list testdata/research-agent/skills` lists `pdf-summary` |
+| Exec deny patterns | PASS — `exec` of `sudo id` returns `Command blocked by security policy: sudo id` |
+| `web_fetch.allowed_hosts` | PASS — `example.com` fetches; with `tools.web_fetch.allowed_hosts: [example.com]`, `neverssl.com` returns `Host not allowed` (the key nests under `tools:`) |
+| Workspace profiles | PASS — the openclaw profile injects `IDENTITY.md` ("DocsClaw Agent") from the resolved workspace directory; `tools.workspace` in `agent-config.yaml` overrides `--workspace` (#106), so that directory must contain `IDENTITY.md` |
+| OpenAI `/v1` chat | PASS — `/v1/chat/completions` returns a completion |
+| Metrics/health | PASS — `/health`, `/ready`, `/metrics` all 200 |
+| A2A interop | PASS — JSON-RPC `SendMessage` returns `pong` (v2 method name) |
+| ConfigMap generation | PASS — `make configmap-gen CONFIG_DIR=testdata/standalone` renders `config.yaml` plus the skill ConfigMaps |
+
+Skipped here (infrastructure not available): OCI skills (`oras`/registry), MCP
+client (no MCP server fixture), RAG (no Weaviate), K8s deploy (no cluster),
+batch + dashboard (needs a running agent fleet).
+
+Confirmed #106: a `workspace:` in `agent-config.yaml` overrides the
+`--workspace` flag. Not a regression; the issue already tracks it.
+
 ## T7 — Release artifacts
 
 ```bash
