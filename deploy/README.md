@@ -222,7 +222,9 @@ fall back to the caller-supplied session ID.
 as one trust domain. Session history is identity-keyed, but the workspace —
 files and `MEMORY.md` — is shared by every caller of the process, so one
 instance must not serve mutually untrusted callers. Multi-tenancy belongs to
-the infrastructure, not to DocsClaw.
+the infrastructure, not to DocsClaw. When running more than one tenant, give
+each its own instance and verify they do not share a workspace directory or a
+volume/PVC — that isolation is what the trust model relies on.
 
 The JWKS fetch is ordinary egress and goes through the supervisor: the issuer
 host must be allowed by the sandbox network policy, or startup succeeds but
