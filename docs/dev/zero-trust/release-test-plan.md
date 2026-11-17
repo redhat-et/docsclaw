@@ -96,19 +96,23 @@ locally; `make image-openshell` defaults to arm64, which matches the machine.
    `scripts/lib.sh`). Without it the exchange fails and every request is
    refused.
 
-### Two verified integration facts that constrain Phase 2
+### Two integration facts that constrain Phase 2
 
-1. **v2 access tokens are HS256 over a shared secret, and the issuer serves no
-   JWKS.** `internal/tokens/tokens.go` signs HS256; `:8080` exposes only
-   `/healthz` and `POST /token`, and `:8090` only `/demo-subject-token`.
-   `pkg/inboundauth` accepts ES256/RS256 and rejects every `HS*` by design, so
-   **DocsClaw cannot verify a v2-issued token today**. This blocks T4b, not
-   T3: on the outbound path DocsClaw is only an HTTP client — the supervisor
-   injects and the document service verifies.
-1. **The claims models differ.** v2 puts departments in a `departments` claim
-   with `scope=openid profile email` and no `azp`; DocsClaw checks
-   `required_scopes` and `allowed_callers` (azp or client_id). A mapping
-   decision is needed before the two systems can share an issuer.
+Both gaps recorded here on 2026-11-06 were closed by v2 `6436e10`
+(2026-11-09, "feat: ES256 signing and JWKS for access tokens"):
+
+1. **The v2 issuer signs ES256 and serves `GET /.well-known/jwks.json`.**
+   `internal/tokens` mints ES256 tokens with a `kid`, publishes the public key
+   set, and verifies SPIRE JWT-SVIDs; `token-issuer/server.go` routes the
+   JWKS. `pkg/inboundauth` accepts it unchanged.
+1. **Department capabilities reach the final access token.** The final token
+   carries `scope` = the intersection of the user's departments and the
+   profile's granted scopes, plus `azp` = the supervisor SVID — exactly what
+   DocsClaw's `required_scopes` and `allowed_callers` checks read. The
+   mapping was done on the issuer side, so DocsClaw needs no `departments`
+   check. The subject token (`:8090 /demo-subject-token`) still carries
+   `departments` with `scope=openid profile email`; it is exchanged by the
+   gateway and never presented to a peer.
 
 ### Test matrix
 
@@ -119,15 +123,15 @@ locally; `make image-openshell` defaults to arm64, which matches the machine.
 | T2 | macOS | Podman | 15 min | Image contract (UID, paths, shell, `sleep`, read-only rootfs) |
 | T3 | macOS + v2 stack | OpenShell | 60 min | DocsClaw as the agent in scenarios 1–6: exchange injection, policy denial, LLM placeholder |
 | T4a | macOS | No | 45 min | Phase 2 contract with a test issuer: exposure, inbound auth, `a2a_call`, deny codes |
-| T4b | macOS + v2 stack | OpenShell | 30 min | v2-issuer integration — **blocked**, requirements listed |
+| T4b | macOS + v2 stack | OpenShell | 30 min | v2-issuer integration: ES256/JWKS, claims, profile, exposure (v2 scenario 11) |
 | T5 | RHEL homelab | Podman + OpenShell | 60 min | x86_64 artifacts, same v2 stack, host-OS differences |
 | T6 | macOS | No | 60 min | Non-zero-trust features (skills, MCP, RAG, batch, `/v1`, K8s) |
 | T7 | macOS | Podman | 20 min | Release artifacts, multi-arch manifests |
 
 Gate: T0 and T7 block the tag. T1 and T3 prove DocsClaw's own contracts and its
-fit in the v2 stack; T4a proves Phase 2 end to end; T4b blocks the integrated
-two-agent claim. T5 blocks the x86_64 demo deployment. T6 blocks a "no
-regressions" statement.
+fit in the v2 stack; T4a proves Phase 2 end to end with a test issuer; T4b
+proves the integrated two-agent claim inside the v2 stack. T5 blocks the
+x86_64 demo deployment. T6 blocks a "no regressions" statement.
 
 ## T0 — Static and unit
 
@@ -830,31 +834,60 @@ On `rhel01`, from `main` at `f0e4811`:
 Note: `serve`'s port is `-p/--port` (default `8000`); the live run used `8081`
 because `8000` was held by a podman-published service on this host.
 
-## T4b — v2 issuer integration (blocked)
+## T4b — v2 issuer integration
 
-Blocked on the v2 side; do not attempt it before T4a is green. To make A→B work
-inside the v2 stack:
+Unblocked 2026-11-17: T4a is green in both shapes, and all four v2-side
+requirements landed in `redhat-et/zero-trust-agents-v2` (`6436e10`, 2026-11-09,
+carries ES256 + JWKS). v2 `scripts/scenario11.sh` is the end-to-end harness: it
+runs DocsClaw as A and B inside the stack and asserts the acceptance criteria
+below. Scenario 15 (`403 caller_not_allowed`) and scenario 13
+(`401 missing_token`) cover the negative paths.
 
-1. **Signing**: the token issuer must sign access tokens with ES256 or RS256 and
-   serve `GET /.well-known/jwks.json`. The shared-secret HS256 mint
-   (`internal/tokens/tokens.go`) cannot be verified by DocsClaw, and should not
-   be by anything else either. The issuer already verifies ES256 SVIDs against
-   the SPIRE OIDC JWKS, so the key handling exists — the gap is signing plus the
-   endpoint.
-1. **Claims mapping**: decide how DocsClaw reads a caller's capability. Today
-   DocsClaw checks `required_scopes` against `scope` and `allowed_callers`
-   against `azp`; the v2 token has `scope=openid profile email`, a `departments`
-   array, and no `azp`. Either the issuer emits department scopes and an `azp`,
-   or DocsClaw gains a `departments` check. Prefer the former.
-1. **Profile**: a grant with `audience` equal to B's `inbound_auth.audience` and
-   an `audience_override` for B's exposed host, `binaries:
-   [/usr/local/bin/docsclaw]`.
-1. **Exposure**: `"${OS[@]}" service expose <B> 8080 agent --authorization-mode
-   bearer-passthrough`, then bind the URL from `"${OS[@]}" service list -o json` in A's
-   profile.
+Requirements, all satisfied by v2:
 
-Until all four land, A→B inside the v2 stack is unproven and the demo readiness
-note must say so. T4a is the substitute evidence for the v0.21.0 tag.
+1. **Signing**: ES256 with a `kid`; `GET /.well-known/jwks.json` on the issuer
+   (`token-issuer/server.go`). DocsClaw's `jwks_url` resolves to
+   `http://<issuer-egress-host>:8080/.well-known/jwks.json`, and B's
+   `inbound_auth.issuer` must equal the deployment's issuer string exactly.
+1. **Claims mapping**: the final token carries department-derived `scope` and
+   `azp` = the supervisor SVID. The issuer-side mapping was chosen, so
+   DocsClaw needs no `departments` check.
+1. **Profile**: `deploy/{podman,openshift}/profiles/alice-a2a.yaml.in` grants
+   `audience: engineering-analyst` via `audience_overrides` for A's peer
+   endpoint, and lists `/usr/local/bin/docsclaw` in `binaries`.
+1. **Exposure**: `publish_a2a_peer` (`scripts/lib.sh`) runs
+   `service expose <B> 8000 agent --authorization-mode bearer-passthrough`.
+
+Acceptance: A's `a2a_call` reaches B; B logs `request authenticated` with
+`sub=alice`, `azp` = A's sandbox SVID, `scope=engineering`, and
+`aud=engineering-analyst`; B never logs `jwks_unavailable`; A's trace shows the
+`a2a_call` tool.
+
+### T4b results (2026-11-17) — PASS
+
+Host: macOS (Darwin 27.2.0), Podman machine, OpenShell CLI 0.1.8, v2
+`478176b`. Agent image: `ghcr.io/redhat-et/docsclaw:0.21.0-openshell` (arm64 —
+the released artifact, not a dev build). Harness: v2 `scripts/scenario11.sh`
+with `DOCSCLAW_IMAGE` set to that image.
+
+A's `a2a_call` reached B, and B logged the verified request:
+
+```text
+"request authenticated" sub="alice" azp="spiffe://openshell.local/openshell/sandbox/<A>" scope="engineering" aud="engineering-analyst account"
+```
+
+A's trace showed `← a2a_call ok: [completed] ...`, B never logged
+`jwks_unavailable`, and every claim matches the acceptance criteria. The token
+grant, JWKS fetch and audience override all ran inside the stack; no DocsClaw
+change was needed.
+
+Gotcha: the first two runs failed with `502 Bad Gateway` and
+`last_token_grant_failure.code=workload_identity_rejected`. `register_sandbox`
+waits 3 s for the SPIFFE entry to reach the agent, which was too short here:
+the supervisor cached the failed grant, so every retry failed until the
+sandbox was recreated. Raising the wait to 15 s made the run pass. This is the
+same propagation race recorded under T3.3 and T5; scenario 11 is therefore
+timing-sensitive on a cold or busy host.
 
 ## T5 — x86_64 on the RHEL homelab
 
@@ -995,7 +1028,7 @@ Leave the rc tag in place; the stable tag supersedes it.
 | `blocked by sandbox network policy` for a bound host | `binaries` path or digest mismatch | provider profile, `/usr/local/bin/docsclaw` |
 | `502 Bad Gateway` on document fetch while the LLM works | expired demo subject token (30 min), or unregistered SPIFFE ID | mint a fresh provider per run, `register-sandbox.sh`, supervisor `Token grant failed` |
 | `403 credential_endpoint_mismatch` | key used against a host it is not bound to | model profile `endpoints` |
-| `403 insufficient_scope` with the right department | v2 `departments` claim vs DocsClaw `scope` check | T4b, claims mapping |
+| `403 insufficient_scope` with the right department | the issuer's department ∩ profile-scope intersection is empty | `config/users.yaml` departments, provider profile `scopes` |
 | `401 missing_token` when a token was sent | exposure used `--authorization-mode strip` | `service expose` flag, T3.5 |
 | gateway cannot resolve `docsclaw:dev-openshell` | image built in a different engine than the gateway's | fallback registry in T3.0 |
 | `503 jwks_unavailable` everywhere | issuer host not reachable from the sandbox | T4a |
@@ -1023,7 +1056,7 @@ Leave the rc tag in place; the stable tag supersedes it.
       OpenShell, and records the service URL from `service list -o json`.
 - [x] T4a passes (2026-11-09, both shapes): A→B with the test issuer, deny
       codes, no token in any log, session store, or provider input.
-- [ ] T4b is either done or written into the demo readiness note as blocked,
-      with the four requirements from T4b listed.
+- [x] T4b passes (2026-11-17): A→B inside the v2 stack with the released
+      `0.21.0-openshell` image; B verified `sub`, `azp`, `scope` and `aud`.
 - [ ] T7 artifacts verified; #125's image check closed.
 - [ ] T6 regressions filed as issues before the tag, not after.
