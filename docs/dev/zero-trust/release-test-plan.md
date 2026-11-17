@@ -887,7 +887,8 @@ waits 3 s for the SPIFFE entry to reach the agent, which was too short here:
 the supervisor cached the failed grant, so every retry failed until the
 sandbox was recreated. Raising the wait to 15 s made the run pass. This is the
 same propagation race recorded under T3.3 and T5; scenario 11 is therefore
-timing-sensitive on a cold or busy host.
+timing-sensitive on a cold or busy host. Tracked upstream as
+`redhat-et/zero-trust-agents-v2#22`.
 
 ## T5 — x86_64 on the RHEL homelab
 
