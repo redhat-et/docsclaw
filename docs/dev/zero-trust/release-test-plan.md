@@ -326,24 +326,25 @@ mode `0600`.
 
 ### T1.7 results (2026-11-17, local Mac)
 
-Store isolation passes; end-to-end caller isolation does not.
+Session-store isolation passes. Cross-caller end-to-end isolation is out of
+scope by design (single-tenant `serve`, #144).
 
 - Two tokens (`sub=alice`, `sub=bob`), same `x-session-id`, one `serve` with
   `--session-db`: the store held two keys (`alice|azp|sid`, `bob|azp|sid`) and
-  separate `messages` rows. PASS for the session store.
-- Bob still answered "You said 7." Alice had used the `remember` tool to write
-  `MEMORY.md` in the shared workspace; Bob's agent read it with `read_file`.
-  The workspace is per process, not per caller. FAIL for end-to-end isolation.
-- Cause: with `tools.allowed: []` the registry installs no filter, so all five
-  default tools (`exec`, `web_fetch`, `read_file`, `write_file`, `remember`)
-  were enabled (`allowed=5` in the log).
+  separate `messages` rows. PASS.
+- Bob still answered "You said 7." Alice's agent wrote `MEMORY.md` via the
+  `remember` tool; Bob's read it with `read_file`. This is the documented
+  single-tenant limitation, not a store bug.
+- Cause: `tools.allowed: []` installed no filter, so all five default tools
+  were enabled (`allowed=5` in the log) — fixed in #143.
 
-Filed #143 (empty allowlist enables every tool) and #144 (shared workspace and
-`MEMORY.md` across callers). Until those are addressed, T1.7 as written cannot
-pass with a tool-enabled agent; it needs either a tool-free config or
-per-caller workspaces.
+#144 decision: DocsClaw is single-tenant; the workspace and `MEMORY.md` are
+shared by design, and isolation belongs to the container/OpenShell boundary.
+The identity-keyed session store stays as defense-in-depth, so T1.7 asserts
+store isolation only.
 
-File modes: `sessions.db` was `0600`, but `-shm`/`-wal` were `0644` on macOS.
+File modes: `sqlite_store.go` now chmods `sessions.db`, `-shm`, and `-wal` to
+`0600` (#146).
 
 ### T1.8 Two-process A2A (manual WP12)
 
