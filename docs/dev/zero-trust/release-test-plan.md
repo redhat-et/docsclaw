@@ -841,6 +841,10 @@ Linux gotchas hit (worth folding into the harness or the triage table):
 - `openshell sandbox get` table output has no ID; use `-o json`.
 - The Rust CLI panics on SIGPIPE when piped into `awk '…; exit'`; capture the
   output first, then parse.
+- `openshell sandbox exec` consumes stdin, so inside a script it swallows the
+  rest of the script. Redirect (`< /dev/null`) or run each exec in its own call.
+- UBI minimal has no `pkill`/`ps`; stop a background `serve` by scanning
+  `/proc/*/cmdline` for `docsclaw serve`.
 - Register the SPIFFE entry before the first request and let it propagate
   (~10–15 s). The supervisor caches a failed token grant
   (`workload_identity_rejected`), and every later retry fails until the
