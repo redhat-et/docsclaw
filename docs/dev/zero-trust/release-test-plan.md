@@ -773,6 +773,28 @@ filesystem.
 7. B must bind `--host 0.0.0.0` inside its container, or the proxy container
    cannot reach it (inbound auth otherwise defaults to loopback).
 
+### T4a re-run (2026-11-16, Linux x86_64)
+
+On `rhel01`, from `main` at `f0e4811`:
+
+- **Automated authoritative setup**
+  (`go test -race -run TestE2E ./internal/cmd`): both
+  `TestE2E_AgentACallsAgentB` and `TestE2E_DenyCodesReachCaller` (all six
+  rows) PASS. The suite uses real httptest servers and asserts the `sub`/`azp`
+  claims plus exhaustive token isolation via a `jti` marker.
+- **Live shape 1**: testissuer on `:9099`, B `serve -p 8081` with
+  `inbound_auth`, `hack/tokenproxy` on `:7000` injecting an ES256 token, A
+  `docsclaw ask` with one `a2a_peers` entry. `a2a_call` returned
+  `TASK_STATE_COMPLETED`; A's answer quotes B's reply. B logged
+  `request authenticated sub=alice azp=spiffe://openshell.local/openshell/sandbox/alice-assistant scope=engineering aud=engineering-analyst`.
+  Token isolation: 0 JWT-shaped strings in A's output, B's log, the proxy
+  log, or `sessionsB.db{,-wal}`.
+- **Shape 2** (sandbox to container) was not re-run this pass; it was green on
+  2026-11-09 and the image fix does not touch the inbound-auth paths.
+
+Note: `serve`'s port is `-p/--port` (default `8000`); the live run used `8081`
+because `8000` was held by a podman-published service on this host.
+
 ## T4b — v2 issuer integration (blocked)
 
 Blocked on the v2 side; do not attempt it before T4a is green. To make A→B work
