@@ -908,7 +908,7 @@ deploy manifests. Sweep the features that share those seams.
 | Skills (local, `SKILL.md`) | PASS — `docsclaw skill list testdata/research-agent/skills` lists `pdf-summary` |
 | Exec deny patterns | PASS — `exec` of `sudo id` returns `Command blocked by security policy: sudo id` |
 | `web_fetch.allowed_hosts` | PASS — `example.com` fetches; with `tools.web_fetch.allowed_hosts: [example.com]`, `neverssl.com` returns `Host not allowed` (the key nests under `tools:`) |
-| Workspace profiles | PASS — the openclaw profile injects `IDENTITY.md` ("DocsClaw Agent"), but only when the config does not set `workspace` (#106) |
+| Workspace profiles | PASS — the openclaw profile injects `IDENTITY.md` ("DocsClaw Agent") from the resolved workspace directory; `tools.workspace` in `agent-config.yaml` overrides `--workspace` (#106), so that directory must contain `IDENTITY.md` |
 | OpenAI `/v1` chat | PASS — `/v1/chat/completions` returns a completion |
 | Metrics/health | PASS — `/health`, `/ready`, `/metrics` all 200 |
 | A2A interop | PASS — JSON-RPC `SendMessage` returns `pong` (v2 method name) |
