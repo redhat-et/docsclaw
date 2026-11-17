@@ -35,6 +35,9 @@ func (r *Registry) Register(t Tool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.tools[t.Name()] = t
+	// A plain registration is allowlist-governed even if an earlier
+	// always-allowed entry (e.g. an MCP tool) used the same name.
+	delete(r.alwaysAllowed, t.Name())
 }
 
 func (r *Registry) RegisterAlwaysAllowed(t Tool) {
