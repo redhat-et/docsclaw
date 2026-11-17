@@ -570,6 +570,24 @@ field verbatim when present and falls back to the status text otherwise. A
 failed grant produced the bare form on 2026-11-09 (T3.7), so record what the
 body actually contains rather than assuming a named code.
 
+### T3.4 results (2026-11-16, Linux x86_64)
+
+Run on OpenShell 0.1.8 on `rhel01`. All three differ from the Expected column
+above, which reflects an earlier build:
+
+| Target | Observed tool result |
+| ------ | -------------------- |
+| unbound `http://192.0.2.1:8080` | `request failed: Get "http://192.0.2.1:8080/documents/DOC-001": dial tcp 192.0.2.1:8080: connect: permission denied` |
+| unbound `https://example.com:443` | `request failed: Get "https://example.com:443/documents/DOC-001": dial tcp 198.18.0.3:443: connect: permission denied` (resolved to the synthetic `198.18.0.3`) |
+| bound but down (`192.168.10.34.nip.io:18101`, service stopped) | `request failed: Get "http://192.168.10.34.nip.io:18101/documents/DOC-001": EOF` |
+
+So on this build the supervisor denies unbound hosts at `connect` with
+`EACCES` (`permission denied`), not `403 policy_denied`; `internal/egress`
+therefore never prints `blocked by sandbox network policy`. A bound-but-down
+upstream yields `EOF`, not a `502` with a named `error` field. The `Expected`
+column and the "Unverified items" in `openshell-notes.md` need updating to
+match.
+
 ### T3.5 Exposure: OpenShell admits, DocsClaw refuses
 
 ```bash
@@ -595,10 +613,44 @@ Against the exposed URL, from the Mac:
 The authenticated 200 case needs a token DocsClaw can verify, which the v2
 issuer cannot mint — that belongs to T4a (test issuer) and T4b (integration).
 
+### T3.5 results (2026-11-16, Linux x86_64)
+
+Exposed `docsclaw serve` on the sandbox loopback and probed the exposed URL:
+
+| Probe | Observed |
+| ----- | -------- |
+| `GET /.well-known/agent-card.json` | 200 (exempt) |
+| `POST /a2a`, no token | 401 `{"error":"missing_token","error_description":"an Authorization header is required"}` |
+| `GET /v1/models`, no token | 401 `missing_token` |
+| `GET 127.0.0.1:8100/health` inside the sandbox | 200 |
+| supervisor log | no `Authorization`, bearer, or JWT strings |
+
+One plan correction: `serve` ignores the `service:` block in
+`agent-config.yaml`; set the port with `-p/--port` (default `8000`). Exposing
+that port also exposes whatever else holds it on a busy host. `service list
+-o json` returns `{"url": "http://<sandbox>--agent.openshell.localhost:18083/"}`.
+
 ### T3.6 Session store inside a sandbox
 
 `--session-db /workspace/sessions.db`; two execs share history; file mode
 `0600`; `"${OS[@]}" sandbox stop` then `start` preserves it.
+
+### T3.6 results (2026-11-16, Linux x86_64)
+
+`serve --config-dir /workspace/config-c --session-db /workspace/sessions.db`,
+no inbound auth, requests over A2A JSON-RPC:
+
+| Check | Result |
+| ----- | ------ |
+| DB file modes | `sessions.db`, `-shm`, `-wal` all `0600` |
+| Two requests with the same `x-session-id` | second answer "Your name is Alice." — history shared |
+| `sandbox stop` then `start` | `sessions.db` still present and `0600` (wal/shm checkpointed away) |
+| Serve restarted on the persisted DB, third request | answer still "Your name is Alice." — history survived |
+
+Protocol note: a2a-go/v2 uses JSON-RPC method `SendMessage`, not the v0
+`message/send` (a v0-shaped request returns `-32601 METHOD_NOT_FOUND`). Params:
+`{"message":{"role":"ROLE_USER","parts":[{"text":...}],"messageId":...}}`; the
+session id travels in the `x-session-id` HTTP header.
 
 ### T3.7 First run: scenario 1 result (2026-11-07)
 
@@ -721,6 +773,28 @@ filesystem.
 7. B must bind `--host 0.0.0.0` inside its container, or the proxy container
    cannot reach it (inbound auth otherwise defaults to loopback).
 
+### T4a re-run (2026-11-16, Linux x86_64)
+
+On `rhel01`, from `main` at `f0e4811`:
+
+- **Automated authoritative setup**
+  (`go test -race -run TestE2E ./internal/cmd`): both
+  `TestE2E_AgentACallsAgentB` and `TestE2E_DenyCodesReachCaller` (all six
+  rows) PASS. The suite uses real httptest servers and asserts the `sub`/`azp`
+  claims plus exhaustive token isolation via a `jti` marker.
+- **Live shape 1**: testissuer on `:9099`, B `serve -p 8081` with
+  `inbound_auth`, `hack/tokenproxy` on `:7000` injecting an ES256 token, A
+  `docsclaw ask` with one `a2a_peers` entry. `a2a_call` returned
+  `TASK_STATE_COMPLETED`; A's answer quotes B's reply. B logged
+  `request authenticated sub=alice azp=spiffe://openshell.local/openshell/sandbox/alice-assistant scope=engineering aud=engineering-analyst`.
+  Token isolation: 0 JWT-shaped strings in A's output, B's log, the proxy
+  log, or `sessionsB.db{,-wal}`.
+- **Shape 2** (sandbox to container) was not re-run this pass; it was green on
+  2026-11-09 and the image fix does not touch the inbound-auth paths.
+
+Note: `serve`'s port is `-p/--port` (default `8000`); the live run used `8081`
+because `8000` was held by a podman-published service on this host.
+
 ## T4b — v2 issuer integration (blocked)
 
 Blocked on the v2 side; do not attempt it before T4a is green. To make A→B work
@@ -789,6 +863,10 @@ Linux gotchas hit (worth folding into the harness or the triage table):
 - `openshell sandbox get` table output has no ID; use `-o json`.
 - The Rust CLI panics on SIGPIPE when piped into `awk '…; exit'`; capture the
   output first, then parse.
+- `openshell sandbox exec` consumes stdin, so inside a script it swallows the
+  rest of the script. Redirect (`< /dev/null`) or run each exec in its own call.
+- UBI minimal has no `pkill`/`ps`; stop a background `serve` by scanning
+  `/proc/*/cmdline` for `docsclaw serve`.
 - Register the SPIFFE entry before the first request and let it propagate
   (~10–15 s). The supervisor caches a failed token grant
   (`workload_identity_rejected`), and every later retry fails until the
