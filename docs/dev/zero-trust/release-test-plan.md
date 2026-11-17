@@ -570,6 +570,24 @@ field verbatim when present and falls back to the status text otherwise. A
 failed grant produced the bare form on 2026-11-09 (T3.7), so record what the
 body actually contains rather than assuming a named code.
 
+### T3.4 results (2026-11-16, Linux x86_64)
+
+Run on OpenShell 0.1.8 on `rhel01`. All three differ from the Expected column
+above, which reflects an earlier build:
+
+| Target | Observed tool result |
+| ------ | -------------------- |
+| unbound `http://192.0.2.1:8080` | `request failed: Get "http://192.0.2.1:8080/documents/DOC-001": dial tcp 192.0.2.1:8080: connect: permission denied` |
+| unbound `https://example.com:443` | `request failed: Get "https://example.com:443/documents/DOC-001": dial tcp 198.18.0.3:443: connect: permission denied` (resolved to the synthetic `198.18.0.3`) |
+| bound but down (`192.168.10.34.nip.io:18101`, service stopped) | `request failed: Get "http://192.168.10.34.nip.io:18101/documents/DOC-001": EOF` |
+
+So on this build the supervisor denies unbound hosts at `connect` with
+`EACCES` (`permission denied`), not `403 policy_denied`; `internal/egress`
+therefore never prints `blocked by sandbox network policy`. A bound-but-down
+upstream yields `EOF`, not a `502` with a named `error` field. The `Expected`
+column and the "Unverified items" in `openshell-notes.md` need updating to
+match.
+
 ### T3.5 Exposure: OpenShell admits, DocsClaw refuses
 
 ```bash
@@ -595,10 +613,44 @@ Against the exposed URL, from the Mac:
 The authenticated 200 case needs a token DocsClaw can verify, which the v2
 issuer cannot mint — that belongs to T4a (test issuer) and T4b (integration).
 
+### T3.5 results (2026-11-16, Linux x86_64)
+
+Exposed `docsclaw serve` on the sandbox loopback and probed the exposed URL:
+
+| Probe | Observed |
+| ----- | -------- |
+| `GET /.well-known/agent-card.json` | 200 (exempt) |
+| `POST /a2a`, no token | 401 `{"error":"missing_token","error_description":"an Authorization header is required"}` |
+| `GET /v1/models`, no token | 401 `missing_token` |
+| `GET 127.0.0.1:8100/health` inside the sandbox | 200 |
+| supervisor log | no `Authorization`, bearer, or JWT strings |
+
+Two plan corrections: `serve` binds `127.0.0.1:8000` (not 8080) and there is
+no `-p` flag — the port comes from the config/viper defaults, and the
+`service:` block in `agent-config.yaml` is ignored. `service list -o json`
+returns `{"url": "http://<sandbox>--agent.openshell.localhost:18083/"}`.
+
 ### T3.6 Session store inside a sandbox
 
 `--session-db /workspace/sessions.db`; two execs share history; file mode
 `0600`; `"${OS[@]}" sandbox stop` then `start` preserves it.
+
+### T3.6 results (2026-11-16, Linux x86_64)
+
+`serve --config-dir /workspace/config-c --session-db /workspace/sessions.db`,
+no inbound auth, requests over A2A JSON-RPC:
+
+| Check | Result |
+| ----- | ------ |
+| DB file modes | `sessions.db`, `-shm`, `-wal` all `0600` |
+| Two requests with the same `x-session-id` | second answer "Your name is Alice." — history shared |
+| `sandbox stop` then `start` | `sessions.db` still present and `0600` (wal/shm checkpointed away) |
+| Serve restarted on the persisted DB, third request | answer still "Your name is Alice." — history survived |
+
+Protocol note: a2a-go/v2 uses JSON-RPC method `SendMessage`, not the v0
+`message/send` (a v0-shaped request returns `-32601 METHOD_NOT_FOUND`). Params:
+`{"message":{"role":"ROLE_USER","parts":[{"text":...}],"messageId":...}}`; the
+session id travels in the `x-session-id` HTTP header.
 
 ### T3.7 First run: scenario 1 result (2026-11-07)
 
