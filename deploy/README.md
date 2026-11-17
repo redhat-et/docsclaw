@@ -213,13 +213,16 @@ reaches the service through the sandbox loopback. Set `service.host`
 explicitly to override the bind address.
 
 Sessions are keyed by verified identity and the caller's `x-session-id`, so
-two callers that reuse the same session ID cannot read each other's history.
+two authenticated callers that reuse the same session ID cannot read each
+other's history. Without verified claims (inbound auth disabled), sessions
+fall back to the caller-supplied session ID.
 
-`serve` is **single-tenant**: run one instance per caller or trust boundary (an
-OpenShell sandbox or a container). Session history is identity-keyed, but the
-workspace — files and `MEMORY.md` — is shared by every caller of the process,
-so one instance must not serve mutually untrusted callers. Multi-tenancy
-belongs to the infrastructure, not to DocsClaw.
+`serve` is **single-tenant**: run one instance per tenant or trust boundary
+(an OpenShell sandbox or a container), and treat every caller of an instance
+as one trust domain. Session history is identity-keyed, but the workspace —
+files and `MEMORY.md` — is shared by every caller of the process, so one
+instance must not serve mutually untrusted callers. Multi-tenancy belongs to
+the infrastructure, not to DocsClaw.
 
 The JWKS fetch is ordinary egress and goes through the supervisor: the issuer
 host must be allowed by the sandbox network policy, or startup succeeds but

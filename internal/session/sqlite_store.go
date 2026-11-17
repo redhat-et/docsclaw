@@ -22,6 +22,16 @@ type SQLiteStore struct {
 }
 
 func NewSQLiteStore(dbPath string, ttl time.Duration) (*SQLiteStore, error) {
+	// Create the database owner-only before SQLite opens it: SQLite creates a
+	// new file with the umask-adjusted mode, and the WAL inherits that mode.
+	f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("create sqlite database: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("close sqlite database: %w", err)
+	}
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
