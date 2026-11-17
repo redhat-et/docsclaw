@@ -795,7 +795,7 @@ filesystem.
 7. B must bind `--host 0.0.0.0` inside its container, or the proxy container
    cannot reach it (inbound auth otherwise defaults to loopback).
 
-### T4a re-run (2026-11-16, Linux x86_64)
+### T4a re-run (2026-11-16 and 2026-11-17, Linux x86_64)
 
 On `rhel01`, from `main` at `f0e4811`:
 
@@ -811,8 +811,21 @@ On `rhel01`, from `main` at `f0e4811`:
   `request authenticated sub=alice azp=spiffe://openshell.local/openshell/sandbox/alice-assistant scope=engineering aud=engineering-analyst`.
   Token isolation: 0 JWT-shaped strings in A's output, B's log, the proxy
   log, or `sessionsB.db{,-wal}`.
-- **Shape 2** (sandbox to container) was not re-run this pass; it was green on
-  2026-11-09 and the image fix does not touch the inbound-auth paths.
+- **Live shape 2** (2026-11-17): testissuer, B (`serve` with `inbound_auth`)
+  and `hack/tokenproxy` run as containers on a user-defined `t4a-net`; the
+  proxy is published on the host at `:19000`. A runs in an OpenShell sandbox
+  whose profile binds `192.168.10.34.nip.io:19000`. A's `a2a_call` returned
+  `TASK_STATE_COMPLETED` and quoted B's reply; the proxy logged
+  `POST / -> 200`; B logged `request authenticated sub=alice
+  azp=spiffe://openshell.local/openshell/sandbox/alice-assistant
+  scope=engineering aud=engineering-analyst`. Token isolation: 0 JWT-shaped
+  strings in A's output, B's log, the proxy log, the supervisor log, and the
+  sandbox filesystem.
+
+  Gotchas: mount config and binaries with `:Z` (SELinux) or the container gets
+  `permission denied`; start the testissuer with `-issuer http://issuer:9099`
+  so `iss` matches B's config (else `401 invalid_issuer`); restart B after an
+  issuer key change, or its cached JWKS yields `401 invalid_token`.
 
 Note: `serve`'s port is `-p/--port` (default `8000`); the live run used `8081`
 because `8000` was held by a podman-published service on this host.
