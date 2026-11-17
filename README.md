@@ -174,7 +174,7 @@ Controls which tools are available and loop behavior:
 
 ```yaml
 tools:
-  allowed:            # Only these tools are available to the LLM
+  allowed:            # List every tool explicitly; empty or omitted enables none
     - exec
     - web_fetch
     - read_file

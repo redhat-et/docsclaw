@@ -23,6 +23,9 @@ loop:
   max_iterations: 10
 ```
 
+List every tool you want under `tools.allowed`; an empty or omitted list
+enables none.
+
 ## Full example
 
 ```yaml
@@ -222,11 +225,11 @@ Missing files are skipped silently. Empty files are ignored.
 The final system prompt is assembled in this order:
 
 1. `system-prompt.txt` content (from config directory)
-2. Workspace path injection (`"Your workspace directory is ..."`)
-3. **Workspace context** (`## Project Context` with `### <FILE>`
+1. Workspace path injection (`"Your workspace directory is ..."`)
+1. **Workspace context** (`## Project Context` with `### <FILE>`
    headers per loaded file)
-4. OS tool inventory (if `/etc/docsclaw/tools.json` exists)
-5. Skills summary (if skills are discovered)
+1. OS tool inventory (if `/etc/docsclaw/tools.json` exists)
+1. Skills summary (if skills are discovered)
 
 ### Example output
 
@@ -293,5 +296,5 @@ exists. It works in both phase 1 (single-shot) and phase 2
 priority:
 
 1. `agent-config.yaml` `tools.workspace` (config file wins)
-2. `--workspace` flag or `DOCSCLAW_WORKSPACE` env var
-3. Default: `/workspace`
+1. `--workspace` flag or `DOCSCLAW_WORKSPACE` env var
+1. Default: `/workspace`

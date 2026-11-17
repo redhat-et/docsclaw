@@ -11,7 +11,7 @@ type Registry struct {
 	mu            sync.RWMutex
 	tools         map[string]Tool
 	alwaysAllowed map[string]bool
-	allowedFilter map[string]bool // nil means all allowed
+	allowedFilter map[string]bool // nil means all allowed; an empty map allows none
 }
 
 func NewRegistry(allowedTools []string) *Registry {
@@ -19,7 +19,10 @@ func NewRegistry(allowedTools []string) *Registry {
 		tools:         make(map[string]Tool),
 		alwaysAllowed: make(map[string]bool),
 	}
-	if len(allowedTools) > 0 {
+	// A nil slice means "no filter" (allow all); an explicit empty slice means
+	// "allow none". Callers that build a registry from config must pass an
+	// empty, non-nil slice for an omitted allowlist so tools are denied.
+	if allowedTools != nil {
 		r.allowedFilter = make(map[string]bool, len(allowedTools))
 		for _, name := range allowedTools {
 			r.allowedFilter[name] = true

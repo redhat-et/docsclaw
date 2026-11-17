@@ -55,6 +55,27 @@ func TestRegistryDefinitions(t *testing.T) {
 	}
 }
 
+func TestRegistryEmptyAllowlistDeniesAll(t *testing.T) {
+	r := NewRegistry([]string{})
+	r.Register(&mockTool{name: "test_tool"})
+
+	if _, ok := r.Get("test_tool"); ok {
+		t.Fatal("an explicit empty allowlist must deny every tool")
+	}
+	if defs := r.Definitions(); len(defs) != 0 {
+		t.Fatalf("expected no definitions, got %d", len(defs))
+	}
+}
+
+func TestRegistryAlwaysAllowedWithEmptyFilter(t *testing.T) {
+	r := NewRegistry([]string{})
+	r.RegisterAlwaysAllowed(&mockTool{name: "load_skill"})
+
+	if _, ok := r.Get("load_skill"); !ok {
+		t.Fatal("always-allowed tools must bypass an empty filter")
+	}
+}
+
 func TestRegistryAlwaysAllowed(t *testing.T) {
 	r := NewRegistry([]string{"only_this"})
 	r.Register(&mockTool{name: "only_this"})

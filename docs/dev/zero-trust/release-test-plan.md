@@ -324,6 +324,27 @@ the same `-H "x-session-id: $SID"`. Pass: Bob does not see Alice's turn; with
 `--session-db /tmp/dc-b/sessions.db` the store contains two keys and the file is
 mode `0600`.
 
+### T1.7 results (2026-11-17, local Mac)
+
+Store isolation passes; end-to-end caller isolation does not.
+
+- Two tokens (`sub=alice`, `sub=bob`), same `x-session-id`, one `serve` with
+  `--session-db`: the store held two keys (`alice|azp|sid`, `bob|azp|sid`) and
+  separate `messages` rows. PASS for the session store.
+- Bob still answered "You said 7." Alice had used the `remember` tool to write
+  `MEMORY.md` in the shared workspace; Bob's agent read it with `read_file`.
+  The workspace is per process, not per caller. FAIL for end-to-end isolation.
+- Cause: with `tools.allowed: []` the registry installs no filter, so all five
+  default tools (`exec`, `web_fetch`, `read_file`, `write_file`, `remember`)
+  were enabled (`allowed=5` in the log).
+
+Filed #143 (empty allowlist enables every tool) and #144 (shared workspace and
+`MEMORY.md` across callers). Until those are addressed, T1.7 as written cannot
+pass with a tool-enabled agent; it needs either a tool-free config or
+per-caller workspaces.
+
+File modes: `sessions.db` was `0600`, but `-shm`/`-wal` were `0644` on macOS.
+
 ### T1.8 Two-process A2A (manual WP12)
 
 B as in T1.5. A with `a2a_peers: [{name: engineering-analyst, url:
