@@ -722,9 +722,10 @@ healthy (`401` without a token on `:18101`).
 
 ## T4a — Phase 2 contract with an ES256 test issuer
 
-Not the v2 issuer: `pkg/inboundauth` needs ES256/RS256 plus a JWKS, and the v2
-issuer offers neither. This tier proves the DocsClaw contract — verification,
-deny codes, `a2a_call`, token isolation — with the test issuer from T1.5.
+Not the v2 issuer: when this tier was written (2026-11-06) the v2 issuer
+offered neither ES256/RS256 nor a JWKS. This tier proves the DocsClaw
+contract — verification, deny codes, `a2a_call`, token isolation — with the
+test issuer from T1.5; T4b covers the v2 issuer itself.
 
 Note on injection: a sandbox never needs a placeholder to get a token. The
 supervisor injects `Authorization: Bearer` on **any** request to a bound
@@ -826,6 +827,14 @@ On `rhel01`, from `main` at `f0e4811`:
   strings in A's output, B's log, the proxy log, the supervisor log, and the
   sandbox filesystem.
 
+  This live run covers the success path only. The T1.6 deny rows, B's session
+  store, and the providers' request input were not re-run or inspected in
+  shape 2; shape 1 covers the deny rows live and checks
+  `sessionsB.db{,-wal}`. On the same path,
+  `TestE2E_DenyCodesReachCaller` covers six deny rows and
+  `TestE2E_AgentACallsAgentB` asserts the `jti` marker is absent from B's
+  session store, B's provider input, and A's provider input.
+
   Gotchas: mount config and binaries with `:Z` (SELinux) or the container gets
   `permission denied`; start the testissuer with `-issuer http://issuer:9099`
   so `iss` matches B's config (else `401 invalid_issuer`); restart B after an
@@ -860,8 +869,9 @@ Requirements, all satisfied by v2:
 
 Acceptance: A's `a2a_call` reaches B; B logs `request authenticated` with
 `sub=alice`, `azp` = A's sandbox SVID, `scope=engineering`, and
-`aud=engineering-analyst`; B never logs `jwks_unavailable`; A's trace shows the
-`a2a_call` tool.
+`aud=engineering-analyst`; no failed JWKS path — `jwks_unavailable` is a 503
+response value and is never logged, so the log check is
+`inboundauth: jwks fetch failed`; A's trace shows the `a2a_call` tool.
 
 ### T4b results (2026-11-17) — PASS
 
@@ -876,10 +886,11 @@ A's `a2a_call` reached B, and B logged the verified request:
 "request authenticated" sub="alice" azp="spiffe://openshell.local/openshell/sandbox/<A>" scope="engineering" aud="engineering-analyst account"
 ```
 
-A's trace showed `← a2a_call ok: [completed] ...`, B never logged
-`jwks_unavailable`, and every claim matches the acceptance criteria. The token
-grant, JWKS fetch and audience override all ran inside the stack; no DocsClaw
-change was needed.
+A's trace showed `← a2a_call ok: [completed] ...`, and every claim matches the
+acceptance criteria. B's `serve.log` contains no
+`inboundauth: jwks fetch failed` (0 matches); `jwks_unavailable` is a 503
+response value, not a log line. The token grant, JWKS fetch and audience
+override all ran inside the stack; no DocsClaw change was needed.
 
 Gotcha: the first two runs failed with `502 Bad Gateway` and
 `last_token_grant_failure.code=workload_identity_rejected`. `register_sandbox`
